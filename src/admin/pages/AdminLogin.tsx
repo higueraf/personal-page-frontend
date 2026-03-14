@@ -15,9 +15,7 @@ export default function AdminLogin() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const payload = emailOrUser.includes("@")
-      ? { email: emailOrUser, password }
-      : { username: emailOrUser, password };
+    const payload = { email: emailOrUser, password };
     try {
       await login(payload);
       nav(from, { replace: true });

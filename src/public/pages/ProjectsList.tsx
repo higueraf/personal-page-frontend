@@ -110,9 +110,9 @@ export default function ProjectsList() {
                     {p.description}
                   </p>
                 )}
-                {p.tech_stack?.length > 0 && (
+                {p.tech_stack && p.tech_stack.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: "auto" }}>
-                    {p.tech_stack.slice(0, 5).map(t => (
+                    {p.tech_stack && p.tech_stack.slice(0, 5).map(t => (
                       <span key={t} style={{ background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", padding: "2px 7px", borderRadius: 99, fontSize: ".72rem", color: "var(--color-text-muted)" }}>
                         {t}
                       </span>

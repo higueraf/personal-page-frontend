@@ -101,9 +101,9 @@ export default function Resources() {
               )}
             </div>
 
-            {r.tags?.length > 0 && (
+            {r.tags && r.tags.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                {r.tags.map(t => (
+                {r.tags && r.tags.map(t => (
                   <span key={t} style={{ background: "var(--color-bg-muted)", padding: "1px 7px", borderRadius: 99, fontSize: ".7rem", color: "var(--color-text-muted)", border: "1px solid var(--color-border)" }}>{t}</span>
                 ))}
               </div>

@@ -4,8 +4,8 @@ import { useParams, Link } from "react-router-dom";
 import { Plus, Edit2, Trash2, Code, AlertCircle, ArrowLeft, RefreshCw, GripVertical } from "lucide-react";
 import { adminBlocks, adminPages, type AdminBlock, type BlockType } from "../api";
 
-const BLOCK_LABELS: Record<BlockType, string> = { heading: "Título", paragraph: "Párrafo", list: "Lista", code: "Código", table: "Tabla", callout: "Alerta", divider: "Divisor" };
-const BLOCK_ICONS: Record<BlockType, string> = { heading: "H", paragraph: "P", list: "L", code: "</>", table: "T", callout: "!", divider: "—" };
+const BLOCK_LABELS: Record<BlockType, string> = { heading: "Título", paragraph: "Párrafo", list: "Lista", code: "Código", table: "Tabla", callout: "Alerta", divider: "Divisor", markdown: "Markdown" };
+const BLOCK_ICONS: Record<BlockType, string> = { heading: "H", paragraph: "P", list: "L", code: "</>", table: "T", callout: "!", divider: "—", markdown: "M" };
 const DEFAULT_DATA: Record<BlockType, object> = {
   heading: { level: 2, text: "" },
   paragraph: { text: "" },
@@ -14,6 +14,7 @@ const DEFAULT_DATA: Record<BlockType, object> = {
   table: { headers: ["Col 1"], rows: [["Valor"]] },
   callout: { variant: "info", text: "" },
   divider: {},
+  markdown: { markdown: "" },
 };
 const EMPTY: Partial<AdminBlock> = { type: "paragraph", order: 1, data: { text: "" } };
 

@@ -71,11 +71,11 @@ export default function ProjectDetail() {
         </p>
       )}
 
-      {p.tech_stack?.length > 0 && (
+      {p.tech_stack && p.tech_stack.length > 0 && (
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: ".75rem", fontWeight: 700, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>Stack tecnológico</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {p.tech_stack.map(t => (
+            {p.tech_stack && p.tech_stack.map(t => (
               <span key={t} style={{ background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", padding: "4px 12px", borderRadius: 99, fontSize: ".82rem", color: "var(--color-text)", fontWeight: 500 }}>
                 {t}
               </span>
