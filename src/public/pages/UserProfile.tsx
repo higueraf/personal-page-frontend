@@ -57,7 +57,7 @@ export default function UserProfile() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32 }}>
         {/* Lado izquierdo: Datos básicos */}
         <section style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-lg)", padding: 28 }}>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 24, display: "flex", alignItems: "center", gap: 8 }}>
+          <h2 style={{ fontSize: "1.4rem", fontWeight: 700, marginBottom: 24, display: "flex", alignItems: "center", gap: 8, color: "var(--color-primary)" }}>
             Información Personal
           </h2>
 
@@ -133,7 +133,7 @@ export default function UserProfile() {
              <div style={{ width: 100, height: 100, borderRadius: "50%", background: "var(--color-bg-muted)", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem", fontWeight: 700, color: "var(--color-primary)", border: "4px solid var(--color-surface)", boxShadow: "0 0 0 1px var(--color-border)" }}>
                {user.first_name ? user.first_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
              </div>
-             <h3 style={{ margin: 0, fontSize: "1.25rem" }}>{user.first_name} {user.last_name}</h3>
+             <h3 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700, color: "var(--color-primary)" }}>{user.first_name} {user.last_name}</h3>
              <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem", marginTop: 4 }}>{user.email}</p>
           </div>
 

@@ -1,7 +1,8 @@
-import { NavLink, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useTheme } from "../../shared/theme/ThemeProvider";
 import { useAuth } from "../../shared/auth/useAuth";
+import ScrollNavLink from "./ScrollNavLink";
 import {
   Home, BookOpen, FileText, FolderGit2, User, Package, Phone,
   Menu, X, Terminal, Sun, Moon, ChevronDown, LogOut, Settings
@@ -67,15 +68,15 @@ export default function TopNav() {
       <nav className="nav-bar">
         <div className="nav-inner">
           {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
+            <ScrollNavLink
               key={to}
               to={to}
               end={end}
-              className={({ isActive }) => `nav-btn ${isActive ? "nav-btn--active" : ""}`}
+              className={({ isActive }: { isActive: boolean }) => `nav-btn ${isActive ? "nav-btn--active" : ""}`}
             >
               <Icon size={16} />
               <span>{label}</span>
-            </NavLink>
+            </ScrollNavLink>
           ))}
 
           {/* Auth (usuario logueado) */}
@@ -176,18 +177,18 @@ export default function TopNav() {
             </div>
           ) : (
             <>
-              <NavLink
+              <ScrollNavLink
                 to="/login"
-                className={({ isActive }) => `nav-btn ${isActive ? "nav-btn--active" : ""}`}
+                className={({ isActive }: { isActive: boolean }) => `nav-btn ${isActive ? "nav-btn--active" : ""}`}
               >
                 <span>Login</span>
-              </NavLink>
-              <NavLink
+              </ScrollNavLink>
+              <ScrollNavLink
                 to="/register"
-                className={({ isActive }) => `nav-btn ${isActive ? "nav-btn--active" : ""}`}
+                className={({ isActive }: { isActive: boolean }) => `nav-btn ${isActive ? "nav-btn--active" : ""}`}
               >
                 <span>Register</span>
-              </NavLink>
+              </ScrollNavLink>
             </>
           )}
         </div>
@@ -197,46 +198,46 @@ export default function TopNav() {
       {open && (
         <nav className="mobile-menu">
           {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
+            <ScrollNavLink
               key={to}
               to={to}
               end={end}
               onClick={() => setOpen(false)}
-              className={({ isActive }) => `mobile-nav-btn ${isActive ? "mobile-nav-btn--active" : ""}`}
+              className={({ isActive }: { isActive: boolean }) => `mobile-nav-btn ${isActive ? "mobile-nav-btn--active" : ""}`}
             >
               <Icon size={18} />
               <span>{label}</span>
-            </NavLink>
+            </ScrollNavLink>
           ))}
 
           {!authed ? (
             <>
-              <NavLink
+              <ScrollNavLink
                 to="/login"
                 onClick={() => setOpen(false)}
-                className={({ isActive }) => `mobile-nav-btn ${isActive ? "mobile-nav-btn--active" : ""}`}
+                className={({ isActive }: { isActive: boolean }) => `mobile-nav-btn ${isActive ? "mobile-nav-btn--active" : ""}`}
               >
                 <span>Login</span>
-              </NavLink>
-              <NavLink
+              </ScrollNavLink>
+              <ScrollNavLink
                 to="/register"
                 onClick={() => setOpen(false)}
-                className={({ isActive }) => `mobile-nav-btn ${isActive ? "mobile-nav-btn--active" : ""}`}
+                className={({ isActive }: { isActive: boolean }) => `mobile-nav-btn ${isActive ? "mobile-nav-btn--active" : ""}`}
               >
                 <span>Register</span>
-              </NavLink>
+              </ScrollNavLink>
             </>
           ) : (
-            <NavLink
+            <ScrollNavLink
               to="/admin"
               onClick={() => setOpen(false)}
-              className={({ isActive }) => `mobile-nav-btn ${isActive ? "mobile-nav-btn--active" : ""}`}
+              className={({ isActive }: { isActive: boolean }) => `mobile-nav-btn ${isActive ? "mobile-nav-btn--active" : ""}`}
             >
               <span>Admin</span>
               <span style={{ marginLeft: "auto", opacity: 0.7, fontSize: 12 }}>
                 {user?.first_name ?? ""}
               </span>
-            </NavLink>
+            </ScrollNavLink>
           )}
         </nav>
       )}
