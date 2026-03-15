@@ -1,0 +1,56 @@
+name: ⚛️ Deploy Personal Page to VPS (Nginx)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Create env for build
+        run: |
+          printf "%s" "${{ secrets.REACT_ENV }}" > .env.production
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_KEY }}
+          source: "dist/*"
+          target: "/tmp/personal_page_frontend_build"
+
+      - name: Activate build on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_KEY }}
+          script: |
+            set -e
+
+            mkdir -p /var/www/personal-page-frontend
+            rm -rf /var/www/personal-page-frontend/*
+            cp -r /tmp/personal_page_frontend_build/dist/* /var/www/personal-page-frontend/
+
+            chown -R www-data:www-data /var/www/personal-page-frontend
+
+            nginx -t
+            systemctl reload nginx
