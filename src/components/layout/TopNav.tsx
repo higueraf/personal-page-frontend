@@ -13,8 +13,8 @@ const NAV_ITEMS = [
   { to: "/courses", label: "Cursos", icon: BookOpen },
   { to: "/tutorials", label: "Tutoriales", icon: FileText },
   { to: "/projects", label: "Proyectos", icon: FolderGit2 },
-  { to: "/about", label: "Sobre mí", icon: User },
   { to: "/resources", label: "Recursos", icon: Package },
+  { to: "/about", label: "Sobre mí", icon: User },
   { to: "/contact", label: "Contacto", icon: Phone },
 ];
 

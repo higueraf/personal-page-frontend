@@ -50,8 +50,8 @@ export const router = createBrowserRouter([
       { path: "projects",              element: <ProjectsList /> },
       { path: "projects/:slug",        element: <ProjectDetail /> },
 
-      { path: "about",     element: <About /> },
       { path: "resources", element: <Resources /> },
+      { path: "about",     element: <About /> },
       { path: "contact",   element: <Contact /> },
 
       // Rutas protegidas de cuenta (dentro de PublicLayout)

@@ -135,7 +135,7 @@ export default function About() {
             <section key={type}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, paddingBottom: 10, borderBottom: "1px solid var(--color-border)" }}>
                 <span style={{ color: meta.color }}>{meta.icon}</span>
-                <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.1rem", color: "var(--color-text)", margin: 0 }}>
+                <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.4rem", color: "#2563eb", margin: 0 }}>
                   {meta.label}
                 </h2>
               </div>
