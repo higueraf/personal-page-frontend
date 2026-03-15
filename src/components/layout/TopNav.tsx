@@ -48,7 +48,7 @@ export default function TopNav() {
               <Terminal size={22} />
             </div>
             <div>
-              <div className="brand-name">Francisco Higuera</div>
+              <div className="brand-name">Francisco Javier Higuera González</div>
               <div className="brand-sub">Software Developer · Educator</div>
             </div>
           </Link>
