@@ -207,7 +207,7 @@ export default function TutorialEditor() {
   const { courseId } = useParams<{ courseId: string }>();
   const qc = useQueryClient();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const saveTimer = useRef<NodeJS.Timeout | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Estados básicos
   const [mode, setMode] = useState<"edit" | "preview">("edit");
