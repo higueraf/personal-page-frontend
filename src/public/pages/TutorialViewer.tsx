@@ -130,7 +130,7 @@ function mdToHtml(md: string): string {
         const currentLine = lines[i];
         
         // Línea separadora (|---|---|---)
-        if (currentLine.includes("---")) {
+        if (currentLine.match(/^\|[\s\-\|:]+\|$/)) {
           i++;
           continue;
         }
