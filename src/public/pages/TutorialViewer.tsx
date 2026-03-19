@@ -120,6 +120,60 @@ function mdToHtml(md: string): string {
   while (i < lines.length) {
     const line = lines[i];
 
+    // ── Tablas Markdown ──────────────────────────────────────────────────
+    if (line.includes("|") && line.trim() !== "") {
+      const table: string[] = [];
+      let headerProcessed = false;
+      
+      // Procesar la tabla completa
+      while (i < lines.length && (lines[i].includes("|") || lines[i].trim() === "" || lines[i].includes("|---"))) {
+        const currentLine = lines[i];
+        
+        // Línea separadora (|---|---|---)
+        if (currentLine.includes("---")) {
+          i++;
+          continue;
+        }
+        
+        // Línea de tabla con contenido
+        if (currentLine.includes("|") && currentLine.trim() !== "") {
+          const cells = currentLine.split("|").map(cell => cell.trim()).filter(cell => cell !== "");
+          const isHeader = !headerProcessed;
+          
+          const rowHtml = cells.map(cell => {
+            const cellTag = isHeader ? "th" : "td";
+            const cellStyle = isHeader 
+              ? 'style="background:var(--color-primary-soft);color:var(--color-primary);font-weight:600;padding:12px 16px;border:1px solid var(--color-border);text-align:left;font-family:var(--font-display);"'
+              : 'style="padding:12px 16px;border:1px solid var(--color-border);text-align:left;"';
+            
+            return `<${cellTag} ${cellStyle}>${inl(cell)}</${cellTag}>`;
+          }).join("");
+          
+          const rowTag = isHeader ? "thead" : "tbody";
+          const rowStyle = isHeader 
+            ? 'style="background:var(--color-surface);"' 
+            : '';
+          
+          table.push(`<${rowTag}><tr ${rowStyle}>${rowHtml}</tr></${rowTag}>`);
+          headerProcessed = true;
+        }
+        
+        i++;
+      }
+      
+      if (table.length > 0) {
+        const tableHtml = `
+          <div style="margin:1.5rem 0;overflow-x:auto;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+            <table style="width:100%;border-collapse:collapse;">
+              ${table.join("")}
+            </table>
+          </div>
+        `;
+        out.push(tableHtml);
+      }
+      continue;
+    }
+
     // ── Bloque de código (```) ──────────────────────────────────────────────
     if (line.startsWith("```")) {
       const lang = esc(line.slice(3).trim() || "code");   // ← lang también escapado
@@ -149,7 +203,7 @@ function mdToHtml(md: string): string {
       continue;
     }
 
-    // ── Headings ──────────────────────────────────────────────────────────
+    // ── Headings ──────────────────────────────────────────────────
     const hm = line.match(/^(#{1,6})\s+(.+)/);
     if (hm) {
       const lvl = hm[1].length;
@@ -198,9 +252,9 @@ function mdToHtml(md: string): string {
     if (line.startsWith("> ")) {
       out.push(
         '<div style="border-left:3px solid var(--color-primary);background:var(--color-bg-muted);' +
-        'padding:.8rem 1.1rem;border-radius:0 6px 6px 0;margin:1rem 0;color:var(--color-text-muted);font-style:italic">' +
-        inl(line.slice(2)) +
-        '</div>'
+          'padding:.8rem 1.1rem;border-radius:0 6px 6px 0;margin:1rem 0;color:var(--color-text-muted);font-style:italic">' +
+          inl(line.slice(2)) +
+          '</div>'
       );
       i++;
       continue;
@@ -365,7 +419,7 @@ export default function TutorialViewer() {
                     }}
                   >
                     <span style={{ fontSize: ".7rem", fontFamily: "var(--font-mono)", opacity: .55, flexShrink: 0 }}>
-                      {String(idx + 1).padStart(2, "0")}
+                      {String(p.order || idx + 1).padStart(2, "0")}
                     </span>
                     <span style={{ flex: 1, fontSize: ".85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
                       {p.title}

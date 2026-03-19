@@ -139,6 +139,49 @@ function mdToHtml(md: string): string {
     // Línea vacía
     if (line.trim() === "") { out.push(""); i++; continue; }
 
+    // Tablas Markdown
+    if (line.includes('|')) {
+      const table: string[] = [];
+      let headerProcessed = false;
+      
+      while (i < lines.length && lines[i].includes('|')) {
+        const currentLine = lines[i].trim();
+        
+        // Saltar línea separadora (|---|---|)
+        if (currentLine.match(/^\|[\s\-\|:]+\|$/)) {
+          i++;
+          headerProcessed = true;
+          continue;
+        }
+        
+        const cells = currentLine.split('|').map(cell => cell.trim()).filter(cell => cell);
+        const isHeader = !headerProcessed && table.length === 0;
+        
+        const rowCells = cells.map(cell => {
+          const tag = isHeader ? 'th' : 'td';
+          const style = isHeader 
+            ? 'padding:12px;text-align:left;font-weight:600;background:var(--color-surface);color:var(--color-primary);border-bottom:2px solid var(--color-border)'
+            : 'padding:12px;text-align:left;border-bottom:1px solid var(--color-border)';
+          return `<${tag} style="${style}">${inl(cell)}</${tag}>`;
+        }).join('');
+        
+        table.push(`<tr style="background:${isHeader ? 'var(--color-surface)' : 'transparent'}">${rowCells}</tr>`);
+        i++;
+      }
+      
+      if (table.length > 0) {
+        const tableHtml = `
+          <div style="margin:1.5rem 0;overflow-x:auto;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+            <table style="width:100%;border-collapse:collapse;">
+              ${table.join("")}
+            </table>
+          </div>
+        `;
+        out.push(tableHtml);
+      }
+      continue;
+    }
+
     // Párrafo
     const para: string[] = [];
     while (
@@ -163,19 +206,28 @@ function mdToHtml(md: string): string {
 export default function TutorialEditor() {
   const { courseId } = useParams<{ courseId: string }>();
   const qc = useQueryClient();
-
-  const [activeLessonId, setActiveLessonId] = useState<string | null>(null);
-  const [mode, setMode]       = useState<"edit" | "preview">("edit");
-  const [draft, setDraft]     = useState("");
-  const [saved, setSaved]     = useState(true);
-  const [saving, setSaving]   = useState(false);
-  const [newPageName, setNewPageName] = useState("");
-  const [addingPage, setAddingPage]   = useState(false);
-  const [deleteId, setDeleteId]       = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState<string | null>(null);
-  const [titleDraft, setTitleDraft]     = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const saveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Estados básicos
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [draft, setDraft] = useState("");
+  const [saved, setSaved] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [activeLessonId, setActiveLessonId] = useState<string | null>(null);
+
+  // Estados para drag and drop
+  const [draggedLesson, setDraggedLesson] = useState<AdminLesson | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [localLessons, setLocalLessons] = useState<AdminLesson[]>([]);
+  const dragItemRef = useRef<number | null>(null);
+
+  // Estados UI
+  const [addingPage, setAddingPage] = useState(false);
+  const [newPageName, setNewPageName] = useState("");
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // ── Queries ───────────────────────────────────────────────────────────────
 
@@ -211,6 +263,76 @@ export default function TutorialEditor() {
   useEffect(() => {
     if (lessons.length > 0 && !activeLessonId) setActiveLessonId(lessons[0].id);
   }, [lessons]);
+
+  // Sincronizar localLessons con lessons del backend
+  useEffect(() => {
+    setLocalLessons([...lessons]);
+  }, [lessons]);
+
+  // ── Funciones Drag and Drop ─────────────────────────────────────────────
+
+  const handleDragStart = (e: React.DragEvent, lesson: AdminLesson, index: number) => {
+    setDraggedLesson(lesson);
+    dragItemRef.current = index;
+    
+    // Configurar el data transfer SIN preventDefault para permitir el arrastre
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', lesson.id);
+    e.dataTransfer.setData('application/json', JSON.stringify({ lesson, index }));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // Este sí es necesario para permitir drop
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragOverWithIndex = (e: React.DragEvent, index: number) => {
+    e.preventDefault(); // Este sí es necesario para permitir drop
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // No prevenir el comportamiento por defecto aquí
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault(); // Necesario para prevenir el comportamiento por defecto del navegador
+    setDragOverIndex(null);
+
+    if (draggedLesson && dragItemRef.current !== null && dragItemRef.current !== dropIndex) {
+      const draggedIndex = dragItemRef.current;
+      const newLessons = [...localLessons];
+      
+      // Remover la lección arrastrada
+      const [removed] = newLessons.splice(draggedIndex, 1);
+      
+      // Insertar en la nueva posición
+      newLessons.splice(dropIndex, 0, removed);
+      
+      // Actualizar el orden para todas las lecciones
+      const updatedLessons = newLessons.map((lesson, idx) => ({
+        ...lesson,
+        order: idx + 1
+      }));
+      
+      setLocalLessons(updatedLessons);
+      
+      // Aquí podrías agregar la llamada API para guardar el nuevo orden
+      // saveLessonOrder(updatedLessons);
+    }
+    
+    setDraggedLesson(null);
+    dragItemRef.current = null;
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    // No prevenir el comportamiento por defecto aquí
+    setDraggedLesson(null);
+    setDragOverIndex(null);
+    dragItemRef.current = null;
+  };
 
   // Contenido de la lección activa
   const pageQ = useQuery({
@@ -419,7 +541,7 @@ export default function TutorialEditor() {
         <aside style={S.sidebar}>
           <div style={S.sideHdr}>
             <span style={{ fontSize:".75rem", fontWeight:700, color:"var(--color-text-muted)", letterSpacing:".05em", textTransform:"uppercase" }}>
-              Páginas
+              Páginas (arrastra para reordenar)
             </span>
             <button onClick={() => setAddingPage(true)} title="Nueva página" style={{ background:"var(--color-primary)", border:"none", color:"#fff", borderRadius:"50%", width:22, height:22, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
               <Plus size={13}/>
@@ -449,37 +571,125 @@ export default function TutorialEditor() {
 
           <div style={S.sideList}>
             {lessonsQ.isLoading && <div style={{ padding:"16px", color:"var(--color-text-muted)", fontSize:".8rem", display:"flex", alignItems:"center", gap:6 }}><RefreshCw size={13}/> Cargando…</div>}
-            {!lessonsQ.isLoading && lessons.length === 0 && (
+            {!lessonsQ.isLoading && localLessons.length === 0 && (
               <div style={{ padding:"16px", color:"var(--color-text-muted)", fontSize:".8rem", textAlign:"center" }}>
                 <FileText size={28} style={{ opacity:.3, margin:"0 auto 8px", display:"block" }}/>Sin páginas
               </div>
             )}
-            {lessons.map((l, idx) => (
-              <div key={l.id} onClick={() => { if (editingTitle !== l.id) setActiveLessonId(l.id); }} style={S.pageItem(l.id === activeLessonId)}>
-                <GripVertical size={12} style={{ opacity:.4, flexShrink:0 }}/>
-                <span style={{ fontSize:".72rem", opacity:.5, flexShrink:0, fontFamily:"var(--font-mono)" }}>{String(idx+1).padStart(2,"0")}</span>
-                {editingTitle === l.id ? (
-                  <input autoFocus value={titleDraft} onClick={e => e.stopPropagation()}
-                    onChange={e => setTitleDraft(e.target.value)}
-                    onKeyDown={e => {
-                      e.stopPropagation();
-                      if (e.key === "Enter") renameM.mutate({ id: l.id, title: titleDraft });
-                      if (e.key === "Escape") setEditingTitle(null);
-                    }}
-                    style={{ flex:1, background:"rgba(255,255,255,.1)", border:"1px solid rgba(255,255,255,.3)", color:"#fff", borderRadius:3, padding:"2px 6px", fontSize:".82rem", outline:"none" }}
-                  />
-                ) : (
-                  <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}
-                    onDoubleClick={e => { e.stopPropagation(); setEditingTitle(l.id); setTitleDraft(l.title); }}
-                    title="Doble clic para renombrar">
-                    {l.title}
+            {localLessons.map((l, idx) => {
+              const isActive = l.id === activeLessonId;
+              const isDragged = draggedLesson?.id === l.id;
+              const isDragOver = dragOverIndex === idx;
+
+              return (
+                <div
+                  key={l.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, l, idx)}
+                  onDragOver={(e) => handleDragOverWithIndex(e, idx)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, idx)}
+                  onDragEnd={handleDragEnd}
+                  onClick={() => { 
+                    if (editingTitle !== l.id && !isDragged) {
+                      setActiveLessonId(l.id); 
+                    }
+                  }}
+                  style={{
+                    ...S.pageItem(isActive),
+                    opacity: isDragged ? 0.5 : 1,
+                    transform: isDragOver ? 'scale(1.02)' : 'scale(1)',
+                    borderLeft: isDragOver ? '2px dashed var(--color-primary)' : (isActive ? '3px solid var(--color-accent)' : '3px solid transparent'),
+                    borderTop: 'none',
+                    borderRight: 'none',
+                    borderBottom: 'none',
+                    background: isDragOver ? 'var(--color-primary-soft)' : (isActive ? "var(--color-primary)" : "transparent"),
+                    color: isDragOver ? 'var(--color-primary)' : (isActive ? "#fff" : "var(--color-text)"),
+                    cursor: isDragged ? 'grabbing' : 'grab',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    MozUserSelect: 'none',
+                    msUserSelect: 'none',
+                    transition: 'all 0.2s ease',
+                    margin: '2px 0',
+                    borderRadius: '6px'
+                  }}
+                >
+                  <GripVertical size={12} style={{ 
+                    opacity: isDragged ? 0.8 : 0.4, 
+                    flexShrink: 0,
+                    pointerEvents: 'none',
+                    color: isActive || isDragOver ? "#fff" : "var(--color-text-muted)"
+                  }}/>
+                  <span style={{ 
+                    fontSize:".72rem", 
+                    opacity: isDragged ? 0.8 : 0.5, 
+                    flexShrink: 0, 
+                    fontFamily:"var(--font-mono)",
+                    pointerEvents: 'none',
+                    color: isActive || isDragOver ? "#fff" : "inherit"
+                  }}>
+                    {String(l.order || idx + 1).padStart(2,"0")}
                   </span>
-                )}
-                <button onClick={e => { e.stopPropagation(); setDeleteId(l.id); }} style={{ background:"none", border:"none", color: l.id === activeLessonId ? "rgba(255,255,255,.5)" : "var(--color-text-muted)", cursor:"pointer", padding:2, flexShrink:0, display:"flex", alignItems:"center" }}>
-                  <Trash2 size={13}/>
-                </button>
-              </div>
-            ))}
+                  {editingTitle === l.id ? (
+                    <input autoFocus value={titleDraft} onClick={e => e.stopPropagation()}
+                      onChange={e => setTitleDraft(e.target.value)}
+                      onKeyDown={e => {
+                        e.stopPropagation();
+                        if (e.key === "Enter") renameM.mutate({ id: l.id, title: titleDraft });
+                        if (e.key === "Escape") setEditingTitle(null);
+                      }}
+                      style={{ 
+                        flex:1, 
+                        background:"rgba(255,255,255,.1)", 
+                        border:"1px solid rgba(255,255,255,.3)", 
+                        color:"#fff", 
+                        borderRadius:3, 
+                        padding:"2px 6px", 
+                        fontSize:".82rem", 
+                        outline:"none" 
+                      }}
+                    />
+                  ) : (
+                    <span 
+                      style={{ 
+                        flex:1, 
+                        overflow:"hidden", 
+                        textOverflow:"ellipsis", 
+                        whiteSpace:"nowrap",
+                        pointerEvents: 'auto' // Permitir doble clic
+                      }}
+                      onDoubleClick={e => { 
+                        e.stopPropagation(); 
+                        setEditingTitle(l.id); 
+                        setTitleDraft(l.title); 
+                      }}
+                      title="Doble clic para renombrar">
+                      {l.title}
+                    </span>
+                  )}
+                  <button 
+                    onClick={e => { 
+                      e.stopPropagation(); 
+                      setDeleteId(l.id); 
+                    }} 
+                    style={{ 
+                      background:"none", 
+                      border:"none", 
+                      color: (isActive || isDragOver) ? "rgba(255,255,255,.5)" : "var(--color-text-muted)", 
+                      cursor:"pointer", 
+                      padding:2, 
+                      flexShrink:0, 
+                      display:"flex", 
+                      alignItems:"center",
+                      pointerEvents: isDragged ? 'none' : 'auto'
+                    }}
+                  >
+                    <Trash2 size={13}/>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </aside>
 

@@ -99,7 +99,7 @@ export default function Home() {
               <span /><span /><span />
               <span className="terminal-title">~/projects</span>
             </div>
-            <div className="terminal-body" style={{ minHeight: "300px" }}>
+            <div className="terminal-body" style={{ minHeight: "320px" }}>
               <div><span className="t-prompt">$</span> git status</div>
               <div className="t-ok">✔ working tree clean</div>
               <div><span className="t-prompt">$</span> npm run dev</div>

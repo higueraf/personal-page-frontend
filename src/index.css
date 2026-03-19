@@ -80,6 +80,143 @@
 }
 
 /* ═══════════════════════════════════════════
+   DRAGGABLE STACK
+═══════════════════════════════════════════ */
+.draggable-stack-container {
+  margin-bottom: 16px;
+}
+
+.draggable-stack-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--color-bg-muted);
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+}
+
+.stack-chip.dragging {
+  opacity: 0.5 !important;
+  transform: rotate(2deg) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  z-index: 1000;
+}
+
+.stack-chip.drag-over {
+  border: 2px dashed var(--color-primary) !important;
+  transform: scale(1.05) !important;
+  background: var(--color-primary-soft) !important;
+}
+
+/* ═══════════════════════════════════════════
+   PROFILE PHOTO EFFECTS
+═══════════════════════════════════════════ */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(5deg); }
+}
+
+.computational-effect {
+  position: absolute;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ═══════════════════════════════════════════
+   DRAGGABLE ADMIN MENU
+═══════════════════════════════════════════ */
+.draggable-menu {
+  padding: 16px;
+}
+
+.draggable-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.draggable-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.draggable-menu-item {
+  display: flex;
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  cursor: move;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.draggable-menu-item.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+}
+
+.draggable-menu-item.drag-over {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.drag-handle {
+  padding: 12px 8px;
+  cursor: grab;
+  transition: background 0.2s ease;
+  border-right: 1px solid var(--color-border);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.draggable-menu-link {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px 12px 12px;
+  color: var(--color-text);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.draggable-menu-link:hover {
+  color: var(--color-primary);
+  background: rgba(var(--color-primary-rgb), 0.05);
+}
+
+.draggable-menu-link--active {
+  color: var(--color-primary) !important;
+  background: var(--color-primary-soft) !important;
+  font-weight: 600;
+}
+
+.draggable-menu-link--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--color-primary);
+  border-radius: 0 2px 2px 0;
+}
+
+/* ═══════════════════════════════════════════
    BASE RESET
 ═══════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1360,7 +1497,10 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 640px) {
   .nav-bar { display: none; }
   .mobile-menu-btn { display: flex; }
-  .header-brand { padding: 12px 16px; }
+  .header-brand { padding: 12px 24px; }
+  .brand-icon { width: 40px; height: 40px; }
+  .brand-name { font-size: 1rem; }
+  .brand-sub { font-size: 0.8rem; }
   .highlights-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .cta-band-inner { flex-direction: column; text-align: center; }
   .lesson-content { padding: 24px 18px; }
