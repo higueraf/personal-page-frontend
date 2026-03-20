@@ -319,13 +319,20 @@ export default function TutorialEditor() {
       
       setLocalLessons(updatedLessons);
       
-      // Aquí podrías agregar la llamada API para guardar el nuevo orden
-      // saveLessonOrder(updatedLessons);
+      // Persistir el nuevo orden en el backend
+      reorderM.mutate(updatedLessons.map(l => ({ id: l.id, order: l.order })));
     }
     
     setDraggedLesson(null);
     dragItemRef.current = null;
   };
+
+  const reorderM = useMutation({
+    mutationFn: (items: { id: string; order: number }[]) => adminLessons.reorder(items),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tutorial-lessons", section?.id] });
+    },
+  });
 
   const handleDragEnd = (e: React.DragEvent) => {
     // No prevenir el comportamiento por defecto aquí

@@ -163,6 +163,8 @@ export const adminLessons = {
     create<AdminLesson>("/lessons", body),
   update: (pk: string, body: Partial<AdminLesson>) =>
     update<AdminLesson>(`/lessons/${pk}`, body),
+  reorder: (items: { id: string; order: number }[]) =>
+    http.post("/lessons/reorder", { items }).then((r) => r.data),
   delete: (pk: string) => remove(`/lessons/${pk}`),
 };
 
