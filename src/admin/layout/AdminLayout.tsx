@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, BookOpen, Video, LogOut, Terminal, Users, FolderGit2, UserCircle, BookMarked, MessageSquare } from "lucide-react";
+import { LayoutDashboard, BookOpen, Video, LogOut, Terminal, Users, FolderGit2, UserCircle, BookMarked, MessageSquare, Globe, Cpu } from "lucide-react";
 import { useAuth } from "../../shared/auth/useAuth";
 
 const MENU = [
@@ -10,6 +10,7 @@ const MENU = [
   { to: "/admin/profile",       label: "Perfil / CV",icon: UserCircle },
   { to: "/admin/resources",     label: "Recursos",   icon: BookMarked },
   { to: "/admin/contact",       label: "Contacto",   icon: MessageSquare },
+  { to: "/admin/assignments", label: "Exámenes",    icon: Cpu },
   { to: "/admin/users",         label: "Usuarios",   icon: Users },
 ];
 
@@ -43,7 +44,14 @@ export default function AdminLayout() {
 
       <div className="admin-body">
         <aside className="admin-sidebar">
-          <div className="admin-sidebar-label">Menú</div>
+          <NavLink to="/" className="admin-sidebar-item" style={{ marginBottom: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "var(--radius-md)" }}>
+            <Globe size={16} style={{ color: "var(--color-accent)" }} /> 
+            <span style={{ fontWeight: 600 }}>Ir al sitio</span>
+          </NavLink>
+          
+          <div className="admin-sidebar-header-line" style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "0 0 16px 0" }}></div>
+
+          <div className="admin-sidebar-label">Menú del Sistema</div>
           {MENU.map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end}
               className={({ isActive }) => `admin-sidebar-item ${isActive ? "admin-sidebar-item--active" : ""}`}>

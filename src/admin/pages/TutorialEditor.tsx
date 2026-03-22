@@ -14,6 +14,7 @@ import {
   adminCourses, adminSections, adminLessons, adminPages, adminBlocks,
   type AdminSection, type AdminLesson, type AdminPage, type AdminBlock,
 } from "../api";
+import hljs from "highlight.js";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -26,11 +27,17 @@ interface TutorialPage {
 
 // ── Parser Markdown → HTML (usa variables CSS del tema activo) ────────────────
 
-function esc(s: string) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function esc(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-function inl(s: string): string {
+function inl(raw: string): string {
+  const s = esc(raw);
   return s
     .replace(/`([^`]+)`/g,
       '<code style="background:var(--color-bg-muted);padding:1px 6px;border-radius:4px;' +
@@ -58,9 +65,21 @@ function mdToHtml(md: string): string {
       const code: string[] = [];
       i++;
       while (i < lines.length && !lines[i].startsWith("```")) {
-        code.push(esc(lines[i]));
+        code.push(lines[i]);
         i++;
       }
+
+      let highlightedCode = "";
+      try {
+        if (lang && hljs.getLanguage(lang)) {
+          highlightedCode = hljs.highlight(code.join("\n"), { language: lang }).value;
+        } else {
+          highlightedCode = hljs.highlightAuto(code.join("\n")).value;
+        }
+      } catch (e) {
+        highlightedCode = esc(code.join("\n"));
+      }
+
       const id = "cb" + Math.random().toString(36).slice(2, 7);
       out.push(
         '<div style="margin:1.25rem 0">' +
@@ -78,7 +97,7 @@ function mdToHtml(md: string): string {
           '<pre id="' + id + '" style="background:var(--color-bg-muted);margin:0;padding:1.1rem 1.25rem;' +
                'border-radius:0 0 6px 6px;overflow-x:auto;border:1px solid var(--color-border);' +
                'border-top:none;font-family:var(--font-mono);font-size:.87rem;line-height:1.6;' +
-               'color:var(--color-text)"><code>' + code.join("\n") + '</code></pre>' +
+               'color:var(--color-text)"><code>' + highlightedCode + '</code></pre>' +
         '</div>'
       );
       i++; continue;

@@ -17,6 +17,8 @@ import Resources         from "../public/pages/Resources";
 import Contact           from "../public/pages/Contact";
 import UserProfile       from "../public/pages/UserProfile";
 import UserSettings      from "../public/pages/UserSettings";
+import PlaygroundList     from "../public/pages/Playground/PlaygroundList";
+import PlaygroundIDE      from "../public/pages/Playground/PlaygroundIDE";
 
 // ── Páginas admin ─────────────────────────────────────────────────────────────
 import AdminLayout       from "../admin/layout/AdminLayout";
@@ -30,6 +32,7 @@ import AdminProjects     from "../admin/pages/AdminProjects";
 import AdminProfile      from "../admin/pages/AdminProfile";
 import AdminResources    from "../admin/pages/AdminResources";
 import AdminContact      from "../admin/pages/AdminContact";
+import AdminAssignments  from "../admin/pages/AdminAssignments";
 
 export const router = createBrowserRouter([
   // ── Público ───────────────────────────────────────────────────────────────
@@ -60,8 +63,17 @@ export const router = createBrowserRouter([
         children: [
           { path: "profile",  element: <UserProfile /> },
           { path: "settings", element: <UserSettings /> },
+          { path: "playground", element: <PlaygroundList /> },
         ]
       }
+    ],
+  },
+
+  // ── Playground IDE (full-screen, sin navbar) ─────────────────────────────
+  {
+    element: <RequireAuth />,
+    children: [
+      { path: "/playground/:id", element: <PlaygroundIDE /> },
     ],
   },
 
@@ -88,6 +100,7 @@ export const router = createBrowserRouter([
           { path: "profile",   element: <AdminProfile /> },
           { path: "resources", element: <AdminResources /> },
           { path: "contact",   element: <AdminContact /> },
+          { path: "assignments", element: <AdminAssignments /> },
           { path: "users",     element: <AdminUsers /> },
         ],
       },
