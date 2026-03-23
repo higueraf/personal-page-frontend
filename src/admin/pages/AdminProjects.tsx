@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FolderGit2, Plus, Pencil, Trash2, RefreshCw, X, Save, Globe, Github } from "lucide-react";
 import http from "../../shared/api/http";
+import Pagination from "../../shared/components/Pagination";
 
 type Status = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 interface Project { id: string; title: string; slug: string; description?: string; long_description?: string; tech_stack?: string[]; url?: string; repo_url?: string; thumbnail?: string; order: number; status: Status; }
@@ -19,9 +20,12 @@ export default function AdminProjects() {
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [form,  setForm]  = useState<Partial<Project>>(EMPTY);
   const [stackInput, setStackInput] = useState("");
+  const [page, setPage] = useState(1);
 
-  const listQ = useQuery({ queryKey: ["admin-projects"], queryFn: () => http.get("/projects").then(r => r.data) });
+  const listQ = useQuery({ queryKey: ["admin-projects", page], queryFn: () => http.get("/projects", { params: { page, page_size: 20 } }).then(r => r.data) });
   const projects: Project[] = listQ.data?.data ?? [];
+  const meta = listQ.data?.meta;
+  const totalPages = meta ? Math.ceil(meta.total_records / meta.page_size) : 1;
 
   const save = useMutation({
     mutationFn: (p: Partial<Project>) => p.id ? http.put(`/projects/${p.id}`, p).then(r => r.data) : http.post("/projects", p).then(r => r.data),
@@ -92,6 +96,14 @@ export default function AdminProjects() {
           </table>
         )}
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        total={meta?.total_records}
+        itemLabel="proyectos"
+      />
 
       {/* Modal */}
       {modal && (

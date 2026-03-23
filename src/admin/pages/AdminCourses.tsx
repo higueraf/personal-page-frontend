@@ -6,6 +6,7 @@ import {
   Search, RefreshCw, AlertCircle,
 } from "lucide-react";
 import { adminCourses, type AdminCourse, type CourseStatus } from "../api";
+import Pagination from "../../shared/components/Pagination";
 
 const STATUS_LABELS: Record<CourseStatus, string> = {
   DRAFT: "Borrador",
@@ -48,6 +49,7 @@ export default function AdminCourses() {
 
   const courses = listQ.data?.data ?? [];
   const meta = listQ.data?.meta;
+  const totalPages = meta ? Math.ceil(meta.total_records / meta.page_size) : 1;
 
   // ── Mutations ──────────────────────────────────────────────────────
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-courses"] });
@@ -225,20 +227,13 @@ export default function AdminCourses() {
         </div>
       )}
 
-      {/* Paginación */}
-      {meta && meta.page_size > 1 && (
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="nav-pill" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} style={{ opacity: page <= 1 ? .4 : 1 }}>
-            ← Anterior
-          </button>
-          <span style={{ display: "flex", alignItems: "center", fontFamily: "var(--font-mono)", fontSize: ".78rem", color: "var(--color-text-muted)", padding: "0 12px" }}>
-            {page} / {meta.page_size}
-          </span>
-          <button className="nav-pill" onClick={() => setPage((p) => p + 1)} disabled={page >= meta.page_size} style={{ opacity: page >= meta.page_size ? .4 : 1 }}>
-            Siguiente →
-          </button>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        total={meta?.total_records}
+        itemLabel="cursos"
+      />
 
       {/* ── Modal crear / editar ── */}
       {modal && (

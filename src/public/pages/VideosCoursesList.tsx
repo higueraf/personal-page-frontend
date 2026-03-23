@@ -4,15 +4,18 @@ import { useQuery } from "@tanstack/react-query";
 import { Video, Search, ChevronRight, RefreshCw, Lock } from "lucide-react";
 import http from "../../shared/api/http";
 import { useAuth } from "../../shared/auth/useAuth";
+import Pagination from "../../shared/components/Pagination";
 
 interface Course {
   id: string; title: string; slug: string;
   description?: string; level?: string; thumbnail?: string;
 }
 
-const fetchCourses = (search?: string) =>
-  http.get("/public/video-courses", { params: search ? { search } : {} })
-    .then(r => r.data.data as Course[]);
+interface Meta { total_records: number; page: number; page_size: number; }
+
+const fetchCourses = (search?: string, page = 1) =>
+  http.get("/public/video-courses", { params: { ...(search ? { search } : {}), page, page_size: 12 } })
+    .then(r => r.data as { data: Course[]; meta: Meta });
 
 const LEVEL_COLOR: Record<string, string> = {
   Principiante: "#22c55e", Intermedio: "#3b6ef0", Avanzado: "#ef4444",
@@ -34,12 +37,18 @@ const inp: React.CSSProperties = {
 export default function PublicCoursesList() {
   const [search, setSearch] = useState("");
   const [q, setQ]           = useState("");
+  const [page, setPage]     = useState(1);
   const { user }            = useAuth();
 
-  const { data: courses = [], isLoading } = useQuery({
-    queryKey: ["public-vcourses", q],
-    queryFn:  () => fetchCourses(q || undefined),
+  const { data, isLoading } = useQuery({
+    queryKey:        ["public-vcourses", q, page],
+    queryFn:         () => fetchCourses(q || undefined, page),
+    placeholderData: (prev) => prev,
   });
+
+  const courses    = data?.data ?? [];
+  const meta       = data?.meta;
+  const totalPages = meta ? Math.ceil(meta.total_records / meta.page_size) : 1;
 
   return (
     <div style={{ maxWidth: 860, margin: "0 auto", padding: "40px 24px" }}>
@@ -88,7 +97,7 @@ export default function PublicCoursesList() {
       )}
 
       {/* Búsqueda */}
-      <form onSubmit={e => { e.preventDefault(); setQ(search); }} style={{ display: "flex", gap: 10, marginBottom: 28 }}>
+      <form onSubmit={e => { e.preventDefault(); setQ(search); setPage(1); }} style={{ display: "flex", gap: 10, marginBottom: 28 }}>
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-muted)" }} />
           <input placeholder="Buscar cursos…" value={search} onChange={e => setSearch(e.target.value)} style={inp} />
@@ -111,7 +120,7 @@ export default function PublicCoursesList() {
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 8 }}>
         {courses.map(c => (
           <Link key={c.id} to={`/courses/${c.slug}`} style={{ textDecoration: "none" }}>
             <div
@@ -149,6 +158,14 @@ export default function PublicCoursesList() {
           </Link>
         ))}
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        total={meta?.total_records}
+        itemLabel="cursos"
+      />
     </div>
   );
 }

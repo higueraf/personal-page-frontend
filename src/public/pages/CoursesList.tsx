@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, BookOpen, Clock, Search } from "lucide-react";
 import { useState } from "react";
 import { getPublicCourses, type Course } from "../api";
+import Pagination from "../../shared/components/Pagination";
 
 const LEVEL_BADGE: Record<string, string> = {
   Básico: "badge--green",
@@ -22,6 +23,7 @@ export default function CoursesList() {
 
   const courses: Course[] = q.data?.data ?? [];
   const meta = q.data?.meta;
+  const totalPages = meta ? Math.ceil(meta.total_records / meta.page_size) : 1;
 
   return (
     <div>
@@ -109,34 +111,13 @@ export default function CoursesList() {
                 ))}
               </div>
 
-              {/* Paginación */}
-              {meta && meta.page_size > 1 && (
-                <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 40 }}>
-                  <button
-                    className="nav-pill"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page <= 1}
-                    style={{ opacity: page <= 1 ? .4 : 1 }}
-                  >
-                    ← Anterior
-                  </button>
-                  <span style={{
-                    display: "flex", alignItems: "center",
-                    fontFamily: "var(--font-mono)", fontSize: ".8rem",
-                    color: "var(--color-text-muted)", padding: "0 12px",
-                  }}>
-                    Página {page} / {meta.page_size}
-                  </span>
-                  <button
-                    className="nav-pill"
-                    onClick={() => setPage((p) => p + 1)}
-                    disabled={page >= meta.page_size}
-                    style={{ opacity: page >= meta.page_size ? .4 : 1 }}
-                  >
-                    Siguiente →
-                  </button>
-                </div>
-              )}
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                total={meta?.total_records}
+                itemLabel="cursos"
+              />
             </>
           )}
         </div>

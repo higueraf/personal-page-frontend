@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { BookMarked, Plus, Pencil, Trash2, RefreshCw, X, Save } from "lucide-react";
 import http from "../../shared/api/http";
+import Pagination from "../../shared/components/Pagination";
 
 type ResType = "LINK" | "BOOK" | "TOOL" | "COURSE" | "VIDEO" | "ARTICLE" | "OTHER";
 interface Resource { id: string; title: string; description?: string; type: ResType; url?: string; tags?: string[]; is_free: boolean; is_published: boolean; order: number; }

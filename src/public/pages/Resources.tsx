@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BookMarked, Search, RefreshCw, ExternalLink, ArrowRight } from "lucide-react";
 import http from "../../shared/api/http";
+import Pagination from "../../shared/components/Pagination";
 
 interface Resource {
   id: string; title: string; description?: string;
@@ -119,19 +120,13 @@ export default function Resources() {
         ))}
       </div>
 
-      {totalPages > 1 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center", marginTop: 36 }}>
-          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-            style={{ background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "8px 16px", cursor: page <= 1 ? "not-allowed" : "pointer", color: "var(--color-text)", fontSize: ".85rem", opacity: page <= 1 ? .4 : 1 }}>
-            ← Anterior
-          </button>
-          <span style={{ fontSize: ".82rem", color: "var(--color-text-muted)" }}>{page} / {totalPages} · {meta?.total_records} recursos</span>
-          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-            style={{ background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "8px 16px", cursor: page >= totalPages ? "not-allowed" : "pointer", color: "var(--color-text)", fontSize: ".85rem", opacity: page >= totalPages ? .4 : 1 }}>
-            Siguiente →
-          </button>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        total={meta?.total_records}
+        itemLabel="recursos"
+      />
     </div>
   );
 }

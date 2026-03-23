@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, CheckCircle, XCircle, Clock, Ban, ChevronDown, Search, RefreshCw } from "lucide-react";
 import http from "../../shared/api/http";
+import Pagination from "../../shared/components/Pagination";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -252,16 +253,13 @@ export default function AdminUsers() {
         )}
       </div>
 
-      {/* Paginación */}
-      {totalPages > 1 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end" }}>
-          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={btnSecondary}>← Anterior</button>
-          <span style={{ fontSize: ".82rem", color: "var(--color-text-muted)" }}>
-            Página {page} de {totalPages} · {meta?.total_records} usuarios
-          </span>
-          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} style={btnSecondary}>Siguiente →</button>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        total={meta?.total_records}
+        itemLabel="usuarios"
+      />
 
       {/* Modal de edición */}
       {editing && (

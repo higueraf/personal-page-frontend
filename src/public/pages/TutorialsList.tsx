@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Search, ChevronRight, RefreshCw } from "lucide-react";
 import http from "../../shared/api/http";
+import Pagination from "../../shared/components/Pagination";
 
 interface Tutorial {
   id: string;
@@ -17,9 +18,11 @@ interface Tutorial {
   level?: string;
 }
 
-async function fetchTutorials(search?: string) {
-  const r = await http.get("/public/tutorials", { params: search ? { search } : {} });
-  return r.data.data as Tutorial[];
+interface Meta { total_records: number; page: number; page_size: number; }
+
+async function fetchTutorials(search?: string, page = 1) {
+  const r = await http.get("/public/tutorials", { params: { ...(search ? { search } : {}), page, page_size: 12 } });
+  return r.data as { data: Tutorial[]; meta: Meta };
 }
 
 const LEVEL_CLS: Record<string, string> = {
@@ -30,12 +33,18 @@ const LEVEL_CLS: Record<string, string> = {
 
 export default function TutorialsList() {
   const [search, setSearch] = useState("");
-  const [q, setQ] = useState("");
+  const [q, setQ]           = useState("");
+  const [page, setPage]     = useState(1);
 
-  const { data: tutorials = [], isLoading } = useQuery({
-    queryKey: ["public-tutorials", q],
-    queryFn: () => fetchTutorials(q || undefined),
+  const { data, isLoading } = useQuery({
+    queryKey:        ["public-tutorials", q, page],
+    queryFn:         () => fetchTutorials(q || undefined, page),
+    placeholderData: (prev) => prev,
   });
+
+  const tutorials  = data?.data ?? [];
+  const meta       = data?.meta;
+  const totalPages = meta ? Math.ceil(meta.total_records / meta.page_size) : 1;
 
   return (
     <div style={{ maxWidth: 860, margin: "0 auto", padding: "40px 24px" }}>
@@ -55,7 +64,7 @@ export default function TutorialsList() {
 
       {/* Buscador */}
       <form
-        onSubmit={e => { e.preventDefault(); setQ(search); }}
+        onSubmit={e => { e.preventDefault(); setQ(search); setPage(1); }}
         style={{ display: "flex", gap: 10, marginBottom: 28 }}
       >
         <div style={{ position: "relative", flex: 1 }}>
@@ -95,7 +104,7 @@ export default function TutorialsList() {
       )}
 
       {/* Grid de tutoriales */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 8 }}>
         {tutorials.map(t => (
           <Link
             key={t.id}
@@ -138,6 +147,14 @@ export default function TutorialsList() {
           </Link>
         ))}
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        total={meta?.total_records}
+        itemLabel="tutoriales"
+      />
     </div>
   );
 }

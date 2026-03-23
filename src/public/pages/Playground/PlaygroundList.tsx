@@ -68,10 +68,10 @@ export default function PlaygroundList() {
         {/* ── Header ── */}
         <div className="mb-10">
           <h1 className="text-3xl font-bold text-[--color-text] mb-2">
-            🧠 Code Playground
+            Code Playground
           </h1>
           <p className="text-[--color-text-muted] text-sm">
-            Editor online estilo StackBlitz — Monaco Editor · xterm.js · preview en vivo · Python · Kotlin · Dart · React · Vue · Angular
+            Compatible con Python · Node.js · TypeScript · Kotlin · Dart · HTML/CSS/JS · React · Vue · Angular — con Monaco Editor, terminal integrada y preview en vivo
           </p>
         </div>
 
