@@ -5,7 +5,7 @@ import { useAuth } from "../../shared/auth/useAuth";
 import ScrollNavLink from "./ScrollNavLink";
 import {
   Home, BookOpen, FileText, FolderGit2, User, Package, Phone,
-  Menu, X, Terminal, Sun, Moon, ChevronDown, LogOut, Settings
+  Menu, X, Terminal, Sun, Moon, ChevronDown, LogOut, Settings, Shield
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -26,6 +26,13 @@ export default function TopNav() {
   const [profileOpen, setProfileOpen] = useState(false);
 
   const authed = status === "authenticated";
+
+  // Verificar si el usuario es administrador
+  const isAdmin = authed && (
+    user?.role?.name === 'admin' || 
+    user?.permissions?.includes('admin') ||
+    user?.permissions?.includes('admin_access')
+  );
 
   const getUserInitials = () => {
     if (user?.first_name && user?.last_name) {
@@ -83,6 +90,18 @@ export default function TopNav() {
           {/* Auth (usuario logueado) */}
           {authed ? (
             <div className="user-profile-section">
+              {/* Botón de administración para admin */}
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className="nav-btn nav-btn--admin"
+                  title="Panel de Administración"
+                >
+                  <Shield size={16} />
+                  <span>Admin</span>
+                </Link>
+              )}
+              
               <div className="user-avatar-container">
                 <button
                   className="user-avatar-btn"
@@ -229,16 +248,28 @@ export default function TopNav() {
               </ScrollNavLink>
             </>
           ) : (
-            <ScrollNavLink
-              to="/admin"
-              onClick={() => setOpen(false)}
-              className={({ isActive }: { isActive: boolean }) => `mobile-nav-btn ${isActive ? "mobile-nav-btn--active" : ""}`}
-            >
-              <span>Admin</span>
-              <span style={{ marginLeft: "auto", opacity: 0.7, fontSize: 12 }}>
-                {user?.first_name ?? ""}
-              </span>
-            </ScrollNavLink>
+            <>
+              {/* Botón de administración para admin en móvil */}
+              {isAdmin && (
+                <ScrollNavLink
+                  to="/admin"
+                  onClick={() => setOpen(false)}
+                  className={({ isActive }: { isActive: boolean }) => `mobile-nav-btn mobile-nav-btn--admin ${isActive ? "mobile-nav-btn--active" : ""}`}
+                >
+                  <Shield size={18} />
+                  <span>Panel de Admin</span>
+                </ScrollNavLink>
+              )}
+              
+              <ScrollNavLink
+                to="/profile"
+                onClick={() => setOpen(false)}
+                className={({ isActive }: { isActive: boolean }) => `mobile-nav-btn ${isActive ? "mobile-nav-btn--active" : ""}`}
+              >
+                <User size={18} />
+                <span>Mi Perfil</span>
+              </ScrollNavLink>
+            </>
           )}
         </nav>
       )}

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BookOpen, ArrowRight, LayoutDashboard } from "lucide-react";
+import { BookOpen, ArrowRight, LayoutDashboard, Globe, ExternalLink } from "lucide-react";
 
 export default function AdminDashboard() {
   return (
@@ -16,6 +16,38 @@ export default function AdminDashboard() {
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
+        {/* Enlace a Página Pública */}
+        <a
+          href="/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            background: "rgba(34, 197, 94, 0.06)",
+            border: "1.5px solid rgba(34, 197, 94, 0.15)",
+            borderRadius: "var(--radius-lg)",
+            padding: "22px 20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            cursor: "pointer",
+            transition: "all .2s",
+            textDecoration: "none",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
+        >
+          <Globe size={26} style={{ color: "#16a34a" }} />
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, color: "var(--color-text)", fontSize: "1rem" }}>
+            Página Pública
+          </div>
+          <div style={{ fontSize: ".8rem", color: "var(--color-text-muted)" }}>
+            Ver sitio como visitante
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".82rem", color: "#16a34a", fontWeight: 600, marginTop: 4 }}>
+            Abrir <ExternalLink size={13} />
+          </div>
+        </a>
+
         <Link
           to="/admin/courses"
           style={{
