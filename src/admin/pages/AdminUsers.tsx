@@ -1,25 +1,34 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, CheckCircle, XCircle, Clock, Ban, ChevronDown, Search, RefreshCw } from "lucide-react";
+import {
+  Users, CheckCircle, XCircle, Clock, Ban, ChevronDown,
+  Search, RefreshCw, BookOpen, GraduationCap, Building2,
+} from "lucide-react";
 import http from "../../shared/api/http";
 import Pagination from "../../shared/components/Pagination";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
 type UserStatus = "PENDING" | "APPROVED" | "SUSPENDED" | "REJECTED";
+type UserType   = "student" | "public";
+
+interface Institution { id: string; name: string; }
+interface StudyCourse  { id: string; name: string; institution_id?: string | null; }
+interface Role         { id: string; name: string; }
 
 interface AdminUser {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  status: UserStatus;
-  is_active: boolean;
-  role: { id: string; name: string } | null;
-  created_at: string;
+  id:           string;
+  first_name:   string;
+  last_name:    string;
+  email:        string;
+  status:       UserStatus;
+  is_active:    boolean;
+  user_type:    UserType;
+  role:         Role | null;
+  institution:  Institution | null;
+  study_course: StudyCourse | null;
+  created_at:   string;
 }
-
-interface Role { id: string; name: string; }
 
 // ── API ────────────────────────────────────────────────────────────────────────
 
@@ -31,14 +40,36 @@ async function fetchUsers(params: { status?: string; search?: string; page: numb
   return r.data as { data: AdminUser[]; meta: { total_records: number; page: number; page_size: number } };
 }
 
-async function fetchRoles() {
-  const r = await http.get("/admin/users/roles");
-  return r.data.data as Role[];
+async function fetchRoles()        { return (await http.get("/admin/users/roles")).data.data as Role[]; }
+async function fetchInstitutions() { return (await http.get("/admin/institutions")).data.data as Institution[]; }
+async function fetchStudyCourses(institution_id?: string) {
+  const params: any = {};
+  if (institution_id) params.institution_id = institution_id;
+  return (await http.get("/admin/study-courses", { params })).data.data as StudyCourse[];
 }
 
-async function patchUser(id: string, body: { status?: UserStatus; role_id?: string }) {
+async function patchUser(id: string, body: {
+  status?:          UserStatus;
+  role_id?:         string;
+  user_type?:       UserType;
+  institution_id?:  string | null;
+  study_course_id?: string | null;
+}) {
   const r = await http.patch(`/admin/users/${id}`, body);
   return r.data.data as AdminUser;
+}
+
+async function assignExam(payload: {
+  studentIds:      string[];
+  name:            string;
+  language:        string;
+  materia?:        string;
+  start_time?:     string;
+  end_time?:       string;
+  allow_copy_paste: boolean;
+}) {
+  const r = await http.post("/playground/admin/assign-exam", payload);
+  return r.data;
 }
 
 // ── Helpers visuales ───────────────────────────────────────────────────────────
@@ -73,35 +104,76 @@ export default function AdminUsers() {
   const [search,       setSearch]       = useState("");
   const [searchInput,  setSearchInput]  = useState("");
   const [page,         setPage]         = useState(1);
-  const [editing,      setEditing]      = useState<AdminUser | null>(null);
-  const [newStatus,    setNewStatus]    = useState<UserStatus>("APPROVED");
-  const [newRoleId,    setNewRoleId]    = useState<string>("");
 
-  const usersQ = useQuery({
+  // Edit modal
+  const [editing,          setEditing]          = useState<AdminUser | null>(null);
+  const [newStatus,        setNewStatus]        = useState<UserStatus>("APPROVED");
+  const [newRoleId,        setNewRoleId]        = useState<string>("");
+  const [newUserType,      setNewUserType]      = useState<UserType>("public");
+  const [newInstitutionId, setNewInstitutionId] = useState<string>("");
+  const [newStudyCourseId, setNewStudyCourseId] = useState<string>("");
+
+  // Assign exam modal
+  const [examTarget, setExamTarget]           = useState<AdminUser | null>(null);
+  const [examName,   setExamName]             = useState("");
+  const [examLang,   setExamLang]             = useState("python");
+  const [examMateria,setExamMateria]          = useState("");
+  const [examStart,  setExamStart]            = useState("");
+  const [examEnd,    setExamEnd]              = useState("");
+  const [examCopyPaste, setExamCopyPaste]     = useState(false);
+
+  // ── Queries ──
+  const usersQ         = useQuery({
     queryKey: ["admin-users", statusFilter, search, page],
     queryFn:  () => fetchUsers({ status: statusFilter || undefined, search: search || undefined, page }),
   });
+  const rolesQ         = useQuery({ queryKey: ["admin-roles"],        queryFn: fetchRoles });
+  const institutionsQ  = useQuery({ queryKey: ["admin-institutions"], queryFn: fetchInstitutions });
+  const studyCoursesQ  = useQuery({
+    queryKey: ["admin-study-courses", newInstitutionId],
+    queryFn:  () => fetchStudyCourses(newInstitutionId || undefined),
+    enabled:  true,
+  });
 
-  const rolesQ = useQuery({ queryKey: ["admin-roles"], queryFn: fetchRoles });
-
+  // ── Mutations ──
   const mutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { status?: UserStatus; role_id?: string } }) =>
+    mutationFn: ({ id, body }: { id: string; body: Parameters<typeof patchUser>[1] }) =>
       patchUser(id, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-users"] });
       setEditing(null);
+    },
+    onError: (err: any) => {
+      console.error("Error al actualizar usuario:", err?.response?.data ?? err);
+    },
+  });
+
+  const examMutation = useMutation({
+    mutationFn: assignExam,
+    onSuccess: () => {
+      setExamTarget(null);
+      alert("Examen asignado correctamente.");
+    },
+    onError: (err: any) => {
+      console.error("Error al asignar examen:", err?.response?.data ?? err);
     },
   });
 
   const users   = usersQ.data?.data ?? [];
   const meta    = usersQ.data?.meta;
   const roles   = rolesQ.data ?? [];
+  const institutions = institutionsQ.data ?? [];
+  const studyCourses = studyCoursesQ.data ?? [];
   const pending = users.filter((u) => u.status === "PENDING").length;
 
+  // ── Handlers ──
   function openEdit(u: AdminUser) {
     setEditing(u);
     setNewStatus(u.status);
     setNewRoleId(u.role?.id ?? "");
+    setNewUserType(u.user_type ?? "public");
+    setNewInstitutionId(u.institution?.id ?? "");
+    setNewStudyCourseId(u.study_course?.id ?? "");
   }
 
   function applyEdit() {
@@ -109,14 +181,40 @@ export default function AdminUsers() {
     mutation.mutate({
       id: editing.id,
       body: {
-        status:  newStatus,
-        role_id: newRoleId || undefined,
+        status:          newStatus,
+        role_id:         newRoleId || undefined,
+        user_type:       newUserType,
+        institution_id:  newInstitutionId || null,
+        study_course_id: newStudyCourseId || null,
       },
     });
   }
 
   function quickApprove(u: AdminUser) {
     mutation.mutate({ id: u.id, body: { status: "APPROVED" } });
+  }
+
+  function openExamModal(u: AdminUser) {
+    setExamTarget(u);
+    setExamName("");
+    setExamLang("python");
+    setExamMateria("");
+    setExamStart("");
+    setExamEnd("");
+    setExamCopyPaste(false);
+  }
+
+  function submitExam() {
+    if (!examTarget || !examName.trim()) return;
+    examMutation.mutate({
+      studentIds:      [examTarget.id],
+      name:            examName.trim(),
+      language:        examLang,
+      materia:         examMateria || undefined,
+      start_time:      examStart || undefined,
+      end_time:        examEnd   || undefined,
+      allow_copy_paste: examCopyPaste,
+    });
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -191,7 +289,7 @@ export default function AdminUsers() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-muted)" }}>
-                {["Nombre", "Email", "Rol", "Estado", "Registro", "Acciones"].map((h) => (
+                {["Nombre", "Email", "Rol", "Tipo", "Estado", "Registro", "Acciones"].map((h) => (
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
               </tr>
@@ -203,9 +301,17 @@ export default function AdminUsers() {
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
                   <td style={tdStyle}>
-                    <span style={{ fontWeight: 600, color: "var(--color-text)", fontSize: ".88rem" }}>
-                      {u.first_name} {u.last_name}
-                    </span>
+                    <div>
+                      <span style={{ fontWeight: 600, color: "var(--color-text)", fontSize: ".88rem" }}>
+                        {u.first_name} {u.last_name}
+                      </span>
+                      {u.institution && (
+                        <div style={{ fontSize: ".73rem", color: "var(--color-text-muted)", display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
+                          <Building2 size={10} /> {u.institution.name}
+                          {u.study_course && <> · <BookOpen size={10} /> {u.study_course.name}</>}
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td style={tdStyle}>
                     <span style={{ fontFamily: "var(--font-mono)", fontSize: ".8rem", color: "var(--color-text-muted)" }}>
@@ -222,6 +328,17 @@ export default function AdminUsers() {
                     </span>
                   </td>
                   <td style={tdStyle}>
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                      background: u.user_type === "student" ? "rgba(99,102,241,.1)" : "rgba(107,114,128,.1)",
+                      color: u.user_type === "student" ? "#6366f1" : "#6b7280",
+                      border: `1px solid ${u.user_type === "student" ? "rgba(99,102,241,.25)" : "rgba(107,114,128,.2)"}`,
+                      padding: "2px 8px", borderRadius: 99, fontSize: ".73rem", fontWeight: 600,
+                    }}>
+                      {u.user_type === "student" ? <><GraduationCap size={11}/> Alumno</> : "Público"}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>
                     <StatusBadge status={u.status} />
                   </td>
                   <td style={tdStyle}>
@@ -229,14 +346,23 @@ export default function AdminUsers() {
                       {new Date(u.created_at).toLocaleDateString("es-EC", { day: "2-digit", month: "short", year: "numeric" })}
                     </span>
                   </td>
-                  <td style={{ ...tdStyle, display: "flex", gap: 6, alignItems: "center" }}>
+                  <td style={{ ...tdStyle, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                     {u.status === "PENDING" && (
                       <button
                         onClick={() => quickApprove(u)}
                         disabled={mutation.isPending}
                         style={{ ...btnPrimary, fontSize: ".75rem", padding: "4px 10px" }}
                       >
-                        Aprobar
+                        {mutation.isPending ? "…" : "Aprobar"}
+                      </button>
+                    )}
+                    {u.user_type === "student" && (
+                      <button
+                        onClick={() => openExamModal(u)}
+                        style={{ ...btnAccent, fontSize: ".75rem", padding: "4px 10px", display: "flex", alignItems: "center", gap: 4 }}
+                        title="Asignar examen"
+                      >
+                        <BookOpen size={11}/> Examen
                       </button>
                     )}
                     <button
@@ -261,7 +387,7 @@ export default function AdminUsers() {
         itemLabel="usuarios"
       />
 
-      {/* Modal de edición */}
+      {/* ══ Modal Editar usuario ══════════════════════════════════════════════ */}
       {editing && (
         <div style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,.55)",
@@ -273,7 +399,7 @@ export default function AdminUsers() {
           <div style={{
             background: "var(--color-surface)", border: "1px solid var(--color-border)",
             borderRadius: "var(--radius-lg)", padding: "32px 28px",
-            width: "100%", maxWidth: 420,
+            width: "100%", maxWidth: 460,
           }}>
             <h3 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.1rem", color: "var(--color-text)", marginBottom: 4 }}>
               Editar usuario
@@ -282,14 +408,12 @@ export default function AdminUsers() {
               {editing.first_name} {editing.last_name} · <span style={{ fontFamily: "var(--font-mono)" }}>{editing.email}</span>
             </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+              {/* Estado */}
               <div>
                 <label style={labelStyle}>Estado</label>
-                <select
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value as UserStatus)}
-                  style={{ ...inputStyle, width: "100%" }}
-                >
+                <select value={newStatus} onChange={(e) => setNewStatus(e.target.value as UserStatus)} style={{ ...inputStyle, width: "100%" }}>
                   <option value="PENDING">Pendiente</option>
                   <option value="APPROVED">Aprobado</option>
                   <option value="SUSPENDED">Suspendido</option>
@@ -297,24 +421,75 @@ export default function AdminUsers() {
                 </select>
               </div>
 
+              {/* Rol */}
               <div>
                 <label style={labelStyle}>Rol</label>
-                <select
-                  value={newRoleId}
-                  onChange={(e) => setNewRoleId(e.target.value)}
-                  style={{ ...inputStyle, width: "100%" }}
-                >
+                <select value={newRoleId} onChange={(e) => setNewRoleId(e.target.value)} style={{ ...inputStyle, width: "100%" }}>
                   <option value="">— Sin cambio —</option>
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
+                  {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
               </div>
+
+              {/* Tipo de usuario */}
+              <div>
+                <label style={labelStyle}>Tipo de usuario</label>
+                <select
+                  value={newUserType}
+                  onChange={(e) => {
+                    setNewUserType(e.target.value as UserType);
+                    if (e.target.value === "public") {
+                      setNewInstitutionId("");
+                      setNewStudyCourseId("");
+                    }
+                  }}
+                  style={{ ...inputStyle, width: "100%" }}
+                >
+                  <option value="public">Público general</option>
+                  <option value="student">Alumno</option>
+                </select>
+              </div>
+
+              {/* Institución y Curso (solo alumnos) */}
+              {newUserType === "student" && (
+                <>
+                  <div>
+                    <label style={labelStyle}>
+                      <Building2 size={12} style={{ display: "inline", marginRight: 4 }}/>
+                      Institución
+                    </label>
+                    <select
+                      value={newInstitutionId}
+                      onChange={(e) => { setNewInstitutionId(e.target.value); setNewStudyCourseId(""); }}
+                      style={{ ...inputStyle, width: "100%" }}
+                    >
+                      <option value="">— Sin institución —</option>
+                      {institutions.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>
+                      <BookOpen size={12} style={{ display: "inline", marginRight: 4 }}/>
+                      Curso / Carrera
+                    </label>
+                    <select
+                      value={newStudyCourseId}
+                      onChange={(e) => setNewStudyCourseId(e.target.value)}
+                      style={{ ...inputStyle, width: "100%" }}
+                    >
+                      <option value="">— Sin curso —</option>
+                      {studyCourses
+                        .filter((sc) => !newInstitutionId || sc.institution_id === newInstitutionId || !sc.institution_id)
+                        .map((sc) => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
+                    </select>
+                  </div>
+                </>
+              )}
             </div>
 
             {mutation.isError && (
               <p style={{ color: "#ef4444", fontSize: ".82rem", marginTop: 10 }}>
-                Ocurrió un error. Intenta de nuevo.
+                Ocurrió un error. Revisa la consola.
               </p>
             )}
 
@@ -326,6 +501,117 @@ export default function AdminUsers() {
                 style={{ ...btnPrimary, opacity: mutation.isPending ? .7 : 1 }}
               >
                 {mutation.isPending ? "Guardando…" : "Guardar cambios"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Modal Asignar Examen ══════════════════════════════════════════════ */}
+      {examTarget && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,.55)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 200, padding: 24,
+        }}
+          onClick={(e) => { if (e.target === e.currentTarget) setExamTarget(null); }}
+        >
+          <div style={{
+            background: "var(--color-surface)", border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-lg)", padding: "32px 28px",
+            width: "100%", maxWidth: 480,
+          }}>
+            <h3 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.1rem", color: "var(--color-text)", marginBottom: 4 }}>
+              <BookOpen size={16} style={{ display: "inline", marginRight: 6, color: "var(--color-primary)" }}/>
+              Asignar examen
+            </h3>
+            <p style={{ color: "var(--color-text-muted)", fontSize: ".85rem", marginBottom: 22 }}>
+              Para: <strong>{examTarget.first_name} {examTarget.last_name}</strong>
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Nombre del examen *</label>
+                <input
+                  value={examName}
+                  onChange={(e) => setExamName(e.target.value)}
+                  placeholder="Ej: Examen parcial 1"
+                  style={{ ...inputStyle, width: "100%" }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div>
+                  <label style={labelStyle}>Lenguaje</label>
+                  <select value={examLang} onChange={(e) => setExamLang(e.target.value)} style={{ ...inputStyle, width: "100%" }}>
+                    <option value="python">Python</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="java">Java</option>
+                    <option value="html">HTML/CSS</option>
+                    <option value="react">React</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Materia</label>
+                  <input
+                    value={examMateria}
+                    onChange={(e) => setExamMateria(e.target.value)}
+                    placeholder="Ej: Algoritmos"
+                    style={{ ...inputStyle, width: "100%" }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div>
+                  <label style={labelStyle}>Inicio</label>
+                  <input type="datetime-local" value={examStart} onChange={(e) => setExamStart(e.target.value)} style={{ ...inputStyle, width: "100%" }}/>
+                </div>
+                <div>
+                  <label style={labelStyle}>Fin</label>
+                  <input type="datetime-local" value={examEnd} onChange={(e) => setExamEnd(e.target.value)} style={{ ...inputStyle, width: "100%" }}/>
+                </div>
+              </div>
+
+              {/* Restricciones */}
+              <div style={{
+                background: "rgba(239,68,68,.05)", border: "1px solid rgba(239,68,68,.2)",
+                borderRadius: "var(--radius-md)", padding: "12px 14px",
+              }}>
+                <p style={{ fontSize: ".78rem", fontWeight: 700, color: "#ef4444", marginBottom: 8 }}>
+                  Restricciones del examen
+                </p>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".83rem", color: "var(--color-text)" }}>
+                  <input
+                    type="checkbox"
+                    checked={examCopyPaste}
+                    onChange={(e) => setExamCopyPaste(e.target.checked)}
+                    style={{ width: 15, height: 15 }}
+                  />
+                  Permitir copiar y pegar (desmarcado = bloqueado)
+                </label>
+                <p style={{ fontSize: ".73rem", color: "var(--color-text-muted)", marginTop: 6 }}>
+                  Por defecto el copy-paste está <strong>bloqueado</strong>. El playground entrará en modo pantalla completa y mostrará advertencias si el alumno intenta salir.
+                </p>
+              </div>
+            </div>
+
+            {examMutation.isError && (
+              <p style={{ color: "#ef4444", fontSize: ".82rem", marginTop: 10 }}>
+                Error al asignar examen. Revisa la consola.
+              </p>
+            )}
+
+            <div style={{ display: "flex", gap: 10, marginTop: 24, justifyContent: "flex-end" }}>
+              <button onClick={() => setExamTarget(null)} style={btnSecondary}>Cancelar</button>
+              <button
+                onClick={submitExam}
+                disabled={examMutation.isPending || !examName.trim()}
+                style={{ ...btnPrimary, opacity: (examMutation.isPending || !examName.trim()) ? .6 : 1, display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <BookOpen size={13}/>
+                {examMutation.isPending ? "Asignando…" : "Asignar examen"}
               </button>
             </div>
           </div>
@@ -370,6 +656,13 @@ const btnSecondary: React.CSSProperties = {
   background: "var(--color-bg-muted)", color: "var(--color-text)",
   border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)",
   padding: "7px 14px", fontSize: ".83rem",
+  cursor: "pointer",
+};
+
+const btnAccent: React.CSSProperties = {
+  background: "rgba(99,102,241,.12)", color: "#6366f1",
+  border: "1px solid rgba(99,102,241,.3)", borderRadius: "var(--radius-md)",
+  padding: "7px 14px", fontSize: ".83rem", fontWeight: 600,
   cursor: "pointer",
 };
 

@@ -24,6 +24,8 @@ interface PlaygroundStore {
   projectId: string | null;
   projectName: string;
   language: Language;
+  isExam: boolean;
+  allowCopyPaste: boolean;
   files: VirtualFile[];
   activeFileId: string | null;
   openFileIds: string[];
@@ -35,6 +37,8 @@ interface PlaygroundStore {
     id: string,
     name: string,
     language: Language,
+    isExam: boolean,
+    allowCopyPaste: boolean,
     files: VirtualFile[]
   ) => void;
   setActiveFile: (id: string) => void;
@@ -53,6 +57,8 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
   projectId: null,
   projectName: "Mi Proyecto",
   language: "python",
+  isExam: false,
+  allowCopyPaste: true,
   files: [],
   activeFileId: null,
   openFileIds: [],
@@ -60,12 +66,14 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
   isSaving: false,
   terminalLines: [],
 
-  initProject: (id, name, language, files) => {
+  initProject: (id, name, language, isExam, allowCopyPaste, files) => {
     const firstFile = files.find((f) => !f.is_folder);
     set({
       projectId: id,
       projectName: name,
       language,
+      isExam,
+      allowCopyPaste,
       files,
       activeFileId: firstFile?.id ?? null,
       openFileIds: firstFile ? [firstFile.id] : [],

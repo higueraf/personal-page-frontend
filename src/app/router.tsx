@@ -28,6 +28,8 @@ import TutorialEditor    from "../admin/pages/TutorialEditor";
 import AdminVideoCourses from "../admin/pages/AdminVideoCourses";
 import CourseEditor      from "../admin/pages/CourseEditor";
 import AdminUsers        from "../admin/pages/AdminUsers";
+import AdminInstitutions   from "../admin/pages/AdminInstitutions";
+import AdminStudyCourses   from "../admin/pages/AdminStudyCourses";
 import AdminProjects     from "../admin/pages/AdminProjects";
 import AdminProfile      from "../admin/pages/AdminProfile";
 import AdminResources    from "../admin/pages/AdminResources";
@@ -101,6 +103,8 @@ export const router = createBrowserRouter([
           { path: "resources", element: <AdminResources /> },
           { path: "contact",   element: <AdminContact /> },
           { path: "assignments", element: <AdminAssignments /> },
+          { path: "institutions", element: <AdminInstitutions /> },
+          { path: "study-courses", element: <AdminStudyCourses /> },
           { path: "users",     element: <AdminUsers /> },
         ],
       },

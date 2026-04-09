@@ -40,6 +40,8 @@ export default function PlaygroundIDE() {
     activeFileId,
     openFileIds,
     language,
+    isExam,
+    allowCopyPaste,
     initProject,
     openFile,
     closeFile,
@@ -60,6 +62,7 @@ export default function PlaygroundIDE() {
   const [terminalHeight, setTerminalHeight] = useState(220);
   const [explorerWidth, setExplorerWidth] = useState(200);
   const [previewWidth, setPreviewWidth] = useState(380);
+  const [isLockedOut, setIsLockedOut] = useState(false);
 
   const config = LANGUAGE_CONFIGS[language];
 
@@ -88,6 +91,8 @@ export default function PlaygroundIDE() {
           data.id,
           data.name ?? "Proyecto",
           data.language ?? "python",
+          data.is_exam ?? false,
+          data.allow_copy_paste ?? true,
           projectFiles
         );
         // Auto-open first file
@@ -107,6 +112,86 @@ export default function PlaygroundIDE() {
   useEffect(() => {
     setShowPreview(config.supportsPreview);
   }, [config.supportsPreview]);
+
+  // ── Exam Restrictions ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isExam) return;
+
+    // 1. Enter Fullscreen (may require user interaction so it's a best-effort)
+    const enterFullscreen = () => {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    };
+    enterFullscreen();
+    // Try again on any click inside the document to bypass browser auto-block
+    document.addEventListener("click", enterFullscreen, { once: true });
+
+    // 2. Prevent exiting/reloading (beforeunload)
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const msg = "Estás en un examen activo. ¿Seguro que deseas salir?";
+      e.returnValue = msg;
+      return msg;
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    // 3. Block Copy-Paste if restricted
+    const handleCopyPaste = (e: Event) => {
+      if (!allowCopyPaste) {
+        e.preventDefault();
+        e.stopPropagation();
+        http.post(`/playground/${id}/log-cheat`, {
+          action: e.type,
+          details: `El alumno intentó usar el portapapeles (${e.type}).`,
+        }).catch(() => {});
+        alert("Copiar y pegar está deshabilitado durante este examen. Su intento ha sido registrado.");
+      }
+    };
+
+    // 4. Tab visibility monitoring (anti cheat)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        http.post(`/playground/${id}/log-cheat`, {
+          action: "tab_switch",
+          details: "El alumno cambió de pestaña, abrió otra ventana o minimizó el navegador.",
+        }).catch(() => {});
+        alert("⚠️ ADVERTENCIA: Se ha registrado que cambiaste de ventana durante el examen. Esta acción es reportada como posible fraude.");
+      }
+    };
+
+    // 5. Fullscreen lock check
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setIsLockedOut(true);
+        http.post(`/playground/${id}/log-cheat`, {
+          action: "exit_fullscreen",
+          details: "El alumno salió del modo pantalla completa.",
+        }).catch(() => {});
+      } else {
+        setIsLockedOut(false);
+      }
+    };
+
+    if (!allowCopyPaste) {
+      window.addEventListener("copy", handleCopyPaste, true);
+      window.addEventListener("paste", handleCopyPaste, true);
+      window.addEventListener("cut", handleCopyPaste, true);
+      document.addEventListener("fullscreenchange", handleFullscreenChange);
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("click", enterFullscreen);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (!allowCopyPaste) {
+        window.removeEventListener("copy", handleCopyPaste, true);
+        window.removeEventListener("paste", handleCopyPaste, true);
+        window.removeEventListener("cut", handleCopyPaste, true);
+        document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      }
+    };
+  }, [isExam, allowCopyPaste]);
 
   // ── Run ─────────────────────────────────────────────────────────────────────
   const handleRun = useCallback(async () => {
@@ -270,6 +355,24 @@ export default function PlaygroundIDE() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#f8f9fc] dark:bg-[#0d1117] text-gray-900 dark:text-white">
+      
+      {/* ── Lock Screen ── */}
+      {isLockedOut && isExam && !allowCopyPaste && (
+        <div className="fixed inset-0 bg-red-900/95 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-sm">
+          <AlertCircle size={80} className="mb-6 animate-pulse text-red-400" />
+          <h2 className="text-4xl font-black tracking-tight mb-4 text-white">EXAMEN INTERRUMPIDO</h2>
+          <p className="text-lg max-w-xl text-red-200 mb-8">
+            Has minimizado la ventana o salido del modo de pantalla completa. Esta acción está directamente prohibida y el incidente ha sido notificado y añadido al historial de fraude.
+          </p>
+          <button 
+            onClick={() => document.documentElement.requestFullscreen().catch(() => {})}
+            className="px-8 py-4 bg-white text-red-900 font-bold text-xl rounded-lg shadow-2xl hover:bg-gray-200 hover:scale-105 transition-all"
+          >
+            VOLVER A PANTALLA COMPLETA
+          </button>
+        </div>
+      )}
+
       {/* ── Toolbar ── */}
       <Toolbar
         onRun={handleRun}

@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, BookOpen, Video, LogOut, Terminal, Users, FolderGit2, UserCircle, BookMarked, MessageSquare, Globe, Cpu } from "lucide-react";
+import { LayoutDashboard, BookOpen, Video, LogOut, Terminal, Users, FolderGit2, UserCircle, BookMarked, MessageSquare, Globe, Cpu, Building2, GraduationCap } from "lucide-react";
 import { useAuth } from "../../shared/auth/useAuth";
 
 const MENU = [
@@ -11,6 +11,8 @@ const MENU = [
   { to: "/admin/resources",     label: "Recursos",   icon: BookMarked },
   { to: "/admin/contact",       label: "Contacto",   icon: MessageSquare },
   { to: "/admin/assignments", label: "Exámenes",    icon: Cpu },
+  { to: "/admin/institutions",  label: "Instituciones", icon: Building2 },
+  { to: "/admin/study-courses", label: "Cursos Est.",   icon: GraduationCap },
   { to: "/admin/users",         label: "Usuarios",   icon: Users },
 ];
 
