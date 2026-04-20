@@ -185,28 +185,24 @@ export default function Toolbar({
         </>
       )}
 
-      {/* Run */}
-      <button
-        onClick={onRun}
-        disabled={isRunning}
-        className={`flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-semibold transition-all disabled:opacity-60 ${
-          isRunning
-            ? "bg-green-600/40 text-green-600 dark:text-green-300"
-            : "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/20"
-        }`}
-      >
-        {isRunning ? (
-          <>
-            <Loader2 size={14} className="animate-spin" />
-            <span>Ejecutando…</span>
-          </>
-        ) : (
-          <>
-            <Play size={14} fill="currentColor" />
-            <span>Ejecutar</span>
-          </>
-        )}
-      </button>
+      {/* Run / Stop */}
+      {isRunning ? (
+        <button
+          onClick={onStop}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-semibold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/20 transition-all"
+        >
+          <Square size={14} fill="currentColor" />
+          <span>Detener</span>
+        </button>
+      ) : (
+        <button
+          onClick={onRun}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-semibold bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/20 transition-all"
+        >
+          <Play size={14} fill="currentColor" />
+          <span>Ejecutar</span>
+        </button>
+      )}
     </header>
   );
 }

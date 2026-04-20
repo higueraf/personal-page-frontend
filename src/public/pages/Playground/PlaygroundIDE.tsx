@@ -536,6 +536,7 @@ export default function PlaygroundIDE() {
       {/* ── Toolbar ── */}
       <Toolbar
         onRun={handleRun}
+        onStop={stopExecution}
         onSave={handleSave}
         onDownload={handleDownloadZip}
         showTerminal={showTerminal}

@@ -251,8 +251,9 @@ export default function TerminalPanel({
             onRunRef.current();
           } else {
             term.writeln(`\x1b[31m✖ No hay ningún runner activo\x1b[0m`);
+            writePrompt(term, usePlaygroundStore.getState().language);
           }
-          writePrompt(term, usePlaygroundStore.getState().language);
+          // No writePrompt here: it will appear when isRunning transitions back to false
           return;
         }
 
