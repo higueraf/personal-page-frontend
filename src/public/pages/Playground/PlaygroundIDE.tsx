@@ -79,7 +79,8 @@ export default function PlaygroundIDE() {
   const [isTabSwitchLocked, setIsTabSwitchLocked] = useState(false);
   const [examFinished, setExamFinished] = useState(false);
 
-  // Store end_time for the timer
+  // Store end_time for the timer — state drives Toolbar re-render, ref drives auto-submit closure
+  const [endTime, setEndTime] = useState<Date | null>(null);
   const endTimeRef = useRef<Date | null>(null);
 
   const config = LANGUAGE_CONFIGS[language];
@@ -108,7 +109,9 @@ export default function PlaygroundIDE() {
             return;
           }
           // Store end_time for the live timer
-          endTimeRef.current = data.end_time ? new Date(data.end_time) : null;
+          const et = data.end_time ? new Date(data.end_time) : null;
+          endTimeRef.current = et;
+          setEndTime(et);
         }
 
         const projectFiles = (data.files ?? []).map((f: any) => ({
@@ -317,17 +320,22 @@ export default function PlaygroundIDE() {
     terminalApiRef.current?.clear();
     setRunning(true);
 
+    const activeFile = files.find((f) => f.id === activeFileId);
+    const targetFile = activeFile?.name;
+
     const now = new Date().toLocaleTimeString();
+    const label = targetFile ?? config.label;
     terminalApiRef.current?.write(
-      `${C.gray}[${now}]${C.reset} ${C.bold}${C.green}▶ Ejecutando ${config.label}…${C.reset}\r\n`
+      `${C.gray}[${now}]${C.reset} ${C.bold}${C.green}▶ Ejecutando ${label}…${C.reset}\r\n`
     );
     terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
 
-    startExecution(language, files);
+    startExecution(language, files, targetFile);
   }, [
     config,
     language,
     files,
+    activeFileId,
     setRunning,
     startExecution,
   ]);
@@ -535,7 +543,7 @@ export default function PlaygroundIDE() {
         showPreview={showPreview}
         onTogglePreview={() => setShowPreview((v) => !v)}
         onExamSubmitted={handleExamSubmitted}
-        endTime={endTimeRef.current}
+        endTime={endTime}
       />
 
       {/* ── Body ── */}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Play, Save, Loader2, ChevronLeft, TerminalSquare, Eye, EyeOff, Sun, Moon, Timer, Download } from "lucide-react";
+import { Play, Square, Save, Loader2, ChevronLeft, TerminalSquare, Eye, EyeOff, Sun, Moon, Timer, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { LANGUAGE_CONFIGS } from "../templates";
 import { usePlaygroundStore } from "../store/playgroundStore";
@@ -9,6 +9,7 @@ import http from "../../../../shared/api/http";
 
 interface ToolbarProps {
   onRun: () => void;
+  onStop: () => void;
   onSave: () => void;
   onDownload: () => void;
   showTerminal: boolean;
@@ -21,6 +22,7 @@ interface ToolbarProps {
 
 export default function Toolbar({
   onRun,
+  onStop,
   onSave,
   onDownload,
   showTerminal,
