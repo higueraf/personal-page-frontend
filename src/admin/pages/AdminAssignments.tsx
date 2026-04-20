@@ -99,6 +99,13 @@ function toLocalInput(iso: string | null) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Converts a datetime-local string ("YYYY-MM-DDTHH:mm") to a full ISO string with timezone offset.
+ *  This is critical: without this conversion the backend receives a naive timestamp and
+ *  stores it as UTC regardless of the user's local timezone. */
+function toISO(localStr: string): string {
+  return new Date(localStr).toISOString();
+}
+
 function groupStatus(g: ExamGroup) {
   const now = new Date();
   const start = g.start_time ? new Date(g.start_time) : null;
@@ -144,8 +151,8 @@ export default function AdminAssignments() {
   const [editEnd,       setEditEnd]       = useState("");
   const [editCopyPaste, setEditCopyPaste] = useState(false);
 
-  // ── Delete confirm ──
-  const [deletingGroup, setDeletingGroup] = useState<string | null>(null);
+  // ── Delete confirm modal ──
+  const [confirmDelete, setConfirmDelete] = useState<ExamGroup | null>(null);
 
   // ── Logs modal ──
   const [viewLogsOf, setViewLogsOf] = useState<ExamProject | null>(null);
@@ -178,10 +185,10 @@ export default function AdminAssignments() {
     mutationFn: deleteGroup,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-exam-groups"] });
-      setDeletingGroup(null);
+      setConfirmDelete(null);
       if (activeGroup) setSearchParams({});
     },
-    onError: (err: any) => { alert("Error al eliminar: " + (err?.response?.data?.message ?? "Desconocido")); setDeletingGroup(null); },
+    onError: (err: any) => { alert("Error al eliminar: " + (err?.response?.data?.message ?? "Desconocido")); setConfirmDelete(null); },
   });
 
   const changeStatusMutation = useMutation({
@@ -211,7 +218,8 @@ export default function AdminAssignments() {
     const payload: any = {
       name: examName.trim(), language: examLang,
       materia: examMateria || undefined,
-      start_time: examStart || undefined, end_time: examEnd || undefined,
+      start_time: examStart ? toISO(examStart) : undefined,
+      end_time:   examEnd   ? toISO(examEnd)   : undefined,
       allow_copy_paste: examCopyPaste, files: defaultFiles,
     };
     if (assignMode === "course") {
@@ -235,16 +243,17 @@ export default function AdminAssignments() {
   function handleEditSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!editGroup) return;
-    editMutation.mutate({ groupId: editGroup.group_id, name: editName || undefined, start_time: editStart || undefined, end_time: editEnd || undefined, allow_copy_paste: editCopyPaste });
+    editMutation.mutate({
+      groupId: editGroup.group_id,
+      name: editName || undefined,
+      start_time: editStart ? toISO(editStart) : undefined,
+      end_time:   editEnd   ? toISO(editEnd)   : undefined,
+      allow_copy_paste: editCopyPaste,
+    });
   }
 
-  function handleDeleteGroup(groupId: string) {
-    if (deletingGroup === groupId) {
-      deleteMutation.mutate(groupId);
-    } else {
-      setDeletingGroup(groupId);
-      setTimeout(() => setDeletingGroup(prev => prev === groupId ? null : prev), 3000);
-    }
+  function handleDeleteGroup(group: ExamGroup) {
+    setConfirmDelete(group);
   }
 
   const filteredGroups = (groupsQ.data ?? []).filter(g => {
@@ -538,13 +547,9 @@ export default function AdminAssignments() {
                           <Pencil size={15} />
                         </button>
                         <button
-                          onClick={() => handleDeleteGroup(g.group_id)}
-                          title={deletingGroup === g.group_id ? "¿Confirmar eliminación?" : "Eliminar todos los proyectos"}
-                          className={`p-1.5 rounded transition-colors ${
-                            deletingGroup === g.group_id
-                              ? "text-red-600 bg-red-100 dark:bg-red-900/30 animate-pulse"
-                              : "text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
-                          }`}
+                          onClick={() => handleDeleteGroup(g)}
+                          title="Eliminar examen y todos sus proyectos"
+                          className="p-1.5 rounded transition-colors text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
                         >
                           <Trash2 size={15} />
                         </button>
@@ -601,6 +606,39 @@ export default function AdminAssignments() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirmation modal ──────────────────────────────── */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4"
+          onClick={e => { if (e.target === e.currentTarget) setConfirmDelete(null); }}>
+          <div className="bg-white dark:bg-gray-900 border border-red-200 dark:border-red-900/50 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-xl font-bold flex items-center gap-2 text-red-600 border-b border-gray-100 dark:border-gray-800 pb-3 mb-4">
+              <Trash2 size={18} /> Eliminar Examen
+            </h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+              ¿Estás seguro de que deseas eliminar el examen <strong>"{confirmDelete.name}"</strong>?
+            </p>
+            <p className="text-xs text-red-500 mb-6">
+              Esta acción eliminará permanentemente <strong>{confirmDelete.total_count} proyecto(s)</strong> de alumnos asociados y no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded font-bold text-sm transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate(confirmDelete.group_id)}
+                disabled={deleteMutation.isPending}
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-bold text-sm flex items-center gap-2 disabled:opacity-50 transition-colors shadow-md"
+              >
+                <Trash2 size={14} /> {deleteMutation.isPending ? "Eliminando…" : "Sí, eliminar"}
+              </button>
+            </div>
           </div>
         </div>
       )}
