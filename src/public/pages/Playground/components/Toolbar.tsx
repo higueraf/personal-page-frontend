@@ -1,29 +1,69 @@
-import { Play, Save, Loader2, ChevronLeft, TerminalSquare, Eye, EyeOff, Sun, Moon } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Play, Save, Loader2, ChevronLeft, TerminalSquare, Eye, EyeOff, Sun, Moon, Timer, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { LANGUAGE_CONFIGS } from "../templates";
 import { usePlaygroundStore } from "../store/playgroundStore";
 import { useTheme } from "../../../../shared/theme/ThemeProvider";
 
+import http from "../../../../shared/api/http";
+
 interface ToolbarProps {
   onRun: () => void;
   onSave: () => void;
+  onDownload: () => void;
   showTerminal: boolean;
   onToggleTerminal: () => void;
   showPreview: boolean;
   onTogglePreview: () => void;
+  onExamSubmitted?: () => void;
+  endTime?: Date | null;
 }
 
 export default function Toolbar({
   onRun,
   onSave,
+  onDownload,
   showTerminal,
   onToggleTerminal,
   showPreview,
   onTogglePreview,
+  onExamSubmitted,
+  endTime,
 }: ToolbarProps) {
   const navigate = useNavigate();
-  const { projectName, language, isRunning, isSaving } = usePlaygroundStore();
+  const { projectId, projectName, language, isRunning, isSaving, isExam } = usePlaygroundStore();
   const { theme, toggle } = useTheme();
+
+  // ── Countdown timer ─────────────────────────────────────────────────────────
+  const [timeLeft, setTimeLeft] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isExam || !endTime) { setTimeLeft(null); return; }
+
+    const tick = () => {
+      const now = Date.now();
+      const diff = endTime.getTime() - now;
+      if (diff <= 0) { setTimeLeft("00:00"); return; }
+      const mins = Math.floor(diff / 60000);
+      const secs = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [isExam, endTime]);
+
+  const handleSubmitExam = async () => {
+    if (!projectId) return;
+    if (!window.confirm("¿Estás seguro de que deseas entregar el examen? Ya no podrás realizar más modificaciones.")) return;
+    try {
+      await onSave(); // save files before submitting
+      await http.post(`/playground/${projectId}/submit`);
+      onExamSubmitted?.();
+    } catch (err) {
+      alert("Error al entregar el examen.");
+    }
+  };
 
   const config = LANGUAGE_CONFIGS[language];
 
@@ -95,6 +135,16 @@ export default function Toolbar({
         {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
       </button>
 
+      {/* Download ZIP */}
+      <button
+        onClick={onDownload}
+        title="Descargar código como ZIP"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+      >
+        <Download size={14} />
+        <span className="hidden sm:inline">Descargar</span>
+      </button>
+
       {/* Save */}
       <button
         onClick={onSave}
@@ -108,6 +158,30 @@ export default function Toolbar({
         )}
         <span className="hidden sm:inline">Guardar</span>
       </button>
+
+      {/* Submit Exam + Timer */}
+      {isExam && (
+        <>
+          {timeLeft !== null && (
+            <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-mono font-bold border ${
+              timeLeft === "00:00"
+                ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 animate-pulse"
+                : parseInt(timeLeft) < 5
+                  ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-700"
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
+            }`}>
+              <Timer size={13} />
+              {timeLeft}
+            </div>
+          )}
+          <button
+            onClick={handleSubmitExam}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-semibold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/20 transition-all"
+          >
+            <span>Entregar Examen</span>
+          </button>
+        </>
+      )}
 
       {/* Run */}
       <button

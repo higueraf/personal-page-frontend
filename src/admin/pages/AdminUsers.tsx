@@ -17,17 +17,17 @@ interface StudyCourse  { id: string; name: string; institution_id?: string | nul
 interface Role         { id: string; name: string; }
 
 interface AdminUser {
-  id:           string;
-  first_name:   string;
-  last_name:    string;
-  email:        string;
-  status:       UserStatus;
-  is_active:    boolean;
-  user_type:    UserType;
-  role:         Role | null;
-  institution:  Institution | null;
-  study_course: StudyCourse | null;
-  created_at:   string;
+  id:            string;
+  first_name:    string;
+  last_name:     string;
+  email:         string;
+  status:        UserStatus;
+  is_active:     boolean;
+  user_type:     UserType;
+  role:          Role | null;
+  institution:   Institution | null;
+  study_courses: StudyCourse[];
+  created_at:    string;
 }
 
 // ── API ────────────────────────────────────────────────────────────────────────
@@ -49,11 +49,11 @@ async function fetchStudyCourses(institution_id?: string) {
 }
 
 async function patchUser(id: string, body: {
-  status?:          UserStatus;
-  role_id?:         string;
-  user_type?:       UserType;
-  institution_id?:  string | null;
-  study_course_id?: string | null;
+  status?:           UserStatus;
+  role_id?:          string;
+  user_type?:        UserType;
+  institution_id?:   string | null;
+  study_course_ids?: string[];
 }) {
   const r = await http.patch(`/admin/users/${id}`, body);
   return r.data.data as AdminUser;
@@ -106,12 +106,12 @@ export default function AdminUsers() {
   const [page,         setPage]         = useState(1);
 
   // Edit modal
-  const [editing,          setEditing]          = useState<AdminUser | null>(null);
-  const [newStatus,        setNewStatus]        = useState<UserStatus>("APPROVED");
-  const [newRoleId,        setNewRoleId]        = useState<string>("");
-  const [newUserType,      setNewUserType]      = useState<UserType>("public");
-  const [newInstitutionId, setNewInstitutionId] = useState<string>("");
-  const [newStudyCourseId, setNewStudyCourseId] = useState<string>("");
+  const [editing,           setEditing]           = useState<AdminUser | null>(null);
+  const [newStatus,         setNewStatus]         = useState<UserStatus>("APPROVED");
+  const [newRoleId,         setNewRoleId]         = useState<string>("");
+  const [newUserType,       setNewUserType]       = useState<UserType>("public");
+  const [newInstitutionId,  setNewInstitutionId]  = useState<string>("");
+  const [newStudyCourseIds, setNewStudyCourseIds] = useState<string[]>([]);
 
   // Assign exam modal
   const [examTarget, setExamTarget]           = useState<AdminUser | null>(null);
@@ -173,7 +173,13 @@ export default function AdminUsers() {
     setNewRoleId(u.role?.id ?? "");
     setNewUserType(u.user_type ?? "public");
     setNewInstitutionId(u.institution?.id ?? "");
-    setNewStudyCourseId(u.study_course?.id ?? "");
+    setNewStudyCourseIds(u.study_courses?.map(sc => sc.id) ?? []);
+  }
+
+  function toggleStudyCourse(id: string) {
+    setNewStudyCourseIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
   }
 
   function applyEdit() {
@@ -181,11 +187,11 @@ export default function AdminUsers() {
     mutation.mutate({
       id: editing.id,
       body: {
-        status:          newStatus,
-        role_id:         newRoleId || undefined,
-        user_type:       newUserType,
-        institution_id:  newInstitutionId || null,
-        study_course_id: newStudyCourseId || null,
+        status:           newStatus,
+        role_id:          newRoleId || undefined,
+        user_type:        newUserType,
+        institution_id:   newInstitutionId || null,
+        study_course_ids: newStudyCourseIds,
       },
     });
   }
@@ -308,7 +314,20 @@ export default function AdminUsers() {
                       {u.institution && (
                         <div style={{ fontSize: ".73rem", color: "var(--color-text-muted)", display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
                           <Building2 size={10} /> {u.institution.name}
-                          {u.study_course && <> · <BookOpen size={10} /> {u.study_course.name}</>}
+                        </div>
+                      )}
+                      {u.study_courses?.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 3 }}>
+                          {u.study_courses.map(sc => (
+                            <span key={sc.id} style={{
+                              display: "inline-flex", alignItems: "center", gap: 3,
+                              background: "rgba(99,102,241,.08)", color: "#6366f1",
+                              border: "1px solid rgba(99,102,241,.2)",
+                              padding: "1px 6px", borderRadius: 99, fontSize: ".7rem",
+                            }}>
+                              <BookOpen size={9}/> {sc.name}
+                            </span>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -439,7 +458,7 @@ export default function AdminUsers() {
                     setNewUserType(e.target.value as UserType);
                     if (e.target.value === "public") {
                       setNewInstitutionId("");
-                      setNewStudyCourseId("");
+                      setNewStudyCourseIds([]);
                     }
                   }}
                   style={{ ...inputStyle, width: "100%" }}
@@ -459,7 +478,7 @@ export default function AdminUsers() {
                     </label>
                     <select
                       value={newInstitutionId}
-                      onChange={(e) => { setNewInstitutionId(e.target.value); setNewStudyCourseId(""); }}
+                      onChange={(e) => { setNewInstitutionId(e.target.value); setNewStudyCourseIds([]); }}
                       style={{ ...inputStyle, width: "100%" }}
                     >
                       <option value="">— Sin institución —</option>
@@ -470,18 +489,44 @@ export default function AdminUsers() {
                   <div>
                     <label style={labelStyle}>
                       <BookOpen size={12} style={{ display: "inline", marginRight: 4 }}/>
-                      Curso / Carrera
+                      Cursos / Carreras
+                      {newStudyCourseIds.length > 0 && (
+                        <span style={{
+                          marginLeft: 6, background: "rgba(99,102,241,.15)", color: "#6366f1",
+                          padding: "1px 7px", borderRadius: 99, fontSize: ".72rem", fontWeight: 700,
+                        }}>
+                          {newStudyCourseIds.length} seleccionado{newStudyCourseIds.length > 1 ? "s" : ""}
+                        </span>
+                      )}
                     </label>
-                    <select
-                      value={newStudyCourseId}
-                      onChange={(e) => setNewStudyCourseId(e.target.value)}
-                      style={{ ...inputStyle, width: "100%" }}
-                    >
-                      <option value="">— Sin curso —</option>
+                    <div style={{
+                      border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)",
+                      background: "var(--color-bg-muted)", maxHeight: 160, overflowY: "auto",
+                      padding: "6px 2px",
+                    }}>
                       {studyCourses
                         .filter((sc) => !newInstitutionId || sc.institution_id === newInstitutionId || !sc.institution_id)
-                        .map((sc) => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
-                    </select>
+                        .map((sc) => (
+                          <label key={sc.id} style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            padding: "5px 10px", cursor: "pointer", borderRadius: "var(--radius-sm)",
+                            background: newStudyCourseIds.includes(sc.id) ? "rgba(99,102,241,.08)" : "transparent",
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={newStudyCourseIds.includes(sc.id)}
+                              onChange={() => toggleStudyCourse(sc.id)}
+                              style={{ width: 14, height: 14, accentColor: "#6366f1" }}
+                            />
+                            <span style={{ fontSize: ".83rem", color: "var(--color-text)" }}>{sc.name}</span>
+                          </label>
+                        ))}
+                      {studyCourses.filter((sc) => !newInstitutionId || sc.institution_id === newInstitutionId || !sc.institution_id).length === 0 && (
+                        <p style={{ fontSize: ".8rem", color: "var(--color-text-muted)", padding: "6px 10px" }}>
+                          Sin cursos disponibles.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </>
               )}

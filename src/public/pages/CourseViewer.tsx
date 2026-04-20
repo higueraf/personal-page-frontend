@@ -367,7 +367,7 @@ export default function CourseViewer() {
               <span style={{ fontSize: ".72rem", fontWeight: 700, color: "var(--color-text-muted)", letterSpacing: ".06em", textTransform: "uppercase" }}>Contenido del curso</span>
               <div style={{ fontSize: ".75rem", color: "var(--color-text-muted)", marginTop: 3 }}>{allLessons.length} lecciones</div>
             </div>
-            <div style={{ flex: 1, overflowY: "auto" }}>
+            <div style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain" }}>
               {curriculum.map((section) => (
                 <div key={section.id}>
                   <button
@@ -406,7 +406,7 @@ export default function CourseViewer() {
           </aside>
 
           {/* Panel principal */}
-          <main style={{ flex: 1, overflowY: "auto", background: "var(--color-bg)" }}>
+          <main style={{ flex: 1, overflowY: "auto", background: "var(--color-bg)", overscrollBehavior: "contain" }}>
             {lessonQ.isLoading && (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "50%", gap: 8, color: "var(--color-text-muted)" }}>
                 <RefreshCw size={14} /> Cargando lección…

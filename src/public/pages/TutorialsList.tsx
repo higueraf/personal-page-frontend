@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Search, ChevronRight, RefreshCw } from "lucide-react";
+import { BookOpen, Filter, Search, ChevronRight, RefreshCw } from "lucide-react";
 import http from "../../shared/api/http";
 import Pagination from "../../shared/components/Pagination";
 
@@ -16,13 +16,24 @@ interface Tutorial {
   slug: string;
   description?: string;
   level?: string;
+  is_public?: boolean;
+  study_courses?: { id: string; name: string }[];
 }
+
+interface StudyCourse { id: string; name: string; institution: string | null; }
 
 interface Meta { total_records: number; page: number; page_size: number; }
 
 async function fetchTutorials(search?: string, page = 1) {
-  const r = await http.get("/public/tutorials", { params: { ...(search ? { search } : {}), page, page_size: 12 } });
+  const params: Record<string, any> = { page, page_size: 12 };
+  if (search) params.search = search;
+  const r = await http.get("/public/tutorials", { params });
   return r.data as { data: Tutorial[]; meta: Meta };
+}
+
+async function fetchStudyCourses() {
+  const r = await http.get("/public/study-courses");
+  return r.data.data as StudyCourse[];
 }
 
 const LEVEL_CLS: Record<string, string> = {
@@ -32,14 +43,20 @@ const LEVEL_CLS: Record<string, string> = {
 };
 
 export default function TutorialsList() {
-  const [search, setSearch] = useState("");
-  const [q, setQ]           = useState("");
-  const [page, setPage]     = useState(1);
+  const [search, setSearch]           = useState("");
+  const [q, setQ]                     = useState("");
+  const [page, setPage]               = useState(1);
 
   const { data, isLoading } = useQuery({
     queryKey:        ["public-tutorials", q, page],
     queryFn:         () => fetchTutorials(q || undefined, page),
     placeholderData: (prev) => prev,
+  });
+
+  const { data: studyCourses = [] } = useQuery({
+    queryKey: ["public-study-courses"],
+    queryFn:  fetchStudyCourses,
+    staleTime: 5 * 60 * 1000,
   });
 
   const tutorials  = data?.data ?? [];
@@ -62,31 +79,33 @@ export default function TutorialsList() {
         </p>
       </div>
 
-      {/* Buscador */}
-      <form
-        onSubmit={e => { e.preventDefault(); setQ(search); setPage(1); }}
-        style={{ display: "flex", gap: 10, marginBottom: 28 }}
-      >
-        <div style={{ position: "relative", flex: 1 }}>
-          <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-muted)" }} />
-          <input
-            type="text"
-            placeholder="Buscar tutoriales…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{
-              width: "100%", padding: "10px 12px 10px 36px",
-              background: "var(--color-bg-muted)", border: "1.5px solid var(--color-border)",
-              borderRadius: "var(--radius-md)", color: "var(--color-text)",
-              fontFamily: "var(--font-body)", fontSize: ".9rem", outline: "none",
-              boxSizing: "border-box" as const,
-            }}
-          />
-        </div>
-        <button type="submit" style={{ background: "var(--color-primary)", color: "#fff", border: "none", borderRadius: "var(--radius-md)", padding: "10px 20px", fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)", fontSize: ".9rem" }}>
-          Buscar
-        </button>
-      </form>
+      {/* Buscador + filtro */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
+        <form
+          onSubmit={e => { e.preventDefault(); setQ(search); setPage(1); }}
+          style={{ display: "flex", gap: 10 }}
+        >
+          <div style={{ position: "relative", flex: 1 }}>
+            <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-muted)" }} />
+            <input
+              type="text"
+              placeholder="Buscar tutoriales…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                width: "100%", padding: "10px 12px 10px 36px",
+                background: "var(--color-bg-muted)", border: "1.5px solid var(--color-border)",
+                borderRadius: "var(--radius-md)", color: "var(--color-text)",
+                fontFamily: "var(--font-body)", fontSize: ".9rem", outline: "none",
+                boxSizing: "border-box" as const,
+              }}
+            />
+          </div>
+          <button type="submit" style={{ background: "var(--color-primary)", color: "#fff", border: "none", borderRadius: "var(--radius-md)", padding: "10px 20px", fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)", fontSize: ".9rem" }}>
+            Buscar
+          </button>
+        </form>
+      </div>
 
       {/* Estado carga */}
       {isLoading && (
@@ -135,11 +154,28 @@ export default function TutorialsList() {
                   {t.level && (
                     <span className={`badge ${LEVEL_CLS[t.level] ?? "badge--blue"}`}>{t.level}</span>
                   )}
+                  {t.is_public && (
+                    <span className="badge badge--green">Público</span>
+                  )}
                 </div>
                 {t.description && (
                   <p style={{ color: "var(--color-text-muted)", fontSize: ".85rem", lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 560 }}>
                     {t.description}
                   </p>
+                )}
+                {t.study_courses && t.study_courses.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                    {t.study_courses.map(sc => (
+                      <span key={sc.id} style={{
+                        fontSize: ".75rem", padding: "2px 8px",
+                        borderRadius: "var(--radius-sm)",
+                        background: "rgba(99,102,241,.1)", color: "var(--color-primary)",
+                        border: "1px solid rgba(99,102,241,.2)",
+                      }}>
+                        {sc.name}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
               <ChevronRight size={18} style={{ color: "var(--color-primary)", flexShrink: 0 }}/>

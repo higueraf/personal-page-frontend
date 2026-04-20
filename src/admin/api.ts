@@ -60,6 +60,8 @@ export interface AdminCourse {
   description?: string | null;
   level?: string | null;
   status: CourseStatus;
+  is_public?: boolean;
+  study_courses?: { id: string; name: string }[];
   created_at: string;
   updated_at: string;
 }

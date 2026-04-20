@@ -1,13 +1,15 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Editor } from "@monaco-editor/react";
-import { X, AlertCircle, WifiOff } from "lucide-react";
+import { X, AlertCircle, WifiOff, ShieldCheck } from "lucide-react";
 import { useTheme } from "../../../shared/theme/ThemeProvider";
 
 import { usePlaygroundStore } from "./store/playgroundStore";
 import { LANGUAGE_CONFIGS } from "./templates";
-import { runOnBackend } from "./runners/backendRunner";
+import { useExecutionSocket } from "./runners/useExecutionSocket";
+import type { TerminalApi } from "./components/TerminalPanel";
 import { getMonacoLanguage } from "./utils/fileUtils";
+import { setupMonacoCompletion } from "./utils/monacoCompletion";
 
 import Toolbar from "./components/Toolbar";
 import FileExplorer from "./components/FileExplorer";
@@ -15,6 +17,7 @@ import TerminalPanel from "./components/TerminalPanel";
 import PreviewPanel from "./components/PreviewPanel";
 
 import http from "../../../shared/api/http";
+import type * as MonacoEditor from "monaco-editor";
 
 // ─── ANSI helpers ──────────────────────────────────────────────────────────────
 const C = {
@@ -33,6 +36,9 @@ const C = {
 
 export default function PlaygroundIDE() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const isAdminReview = searchParams.get("review") === "1";
+  const reviewFrom = searchParams.get("from"); // exam_group_id to go back to
   const navigate = useNavigate();
 
   const {
@@ -41,18 +47,25 @@ export default function PlaygroundIDE() {
     openFileIds,
     language,
     isExam,
+    isRunning,
     allowCopyPaste,
+    projectName,
     initProject,
     openFile,
     closeFile,
     updateFileContent,
     setRunning,
     setSaving,
-    appendTerminalLine,
-    clearTerminal,
   } = usePlaygroundStore();
 
   const { theme } = useTheme();
+  const terminalApiRef = useRef<TerminalApi | null>(null);
+  const editorInstanceRef = useRef<MonacoEditor.editor.IStandaloneCodeEditor | null>(null);
+
+  // Internal clipboard: stores text copied/cut inside Monaco so we can
+  // distinguish internal paste from external paste during exams.
+  const internalClipboardRef = useRef<string>("");
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showTerminal, setShowTerminal] = useState(true);
@@ -63,6 +76,11 @@ export default function PlaygroundIDE() {
   const [explorerWidth, setExplorerWidth] = useState(200);
   const [previewWidth, setPreviewWidth] = useState(380);
   const [isLockedOut, setIsLockedOut] = useState(false);
+  const [isTabSwitchLocked, setIsTabSwitchLocked] = useState(false);
+  const [examFinished, setExamFinished] = useState(false);
+
+  // Store end_time for the timer
+  const endTimeRef = useRef<Date | null>(null);
 
   const config = LANGUAGE_CONFIGS[language];
 
@@ -79,6 +97,20 @@ export default function PlaygroundIDE() {
     http
       .get(`/playground/${id}`)
       .then(({ data }) => {
+        if (data.is_exam && !isAdminReview) {
+          if (data.status === 'submitted' || data.status === 'graded') {
+            setExamFinished(true);
+            return;
+          }
+          if (data.end_time && new Date() > new Date(data.end_time)) {
+            http.post(`/playground/${id}/submit`).catch(() => {});
+            setExamFinished(true);
+            return;
+          }
+          // Store end_time for the live timer
+          endTimeRef.current = data.end_time ? new Date(data.end_time) : null;
+        }
+
         const projectFiles = (data.files ?? []).map((f: any) => ({
           id: f.id ?? f.name,
           name: f.name,
@@ -115,7 +147,7 @@ export default function PlaygroundIDE() {
 
   // ── Exam Restrictions ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isExam) return;
+    if (!isExam || isAdminReview) return;
 
     // 1. Enter Fullscreen (may require user interaction so it's a best-effort)
     const enterFullscreen = () => {
@@ -135,31 +167,39 @@ export default function PlaygroundIDE() {
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
 
-    // 3. Block Copy-Paste if restricted
-    const handleCopyPaste = (e: Event) => {
-      if (!allowCopyPaste) {
+    // 3. Block external paste — allow internal copy/paste within the editor
+    //    Strategy: when user copies/cuts inside Monaco, we store the text in
+    //    internalClipboardRef. On paste, we compare the clipboard text against
+    //    internalClipboardRef; if it differs → it came from outside → block.
+    const handlePaste = (e: ClipboardEvent) => {
+      if (allowCopyPaste) return;
+      const pastedText = e.clipboardData?.getData("text") ?? "";
+      if (pastedText && pastedText !== internalClipboardRef.current) {
         e.preventDefault();
         e.stopPropagation();
         http.post(`/playground/${id}/log-cheat`, {
-          action: e.type,
-          details: `El alumno intentó usar el portapapeles (${e.type}).`,
+          action: "paste_external",
+          details: "El alumno intentó pegar contenido externo al editor.",
         }).catch(() => {});
-        alert("Copiar y pegar está deshabilitado durante este examen. Su intento ha sido registrado.");
+        alert("Solo puedes pegar contenido que hayas copiado dentro del editor. Pegar texto externo está bloqueado durante este examen.");
       }
     };
 
-    // 4. Tab visibility monitoring (anti cheat)
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        http.post(`/playground/${id}/log-cheat`, {
-          action: "tab_switch",
-          details: "El alumno cambió de pestaña, abrió otra ventana o minimizó el navegador.",
-        }).catch(() => {});
-        alert("⚠️ ADVERTENCIA: Se ha registrado que cambiaste de ventana durante el examen. Esta acción es reportada como posible fraude.");
+    // Block cut/copy ONLY outside the editor (context menus, other elements)
+    const handleCopyCutOutsideEditor = (e: ClipboardEvent) => {
+      if (allowCopyPaste) return;
+      const editorContainer = document.querySelector(".monaco-editor");
+      if (editorContainer && editorContainer.contains(e.target as Node)) {
+        // Copy/cut inside Monaco — track in our internal clipboard
+        // The actual text gets tracked via Monaco's onDidChangeCursorSelection below
+        return; // allow it
       }
+      // Outside the editor — block
+      e.preventDefault();
+      e.stopPropagation();
     };
 
-    // 5. Fullscreen lock check
+    // 4. Fullscreen lock check
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
         setIsLockedOut(true);
@@ -172,112 +212,145 @@ export default function PlaygroundIDE() {
       }
     };
 
+    // 5. Tab/window switch monitoring (anti cheat)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        http.post(`/playground/${id}/log-cheat`, {
+          action: "tab_switch",
+          details: "El alumno cambió de pestaña, abrió otra ventana o minimizó el navegador.",
+        }).catch(() => {});
+        setIsTabSwitchLocked(true);
+      }
+    };
+
     if (!allowCopyPaste) {
-      window.addEventListener("copy", handleCopyPaste, true);
-      window.addEventListener("paste", handleCopyPaste, true);
-      window.addEventListener("cut", handleCopyPaste, true);
+      window.addEventListener("paste", handlePaste, true);
+      window.addEventListener("copy", handleCopyCutOutsideEditor as any, true);
+      window.addEventListener("cut", handleCopyCutOutsideEditor as any, true);
       document.addEventListener("fullscreenchange", handleFullscreenChange);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
     }
-    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       document.removeEventListener("click", enterFullscreen);
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (!allowCopyPaste) {
-        window.removeEventListener("copy", handleCopyPaste, true);
-        window.removeEventListener("paste", handleCopyPaste, true);
-        window.removeEventListener("cut", handleCopyPaste, true);
+        window.removeEventListener("paste", handlePaste, true);
+        window.removeEventListener("copy", handleCopyCutOutsideEditor as any, true);
+        window.removeEventListener("cut", handleCopyCutOutsideEditor as any, true);
         document.removeEventListener("fullscreenchange", handleFullscreenChange);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
       }
     };
   }, [isExam, allowCopyPaste]);
 
-  // ── Run ─────────────────────────────────────────────────────────────────────
-  const handleRun = useCallback(async () => {
-    clearTerminal();
-    setShowTerminal(true);
-    setRunning(true);
+  // ── Exam Timer: auto-submit when end_time is reached ───────────────────────
+  useEffect(() => {
+    if (!isExam || examFinished || isAdminReview) return;
 
-    const now = new Date().toLocaleTimeString();
-    appendTerminalLine(
-      `${C.gray}[${now}]${C.reset} ${C.bold}${C.green}▶ Ejecutando ${config.label}…${C.reset}`
-    );
-    appendTerminalLine(`${C.dim}${"─".repeat(48)}${C.reset}`);
+    const checkTimer = () => {
+      if (endTimeRef.current && new Date() >= endTimeRef.current) {
+        // Time's up — auto submit
+        if (id) {
+          handleSave().then(() => {
+            http.post(`/playground/${id}/submit`).catch(() => {});
+          }).catch(() => {});
+        }
+        setExamFinished(true);
+        // Exit fullscreen
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    };
+
+    const interval = setInterval(checkTimer, 15_000); // check every 15s
+    return () => clearInterval(interval);
+  }, [isExam, examFinished, id]);
+
+  // ── Handle exam submitted callback (from Toolbar) ──────────────────────────
+  const handleExamSubmitted = useCallback(() => {
+    setExamFinished(true);
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
+  // ── WebSocket execution ──────────────────────────────────────────────────────
+  const { startExecution, sendInput, stopExecution } = useExecutionSocket({
+    onOutput: useCallback((data: string) => {
+      terminalApiRef.current?.write(data);
+    }, []),
+
+    onDone: useCallback((code: number, killed?: boolean) => {
+      setRunning(false);
+      const api = terminalApiRef.current;
+      if (!api) return;
+      api.write(`\r\n${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
+      if (killed) {
+        api.write(`${C.gray}✖ Proceso cancelado${C.reset}\r\n`);
+      } else if (code === 0) {
+        api.write(`${C.green}✔ Proceso terminado con código 0${C.reset}\r\n`);
+      } else {
+        api.write(`${C.red}✖ Proceso terminado con código ${code}${C.reset}\r\n`);
+      }
+    }, [setRunning]),
+
+    onConnectionError: useCallback((msg: string) => {
+      setRunning(false);
+      terminalApiRef.current?.write(`${C.red}${C.bold}✖ Error de conexión WebSocket: ${msg}${C.reset}\r\n`);
+    }, [setRunning]),
+  });
+
+  // ── Run ─────────────────────────────────────────────────────────────────────
+  const handleRun = useCallback(() => {
+    setShowTerminal(true);
 
     if (config.runtime === "iframe") {
-      // Web preview — just refresh the iframe
+      // Web preview — just refresh the iframe (no backend needed)
       setPreviewRefreshKey((k) => k + 1);
       setShowPreview(true);
-      appendTerminalLine(
-        `${C.cyan}ℹ  Preview actualizado en el panel derecho${C.reset}`
-      );
-      appendTerminalLine(
-        `${C.gray}   Los cambios se reflejan automáticamente${C.reset}`
-      );
-      setRunning(false);
       return;
     }
 
-    // Backend execution
-    try {
-      const result = await runOnBackend(language, files);
+    // Clear terminal directly (bypasses the store-driven clear path)
+    terminalApiRef.current?.clear();
+    setRunning(true);
 
-      if (result.stdout) {
-        result.stdout.split("\n").forEach((line) => {
-          appendTerminalLine(`${C.white}${line}${C.reset}`);
-        });
-      }
+    const now = new Date().toLocaleTimeString();
+    terminalApiRef.current?.write(
+      `${C.gray}[${now}]${C.reset} ${C.bold}${C.green}▶ Ejecutando ${config.label}…${C.reset}\r\n`
+    );
+    terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
 
-      if (result.stderr) {
-        appendTerminalLine("");
-        result.stderr.split("\n").forEach((line) => {
-          if (line.trim())
-            appendTerminalLine(`${C.red}${line}${C.reset}`);
-        });
-      }
-
-      appendTerminalLine(`${C.dim}${"─".repeat(48)}${C.reset}`);
-
-      if (result.code === 0) {
-        appendTerminalLine(
-          `${C.green}✔ Proceso terminado con código 0${C.reset}`
-        );
-      } else {
-        appendTerminalLine(
-          `${C.red}✖ Proceso terminado con código ${result.code}${C.reset}`
-        );
-      }
-
-      if (result.execution_time !== undefined) {
-        appendTerminalLine(
-          `${C.gray}  Tiempo: ${result.execution_time}ms${C.reset}`
-        );
-      }
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.message ??
-        err?.message ??
-        "Error de conexión";
-
-      appendTerminalLine(`${C.red}${C.bold}✖ Error: ${msg}${C.reset}`);
-
-      if (msg.toLowerCase().includes("docker")) {
-        appendTerminalLine("");
-        appendTerminalLine(
-          `${C.yellow}⚠  Asegúrate de que Docker esté corriendo en el servidor${C.reset}`
-        );
-      }
-    } finally {
-      setRunning(false);
-    }
+    startExecution(language, files);
   }, [
     config,
     language,
     files,
-    clearTerminal,
     setRunning,
-    appendTerminalLine,
+    startExecution,
+  ]);
+
+  // ── Run specific file (from terminal commands like `kotlin archivo.kt`) ────
+  const handleRunFile = useCallback((targetFile: string) => {
+    setShowTerminal(true);
+
+    terminalApiRef.current?.clear();
+    setRunning(true);
+
+    const now = new Date().toLocaleTimeString();
+    terminalApiRef.current?.write(
+      `${C.gray}[${now}]${C.reset} ${C.bold}${C.green}▶ Ejecutando ${targetFile}…${C.reset}\r\n`
+    );
+    terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
+
+    startExecution(language, files, targetFile);
+  }, [
+    language,
+    files,
+    setRunning,
+    startExecution,
   ]);
 
   // ── Save ────────────────────────────────────────────────────────────────────
@@ -300,6 +373,32 @@ export default function PlaygroundIDE() {
       setSaving(false);
     }
   }, [id, files, setSaving]);
+
+  // ── Download ZIP ─────────────────────────────────────────────────────────────
+  const handleDownloadZip = useCallback(async () => {
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+    for (const file of files) {
+      if (!file.is_folder) {
+        const path = (file.path ?? `/${file.name}`).replace(/^\//, "");
+        zip.file(path || file.name, file.content ?? "");
+      }
+    }
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${projectName.replace(/[^a-zA-Z0-9_\-]/g, "_")}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [files, projectName]);
+
+  // ── Exam auto-save every 5 minutes ──────────────────────────────────────────
+  useEffect(() => {
+    if (!isExam || examFinished || isAdminReview) return;
+    const interval = setInterval(() => { handleSave(); }, 5 * 60_000);
+    return () => clearInterval(interval);
+  }, [isExam, examFinished, isAdminReview, handleSave]);
 
   // ── Keyboard shortcut: Ctrl+S ────────────────────────────────────────────────
   useEffect(() => {
@@ -332,6 +431,29 @@ export default function PlaygroundIDE() {
     );
   }
 
+  // ── Exam Finished screen ──────────────────────────────────────────────────
+  if (examFinished) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-screen bg-[#f8f9fc] dark:bg-[#0d1117] text-gray-700 dark:text-slate-300">
+        <div className="text-center max-w-md">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+            <ShieldCheck size={40} className="text-green-600 dark:text-green-400" />
+          </div>
+          <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Examen Finalizado</h2>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
+            Tu examen ha sido entregado exitosamente. Ya no es posible realizar modificaciones.
+          </p>
+          <button
+            onClick={() => navigate("/playground")}
+            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors shadow-lg"
+          >
+            Volver al inicio
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-full min-h-screen bg-[#f8f9fc] dark:bg-[#0d1117] text-gray-700 dark:text-slate-300">
@@ -356,7 +478,7 @@ export default function PlaygroundIDE() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#f8f9fc] dark:bg-[#0d1117] text-gray-900 dark:text-white">
       
-      {/* ── Lock Screen ── */}
+      {/* ── Lock Screen: fullscreen exit ── */}
       {isLockedOut && isExam && !allowCopyPaste && (
         <div className="fixed inset-0 bg-red-900/95 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-sm">
           <AlertCircle size={80} className="mb-6 animate-pulse text-red-400" />
@@ -364,7 +486,7 @@ export default function PlaygroundIDE() {
           <p className="text-lg max-w-xl text-red-200 mb-8">
             Has minimizado la ventana o salido del modo de pantalla completa. Esta acción está directamente prohibida y el incidente ha sido notificado y añadido al historial de fraude.
           </p>
-          <button 
+          <button
             onClick={() => document.documentElement.requestFullscreen().catch(() => {})}
             className="px-8 py-4 bg-white text-red-900 font-bold text-xl rounded-lg shadow-2xl hover:bg-gray-200 hover:scale-105 transition-all"
           >
@@ -373,14 +495,47 @@ export default function PlaygroundIDE() {
         </div>
       )}
 
+      {/* ── Lock Screen: tab / window switch ── */}
+      {isTabSwitchLocked && isExam && !allowCopyPaste && (
+        <div className="fixed inset-0 bg-red-900/95 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-sm">
+          <AlertCircle size={80} className="mb-6 animate-pulse text-red-400" />
+          <h2 className="text-4xl font-black tracking-tight mb-4 text-white">CAMBIO DE PESTAÑA DETECTADO</h2>
+          <p className="text-lg max-w-xl text-red-200 mb-8">
+            Has cambiado de pestaña o ventana durante el examen. Esta acción está directamente prohibida y el incidente ha sido notificado y añadido al historial de fraude.
+          </p>
+          <button
+            onClick={() => setIsTabSwitchLocked(false)}
+            className="px-8 py-4 bg-white text-red-900 font-bold text-xl rounded-lg shadow-2xl hover:bg-gray-200 hover:scale-105 transition-all"
+          >
+            VOLVER AL EXAMEN
+          </button>
+        </div>
+      )}
+
+      {/* ── Admin review banner ── */}
+      {isAdminReview && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-sm font-medium shrink-0">
+          <button
+            onClick={() => reviewFrom ? navigate(`/admin/assignments?group=${reviewFrom}`) : navigate("/admin/assignments")}
+            className="flex items-center gap-1.5 px-3 py-1 bg-amber-200 dark:bg-amber-800/50 hover:bg-amber-300 dark:hover:bg-amber-700/60 rounded-lg text-amber-900 dark:text-amber-200 font-semibold text-xs transition-colors"
+          >
+            ← Volver a proyectos del examen
+          </button>
+          <span className="text-xs opacity-70">Modo revisión — solo lectura del examen del alumno</span>
+        </div>
+      )}
+
       {/* ── Toolbar ── */}
       <Toolbar
         onRun={handleRun}
         onSave={handleSave}
+        onDownload={handleDownloadZip}
         showTerminal={showTerminal}
         onToggleTerminal={() => setShowTerminal((v) => !v)}
         showPreview={showPreview}
         onTogglePreview={() => setShowPreview((v) => !v)}
+        onExamSubmitted={handleExamSubmitted}
+        endTime={endTimeRef.current}
       />
 
       {/* ── Body ── */}
@@ -422,6 +577,54 @@ export default function PlaygroundIDE() {
                   updateFileContent(activeFile.id, val ?? "")
                 }
                 theme={theme === "dark" ? "vs-dark" : "vs"}
+                beforeMount={setupMonacoCompletion}
+                onMount={(editor) => {
+                  editorInstanceRef.current = editor;
+                  // Track copy/cut inside Monaco for the internal clipboard
+                  if (isExam && !allowCopyPaste) {
+                    editor.onDidChangeCursorSelection(() => {
+                      const selection = editor.getSelection();
+                      if (selection && !selection.isEmpty()) {
+                        const model = editor.getModel();
+                        if (model) {
+                          internalClipboardRef.current = model.getValueInRange(selection);
+                        }
+                      }
+                    });
+                    // Also intercept the copy/cut keyboard actions to capture the text
+                    editor.addCommand(
+                      // Ctrl+C
+                      // eslint-disable-next-line no-bitwise
+                      (window as any).monaco?.KeyMod?.CtrlCmd | (window as any).monaco?.KeyCode?.KeyC,
+                      () => {
+                        const selection = editor.getSelection();
+                        if (selection && !selection.isEmpty()) {
+                          const model = editor.getModel();
+                          if (model) {
+                            internalClipboardRef.current = model.getValueInRange(selection);
+                          }
+                        }
+                        // Trigger the default copy action
+                        editor.trigger('keyboard', 'editor.action.clipboardCopyAction', null);
+                      }
+                    );
+                    editor.addCommand(
+                      // Ctrl+X
+                      // eslint-disable-next-line no-bitwise
+                      (window as any).monaco?.KeyMod?.CtrlCmd | (window as any).monaco?.KeyCode?.KeyX,
+                      () => {
+                        const selection = editor.getSelection();
+                        if (selection && !selection.isEmpty()) {
+                          const model = editor.getModel();
+                          if (model) {
+                            internalClipboardRef.current = model.getValueInRange(selection);
+                          }
+                        }
+                        editor.trigger('keyboard', 'editor.action.clipboardCutAction', null);
+                      }
+                    );
+                  }
+                }}
                 options={{
                   fontSize: 14,
                   fontFamily:
@@ -460,7 +663,14 @@ export default function PlaygroundIDE() {
                 max={600}
               />
               <div className="flex-shrink-0" style={{ height: terminalHeight }}>
-                <TerminalPanel onRun={handleRun} />
+                <TerminalPanel
+                  onRun={handleRun}
+                  onRunFile={handleRunFile}
+                  isRunning={isRunning}
+                  sendInput={sendInput}
+                  onKill={stopExecution}
+                  onReady={(api) => { terminalApiRef.current = api; }}
+                />
               </div>
             </>
           )}

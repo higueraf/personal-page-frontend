@@ -9,6 +9,7 @@ interface Project {
   id: string;
   name: string;
   language: Language;
+  is_exam?: boolean;
   updated_at?: string;
   created_at?: string;
 }
@@ -229,17 +230,19 @@ export default function PlaygroundList() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteProject(project.id); }}
-                        title={deleting === project.id ? "¿Confirmar eliminación?" : "Eliminar"}
-                        className={`p-1.5 rounded opacity-0 group-hover:opacity-100 transition-all ${
-                          deleting === project.id
-                            ? "text-red-500 opacity-100 bg-red-500/20"
-                            : "text-[--color-text-muted] hover:text-red-500 hover:bg-red-500/10"
-                        }`}
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      {!project.is_exam && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteProject(project.id); }}
+                          title={deleting === project.id ? "¿Confirmar eliminación?" : "Eliminar"}
+                          className={`p-1.5 rounded opacity-0 group-hover:opacity-100 transition-all ${
+                            deleting === project.id
+                              ? "text-red-500 opacity-100 bg-red-500/20"
+                              : "text-[--color-text-muted] hover:text-red-500 hover:bg-red-500/10"
+                          }`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                       <ChevronRight
                         size={16}
                         className="text-[--color-text-sub] group-hover:text-[--color-text-muted] transition-colors"

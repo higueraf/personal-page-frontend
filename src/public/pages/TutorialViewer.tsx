@@ -19,6 +19,8 @@ interface TutorialMeta {
   slug: string;
   description?: string;
   level?: string;
+  is_public?: boolean;
+  study_courses?: { id: string; name: string }[];
 }
 
 interface TutorialPage {
@@ -42,6 +44,18 @@ function canAccessContent(role?: { name: string } | string | null): boolean {
   if (!role) return false;
   const name = typeof role === "string" ? role : role.name;
   return ALLOWED.has(name.toLowerCase());
+}
+
+/** Extrae la lista de carreras del mensaje JSON del 403 de carrera restringida */
+function parseCourseRestriction(error: unknown): string[] | null {
+  try {
+    const msg = (error as any)?.response?.data?.message ?? "";
+    const parsed = JSON.parse(msg);
+    if (parsed?.code === "COURSE_RESTRICTED" && Array.isArray(parsed.courses)) {
+      return parsed.courses as string[];
+    }
+  } catch { /* no es JSON */ }
+  return null;
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -317,14 +331,20 @@ export default function TutorialViewer() {
     queryFn: () => fetchMeta(courseSlug!),
     enabled: !!courseSlug,
   });
+  const tutorial = metaQ.data;
+  const isPublicTutorial = tutorial?.is_public === true;
+  const canView = hasAccess || isPublicTutorial;
 
   const pagesQ = useQuery({
     queryKey: ["tutorial-pages", courseSlug],
     queryFn: () => fetchPages(courseSlug!),
-    enabled: !!courseSlug && hasAccess,
+    enabled: !!courseSlug && canView,
     retry: false,
   });
   const pages: TutorialPage[] = pagesQ.data ?? [];
+  const restrictedCourses: string[] | null = pagesQ.isError
+    ? parseCourseRestriction(pagesQ.error)
+    : null;
 
   useEffect(() => {
     if (pages.length > 0 && !activeSlug) setActiveSlug(pages[0].slug);
@@ -333,10 +353,9 @@ export default function TutorialViewer() {
   const contentQ = useQuery({
     queryKey: ["tutorial-content", courseSlug, activeSlug],
     queryFn: () => fetchPageContent(courseSlug!, activeSlug!),
-    enabled: !!courseSlug && !!activeSlug && hasAccess,
+    enabled: !!courseSlug && !!activeSlug && canView,
   });
   const content = contentQ.data;
-  const tutorial = metaQ.data;
 
   const SIDEBAR_W = 260;
 
@@ -371,7 +390,8 @@ export default function TutorialViewer() {
       </div>
 
       {/* Body */}
-      {!hasAccess ? (
+      {!canView ? (
+        /* ── Sin acceso: requiere login o rol válido ───────────────────── */
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", gap: 16, textAlign: "center" }}>
           <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--color-bg-muted)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--color-border)" }}>
             <Lock size={28} style={{ color: "var(--color-primary)" }} />
@@ -391,6 +411,42 @@ export default function TutorialViewer() {
             </Link>
           </div>
         </div>
+      ) : restrictedCourses ? (
+        /* ── Tiene rol válido pero no pertenece a la carrera ─────────── */
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", gap: 16, textAlign: "center" }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(245,158,11,.1)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(245,158,11,.3)" }}>
+            <Lock size={28} style={{ color: "#f59e0b" }} />
+          </div>
+          <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.2rem", color: "var(--color-text)" }}>
+            Tutorial exclusivo de carrera
+          </h2>
+          <p style={{ color: "var(--color-text-muted)", maxWidth: 420, lineHeight: 1.6, fontSize: ".93rem" }}>
+            Este tutorial está disponible únicamente para alumnos de:
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+            {restrictedCourses.map((name) => (
+              <span key={name} style={{
+                background: "rgba(245,158,11,.12)", color: "#d97706",
+                border: "1px solid rgba(245,158,11,.3)",
+                padding: "4px 14px", borderRadius: 99,
+                fontSize: ".88rem", fontWeight: 600,
+              }}>
+                {name}
+              </span>
+            ))}
+          </div>
+          <p style={{ color: "var(--color-text-muted)", fontSize: ".83rem", maxWidth: 380, lineHeight: 1.5 }}>
+            Contacta a tu institución o administrador para que te asignen la carrera correspondiente.
+          </p>
+          <Link to="/tutorials" style={{
+            marginTop: 4, background: "var(--color-bg-muted)", color: "var(--color-text)",
+            border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)",
+            padding: "9px 18px", fontSize: ".88rem", textDecoration: "none",
+            display: "inline-flex", alignItems: "center", gap: 6,
+          }}>
+            ← Volver a tutoriales
+          </Link>
+        </div>
       ) : (
         <div style={{ display: "flex", height: "calc(100vh - 145px)", overflow: "hidden" }}>
           <aside style={{
@@ -404,7 +460,7 @@ export default function TutorialViewer() {
                 Páginas del tutorial
               </span>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "6px 0" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "6px 0", overscrollBehavior: "contain" }}>
               {pagesQ.isLoading && (
                 <div style={{ padding: "16px", color: "var(--color-text-muted)", fontSize: ".83rem", display: "flex", alignItems: "center", gap: 6 }}>
                   <RefreshCw size={13}/> Cargando…
@@ -444,7 +500,7 @@ export default function TutorialViewer() {
             </div>
           </aside>
 
-          <main style={{ flex: 1, overflowY: "auto", padding: "32px 44px", background: "var(--color-bg)" }}>
+          <main style={{ flex: 1, overflowY: "auto", padding: "32px 44px", background: "var(--color-bg)", overscrollBehavior: "contain" }}>
             {!activeSlug && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--color-text-muted)", gap: 12 }}>
                 <BookOpen size={48} style={{ opacity: .15 }}/>

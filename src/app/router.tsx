@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router-dom";
 import { RequireAuth }   from "../shared/auth/RequireAuth";
+import { RequireAdmin }  from "../shared/auth/RequireAdmin";
 import PublicLayout      from "./PublicLayout";
 
 // ── Páginas públicas ──────────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ import AdminProfile      from "../admin/pages/AdminProfile";
 import AdminResources    from "../admin/pages/AdminResources";
 import AdminContact      from "../admin/pages/AdminContact";
 import AdminAssignments  from "../admin/pages/AdminAssignments";
+import AdminPlaygrounds  from "../admin/pages/AdminPlaygrounds";
 
 export const router = createBrowserRouter([
   // ── Público ───────────────────────────────────────────────────────────────
@@ -81,10 +83,10 @@ export const router = createBrowserRouter([
 
   { path: "/admin/login", element: <Login /> },
 
-  // ── Admin protegido ───────────────────────────────────────────────────────
+  // ── Admin protegido (solo rol admin) ───────────────────────────────────────
   {
     path: "/admin",
-    element: <RequireAuth />,
+    element: <RequireAdmin />,
     children: [
       {
         path: "",
@@ -103,6 +105,7 @@ export const router = createBrowserRouter([
           { path: "resources", element: <AdminResources /> },
           { path: "contact",   element: <AdminContact /> },
           { path: "assignments", element: <AdminAssignments /> },
+          { path: "playgrounds", element: <AdminPlaygrounds /> },
           { path: "institutions", element: <AdminInstitutions /> },
           { path: "study-courses", element: <AdminStudyCourses /> },
           { path: "users",     element: <AdminUsers /> },

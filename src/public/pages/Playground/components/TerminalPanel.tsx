@@ -57,11 +57,42 @@ const TERMINAL_THEMES = {
   },
 } as const;
 
-interface TerminalPanelProps {
-  onRun?: () => void;
+// ─── Public API exposed to the parent via onReady ─────────────────────────────
+
+export interface TerminalApi {
+  /** Write raw data (ANSI sequences included) directly to xterm */
+  write: (data: string) => void;
+  writeln: (data: string) => void;
+  /** Full clear + reset cursor + erase input buffer */
+  clear: () => void;
+  fit: () => void;
 }
 
-export default function TerminalPanel({ onRun }: TerminalPanelProps) {
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+interface TerminalPanelProps {
+  /** Called when user types a run command while no execution is active */
+  onRun?: () => void;
+  /** Called when user types a run command with a specific file (e.g. 'kotlin archivo.kt') */
+  onRunFile?: (targetFile: string) => void;
+  /** Whether a process is currently running (stdin live mode) */
+  isRunning?: boolean;
+  /** Forward raw keystrokes to the running process stdin */
+  sendInput?: (data: string) => void;
+  /** Stop / kill the running process (triggered on Ctrl+C while running) */
+  onKill?: () => void;
+  /** Called once after xterm is mounted, with the imperative API */
+  onReady?: (api: TerminalApi) => void;
+}
+
+export default function TerminalPanel({
+  onRun,
+  onRunFile,
+  isRunning = false,
+  sendInput,
+  onKill,
+  onReady,
+}: TerminalPanelProps) {
   const terminalLines = usePlaygroundStore((s) => s.terminalLines);
   const clearTerminal = usePlaygroundStore((s) => s.clearTerminal);
   const language = usePlaygroundStore((s) => s.language);
@@ -71,25 +102,44 @@ export default function TerminalPanel({ onRun }: TerminalPanelProps) {
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const prevLinesCount = useRef(0);
-  const inputBuffer = useRef(""); // keyboard input buffer
-  const hasInitialized = useRef(false); // prevents double prompt on mount
-  const onRunRef = useRef(onRun);       // stable ref for onRun callback
-  const themeRef = useRef(theme);       // stable ref for theme at mount time
-  themeRef.current = theme;             // always up-to-date (sync on each render)
+  const inputBuffer = useRef(""); // keyboard buffer for fake-shell mode
+  const hasInitialized = useRef(false);
 
-  // Keep onRunRef in sync with the latest prop value
-  useEffect(() => {
-    onRunRef.current = onRun;
-  }, [onRun]);
+  // Stable refs for callbacks
+  const onRunRef = useRef(onRun);
+  const onRunFileRef = useRef(onRunFile);
+  const sendInputRef = useRef(sendInput);
+  const onKillRef = useRef(onKill);
+  const isRunningRef = useRef(isRunning);
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
-  // Sync xterm color theme when the app theme changes (dark ↔ light)
+  useEffect(() => { onRunRef.current = onRun; }, [onRun]);
+  useEffect(() => { onRunFileRef.current = onRunFile; }, [onRunFile]);
+  useEffect(() => { sendInputRef.current = sendInput; }, [sendInput]);
+  useEffect(() => { onKillRef.current = onKill; }, [onKill]);
+  useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
+
+  // Sync xterm color theme on dark ↔ light change
   useEffect(() => {
     if (termRef.current) {
       termRef.current.options.theme = TERMINAL_THEMES[theme];
     }
   }, [theme]);
 
-  // Mount xterm once
+  // Write new prompt when execution finishes (isRunning: true → false)
+  const prevIsRunning = useRef(isRunning);
+  useEffect(() => {
+    if (prevIsRunning.current && !isRunning) {
+      if (termRef.current) {
+        inputBuffer.current = "";
+        writePrompt(termRef.current, usePlaygroundStore.getState().language);
+      }
+    }
+    prevIsRunning.current = isRunning;
+  }, [isRunning]);
+
+  // ── Mount xterm once ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -100,9 +150,9 @@ export default function TerminalPanel({ onRun }: TerminalPanelProps) {
       lineHeight: 1.5,
       cursorBlink: true,
       cursorStyle: "bar",
-      scrollback: 1000,
+      scrollback: 5000,
       convertEol: true,
-      disableStdin: false, // ← allow keyboard input
+      disableStdin: false,
     });
 
     const fitAddon = new FitAddon();
@@ -113,40 +163,90 @@ export default function TerminalPanel({ onRun }: TerminalPanelProps) {
     termRef.current = term;
     fitRef.current = fitAddon;
 
+    // Expose imperative API to parent
+    if (onReady) {
+      onReady({
+        write: (data) => termRef.current?.write(data),
+        writeln: (data) => termRef.current?.writeln(data),
+        clear: () => {
+          termRef.current?.clear();
+          prevLinesCount.current = 0;
+          inputBuffer.current = "";
+        },
+        fit: () => { try { fitRef.current?.fit(); } catch { /* ignore */ } },
+      });
+    }
+
     // Welcome hint + initial prompt
     term.writeln(
       `\x1b[90m# Playground terminal  ·  escribe \x1b[36mhelp\x1b[90m para ver comandos\x1b[0m`
     );
     writePrompt(term, language);
 
-    // ── Keyboard input ─────────────────────────────────────────────────────
+    // ── Keyboard input ──────────────────────────────────────────────────────
     const disposable = term.onData((data) => {
       const code = data.charCodeAt(0);
 
-      // Ctrl+C — cancel line
+      // ── RUNNING MODE: forward all keystrokes to the process stdin ──────────
+      if (isRunningRef.current) {
+        // Ctrl+C → send SIGINT to process and ask parent to kill
+        if (data === "\x03") {
+          term.write("^C\r\n");
+          sendInputRef.current?.("\x03");
+          onKillRef.current?.();
+          return;
+        }
+        // Ctrl+L → clear locally only (process doesn't need it)
+        if (data === "\x0c") {
+          term.clear();
+          return;
+        }
+        // Enter → local echo + send newline to stdin
+        if (code === 13) {
+          term.write("\r\n");
+          sendInputRef.current?.("\n");
+          return;
+        }
+        // Backspace
+        if (code === 127 || data === "\x08") {
+          term.write("\b \b");
+          sendInputRef.current?.("\x7f");
+          return;
+        }
+        // Ignore escape sequences (arrows, F-keys) — don't forward to process
+        if (data.startsWith("\x1b")) return;
+        // Printable chars: echo locally + forward to stdin char by char
+        if (code >= 32 && code !== 127) {
+          term.write(data);
+          sendInputRef.current?.(data);
+        }
+        return;
+      }
+
+      // ── IDLE MODE: fake-shell interpreter ──────────────────────────────────
       if (data === "\x03") {
         term.writeln("^C");
         inputBuffer.current = "";
-        writePrompt(term, language);
+        writePrompt(term, usePlaygroundStore.getState().language);
         return;
       }
-      // Ctrl+L — clear
       if (data === "\x0c") {
         term.clear();
         inputBuffer.current = "";
-        writePrompt(term, language);
+        writePrompt(term, usePlaygroundStore.getState().language);
         return;
       }
-      // Enter
       if (code === 13) {
         const cmd = inputBuffer.current.trim();
-        const cmdLower = cmd.toLowerCase();
         inputBuffer.current = "";
         term.writeln("");
 
-        // Detect interpreter / run commands → trigger execution
-        if (isRunCommand(cmdLower)) {
-          if (onRunRef.current) {
+        if (isRunCommand(cmd)) {
+          const targetFile = extractTargetFile(cmd);
+          if (targetFile && onRunFileRef.current) {
+            term.writeln(`\x1b[90m  ▶ Ejecutando ${targetFile}…\x1b[0m`);
+            onRunFileRef.current(targetFile);
+          } else if (onRunRef.current) {
             term.writeln(`\x1b[90m  ▶ Ejecutando…\x1b[0m`);
             onRunRef.current();
           } else {
@@ -156,10 +256,9 @@ export default function TerminalPanel({ onRun }: TerminalPanelProps) {
           return;
         }
 
-        handleCommand(term, cmdLower, language);
+        handleCommand(term, cmd.toLowerCase(), usePlaygroundStore.getState().language);
         return;
       }
-      // Backspace
       if (code === 127 || data === "\x08") {
         if (inputBuffer.current.length > 0) {
           inputBuffer.current = inputBuffer.current.slice(0, -1);
@@ -167,9 +266,7 @@ export default function TerminalPanel({ onRun }: TerminalPanelProps) {
         }
         return;
       }
-      // Ignore escape sequences (arrows, F-keys)
       if (data.startsWith("\x1b")) return;
-      // Printable chars
       if (code >= 32 && code !== 127) {
         inputBuffer.current += data;
         term.write(data);
@@ -177,7 +274,7 @@ export default function TerminalPanel({ onRun }: TerminalPanelProps) {
     });
 
     const resizeObserver = new ResizeObserver(() => {
-      try { fitAddon.fit(); } catch {}
+      try { fitAddon.fit(); } catch { /* ignore */ }
     });
     resizeObserver.observe(containerRef.current);
 
@@ -186,14 +283,12 @@ export default function TerminalPanel({ onRun }: TerminalPanelProps) {
       resizeObserver.disconnect();
       term.dispose();
       termRef.current = null;
-      // Reset so the clear-effect skips again on the next mount
-      // (React StrictMode mounts effects twice in development)
       hasInitialized.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Write new output lines (from store)
+  // ── Write new lines from the store (used by handleCommand / legacy path) ──
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
@@ -202,25 +297,20 @@ export default function TerminalPanel({ onRun }: TerminalPanelProps) {
     prevLinesCount.current = terminalLines.length;
     if (newLines.length === 0) return;
 
-    // Erase user's partial input before writing output
     if (inputBuffer.current.length > 0) {
       term.write("\r" + " ".repeat(inputBuffer.current.length + 30) + "\r");
     }
     newLines.forEach((line) => term.writeln(line));
-    // Re-print prompt + partial input
     writePrompt(term, usePlaygroundStore.getState().language);
     if (inputBuffer.current.length > 0) term.write(inputBuffer.current);
   }, [terminalLines]);
 
-  // Full clear (triggered by clearTerminal() or language change)
-  // hasInitialized prevents this from firing on initial mount — the
-  // mount effect already wrote the first prompt.
+  // ── Full clear (triggered by clearTerminal() from the Toolbar button) ─────
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
 
     if (!hasInitialized.current) {
-      // First execution: mark as initialized and skip (prompt already shown)
       hasInitialized.current = true;
       return;
     }
@@ -229,13 +319,13 @@ export default function TerminalPanel({ onRun }: TerminalPanelProps) {
     term.clear();
     prevLinesCount.current = 0;
     inputBuffer.current = "";
-    writePrompt(term, language);
+    if (!isRunningRef.current) writePrompt(term, language);
   }, [terminalLines.length, language]);
 
   // Refit on language change
   useEffect(() => {
     const id = setTimeout(() => {
-      try { fitRef.current?.fit(); } catch {}
+      try { fitRef.current?.fit(); } catch { /* ignore */ }
     }, 50);
     return () => clearTimeout(id);
   }, [language]);
@@ -253,10 +343,18 @@ export default function TerminalPanel({ onRun }: TerminalPanelProps) {
           <span className="text-[10px] text-gray-500 dark:text-slate-400 font-mono uppercase tracking-wider">
             Terminal
           </span>
+          {isRunning && (
+            <span className="flex items-center gap-1 text-[10px] text-green-500 font-mono animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+              ejecutando
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <span className="hidden sm:inline text-[10px] text-gray-400 dark:text-slate-600">
-            Ctrl+L limpiar · Ctrl+C cancelar · run ejecutar · help comandos
+            {isRunning
+              ? "Ctrl+C cancelar proceso · escribe para enviar input"
+              : "Ctrl+L limpiar · Ctrl+C cancelar · run ejecutar · help comandos"}
           </span>
           <button
             onClick={clearTerminal}
@@ -275,41 +373,43 @@ export default function TerminalPanel({ onRun }: TerminalPanelProps) {
   );
 }
 
-/** Writes a styled shell prompt */
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function writePrompt(term: Terminal, language: string) {
   const langColors: Record<string, string> = {
-    python: "\x1b[34m",
+    python:     "\x1b[34m",
     javascript: "\x1b[33m",
     typescript: "\x1b[34m",
-    kotlin: "\x1b[35m",
-    dart: "\x1b[36m",
-    html: "\x1b[33m",
-    react: "\x1b[36m",
-    vue: "\x1b[32m",
-    angular: "\x1b[31m",
+    kotlin:     "\x1b[35m",
+    dart:       "\x1b[36m",
+    html:       "\x1b[33m",
+    react:      "\x1b[36m",
+    vue:        "\x1b[32m",
+    angular:    "\x1b[31m",
   };
   const c = langColors[language] ?? "\x1b[37m";
   term.write(`\x1b[32m❯\x1b[0m ${c}${language}\x1b[0m \x1b[90m$\x1b[0m `);
 }
 
-/**
- * Returns true when the typed command looks like a language-runner invocation:
- *   python main.py | python3 app.py | node index.js | dart main.dart |
- *   kotlin Main.kt | kotlinc Main.kt | tsc main.ts | ts-node file.ts |
- *   tsx file.ts | npx tsx file.ts | java Main | javac Main.java |
- *   npm run dev | npm start | run
- */
 function isRunCommand(cmd: string): boolean {
+  const lower = cmd.toLowerCase();
   return (
-    /^(python3?|node|dart|kotlin|kotlinc|tsc|ts-node|tsx|java|javac|npx)\s+\S+/.test(cmd) ||
-    /^npm\s+(run|start|test)\b/.test(cmd) ||
-    cmd === "run" ||
-    cmd === "npm start" ||
-    cmd === "npm test"
+    /^(python3?|node|dart|kotlin|kotlinc|tsc|ts-node|tsx|java|javac|npx)\s+\S+/i.test(cmd) ||
+    /^npm\s+(run|start|test)\b/i.test(cmd) ||
+    lower === "run" ||
+    lower === "npm start" ||
+    lower === "npm test"
   );
 }
 
-/** Handles commands typed in the terminal */
+/** Extract the target filename from a terminal command like 'kotlin archivo.kt' */
+function extractTargetFile(cmd: string): string | null {
+  const match = cmd.match(
+    /^(?:python3?|node|dart|kotlin|kotlinc|tsc|ts-node|tsx|java|javac|npx)\s+(\S+)/i,
+  );
+  return match ? match[1] : null;
+}
+
 function handleCommand(term: Terminal, cmd: string, language: string) {
   switch (cmd) {
     case "":
@@ -335,10 +435,11 @@ function handleCommand(term: Terminal, cmd: string, language: string) {
       term.writeln("  \x1b[32mCtrl+C\x1b[0m         — Cancelar entrada");
       term.writeln("");
       term.writeln("\x1b[33mEjecución de código:\x1b[0m");
-      term.writeln("  \x1b[32mpython main.py\x1b[0m  — Ejecutar Python");
-      term.writeln("  \x1b[32mnode index.js\x1b[0m   — Ejecutar Node.js");
-      term.writeln("  \x1b[32mdart main.dart\x1b[0m  — Ejecutar Dart");
-      term.writeln("  \x1b[32mrun\x1b[0m             — Ejecutar código activo");
+      term.writeln("  \x1b[32mpython main.py\x1b[0m    — Ejecutar archivo Python");
+      term.writeln("  \x1b[32mnode index.js\x1b[0m     — Ejecutar archivo Node.js");
+      term.writeln("  \x1b[32mkotlin archivo.kt\x1b[0m — Ejecutar archivo Kotlin");
+      term.writeln("  \x1b[32mdart main.dart\x1b[0m    — Ejecutar archivo Dart");
+      term.writeln("  \x1b[32mrun\x1b[0m               — Ejecutar archivo principal");
       term.writeln("");
       term.writeln(
         `\x1b[90m💡 Usa \x1b[0m\x1b[32mCtrl+Enter\x1b[0m\x1b[90m o el botón \x1b[0m\x1b[32m▶ Ejecutar\x1b[0m\x1b[90m para correr tu código\x1b[0m`
@@ -354,9 +455,7 @@ function handleCommand(term: Terminal, cmd: string, language: string) {
       break;
 
     default:
-      term.writeln(
-        `\x1b[31m✖ Comando no encontrado: \x1b[37m${cmd}\x1b[0m`
-      );
+      term.writeln(`\x1b[31m✖ Comando no encontrado: \x1b[37m${cmd}\x1b[0m`);
       term.writeln(
         `\x1b[90m  Escribe \x1b[36mhelp\x1b[90m para ver comandos · \x1b[32mCtrl+Enter\x1b[90m para ejecutar código\x1b[0m`
       );

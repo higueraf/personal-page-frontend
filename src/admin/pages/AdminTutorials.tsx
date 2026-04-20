@@ -9,9 +9,13 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Plus, Edit3, Trash2, BookOpen, Search, AlertCircle,
-  RefreshCw, ChevronRight,
+  RefreshCw, ChevronRight, X
 } from "lucide-react";
+import http from "../../shared/api/http";
 import { adminCourses, type AdminCourse, type CourseStatus } from "../api";
+
+interface Institution { id: string; name: string; }
+interface StudyCourse { id: string; name: string; institution_id?: string; }
 
 const STATUS_LABEL: Record<CourseStatus, string> = {
   DRAFT: "Borrador", IN_REVIEW: "En revisión",
@@ -23,7 +27,7 @@ const STATUS_CLS: Record<CourseStatus, string> = {
 };
 
 const LEVELS = ["Principiante", "Intermedio", "Avanzado"];
-const EMPTY = { title: "", description: "", level: "Principiante", status: "DRAFT" as CourseStatus };
+const EMPTY = { title: "", description: "", level: "Principiante", status: "DRAFT" as CourseStatus, is_public: false, study_courses: [] as string[] };
 
 export default function AdminTutorials() {
   const qc = useQueryClient();
@@ -32,20 +36,28 @@ export default function AdminTutorials() {
   const [form, setForm] = useState(EMPTY);
   const [editing, setEditing] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [instFilter, setInstFilter] = useState("");
 
   const coursesQ = useQuery({
     queryKey: ["tutorials", search],
     queryFn: () => adminCourses.list({ search: search || undefined }),
   });
+  const instsQ = useQuery({ queryKey: ["admin-institutions"], queryFn: () => http.get("/admin/institutions").then(r => r.data.data as Institution[]) });
+  const allCoursesQ = useQuery({ queryKey: ["admin-courses"], queryFn: () => http.get("/admin/study-courses").then(r => r.data.data as StudyCourse[]) });
+
   const courses = coursesQ.data?.data ?? [];
+  const insts = instsQ.data ?? [];
+  const allStudyCourses = allCoursesQ.data ?? [];
+  const availableStudyCourses = instFilter ? allStudyCourses.filter(c => c.institution_id === instFilter) : allStudyCourses;
+
   const inv = () => qc.invalidateQueries({ queryKey: ["tutorials"] });
 
   const createM = useMutation({
-    mutationFn: (b: typeof EMPTY) => adminCourses.create(b),
+    mutationFn: (b: typeof EMPTY) => adminCourses.create(b as any),
     onSuccess: () => { inv(); closeModal(); },
   });
   const updateM = useMutation({
-    mutationFn: ({ pk, body }: { pk: string; body: typeof EMPTY }) => adminCourses.update(pk, body),
+    mutationFn: ({ pk, body }: { pk: string; body: typeof EMPTY }) => adminCourses.update(pk, body as any),
     onSuccess: () => { inv(); closeModal(); },
   });
   const deleteM = useMutation({
@@ -55,7 +67,7 @@ export default function AdminTutorials() {
 
   function openCreate() { setForm(EMPTY); setEditing(null); setModal("create"); }
   function openEdit(c: AdminCourse) {
-    setForm({ title: c.title, description: c.description ?? "", level: c.level ?? "Principiante", status: c.status });
+    setForm({ title: c.title, description: c.description ?? "", level: c.level ?? "Principiante", status: c.status, is_public: c.is_public ?? false, study_courses: c.study_courses?.map(sc => sc.id) ?? [] });
     setEditing(c.id); setModal("edit");
   }
   function closeModal() { setModal(null); setEditing(null); }
@@ -122,6 +134,7 @@ export default function AdminTutorials() {
               </span>
               <span className={`badge ${STATUS_CLS[c.status]}`}>{STATUS_LABEL[c.status]}</span>
               {c.level && <span className="badge badge--blue">{c.level}</span>}
+              {c.is_public && <span className="badge badge--green">Público</span>}
             </div>
             {c.description && (
               <p style={{ fontSize: ".83rem", color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 500 }}>
@@ -185,6 +198,72 @@ export default function AdminTutorials() {
                   </select>
                 </div>
               </div>
+              {/* Acceso público */}
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}>
+                <input
+                  type="checkbox"
+                  checked={form.is_public}
+                  onChange={e => setForm(f => ({ ...f, is_public: e.target.checked }))}
+                  style={{ width: 16, height: 16, accentColor: "var(--color-primary)", cursor: "pointer" }}
+                />
+                <span style={{ fontSize: ".88rem", color: "var(--color-text)" }}>
+                  <strong>Acceso público</strong> — cualquier visitante puede ver el contenido sin login
+                </span>
+              </label>
+
+              {/* Asignación de cursos (Solo si no es público) */}
+              {!form.is_public && (
+                <div style={{ marginTop: 10, padding: 16, background: "rgba(99,102,241,.04)", border: "1px dashed var(--color-border)", borderRadius: "var(--radius-md)" }}>
+                  <h4 style={{ margin: "0 0 12px 0", fontSize: ".9rem", fontFamily: "var(--font-display)", color: "var(--color-primary)" }}>Asignar a Cursos de Instituciones</h4>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Filtrar Institución</label>
+                      <select value={instFilter} onChange={e => setInstFilter(e.target.value)} style={inp}>
+                        <option value="">Todas las instituciones</option>
+                        {insts.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={lbl}>Agregar Curso</label>
+                      <select 
+                        value="" 
+                        onChange={e => {
+                          const cid = e.target.value;
+                          if (cid && !form.study_courses.includes(cid)) {
+                            setForm(f => ({ ...f, study_courses: [...f.study_courses, cid] }));
+                          }
+                        }} 
+                        style={inp}
+                      >
+                        <option value="" disabled>Seleccione curso...</option>
+                        {availableStudyCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  {form.study_courses.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                      {form.study_courses.map(id => {
+                        const sc = allStudyCourses.find(c => c.id === id);
+                        if (!sc) return null;
+                        return (
+                          <div key={id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid var(--color-border)", borderRadius: 99, padding: "4px 10px", fontSize: ".75rem", color: "var(--color-text)" }}>
+                            <span>{sc.name}</span>
+                            <button type="button" onClick={() => setForm(f => ({ ...f, study_courses: f.study_courses.filter(x => x !== id) }))} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-text-muted)", display: "flex", alignItems: "center" }}>
+                              <X size={12} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {form.study_courses.length === 0 && (
+                    <p style={{ fontSize: ".8rem", color: "var(--color-text-muted)", margin: 0 }}>
+                      No hay cursos asignados. El tutorial solo será visible para administradores y profesores.
+                    </p>
+                  )}
+                </div>
+              )}
               {(createM.isError || updateM.isError) && (
                 <div style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", borderRadius: "var(--radius-md)", padding: "8px 12px", fontSize: ".82rem", color: "#DC2626" }}>
                   Error al guardar.
