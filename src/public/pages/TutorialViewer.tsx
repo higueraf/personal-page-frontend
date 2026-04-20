@@ -3,7 +3,7 @@
  * Vista pública de un tutorial con acceso restringido por rol.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, ChevronRight, Lock, ArrowLeft, ChevronLeft, RefreshCw, FileText } from "lucide-react";
@@ -359,8 +359,21 @@ export default function TutorialViewer() {
 
   const SIDEBAR_W = 260;
 
+  // Measure sticky header height so the sidebar sticks right below it
+  const [headerH, setHeaderH] = useState(0);
+  const roRef = useRef<ResizeObserver | null>(null);
+  useEffect(() => {
+    const header = document.querySelector(".site-header") as HTMLElement | null;
+    if (!header) return;
+    const update = () => setHeaderH(header.getBoundingClientRect().height);
+    update();
+    roRef.current = new ResizeObserver(update);
+    roRef.current.observe(header);
+    return () => roRef.current?.disconnect();
+  }, []);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--color-bg)" }}>
+    <div style={{ background: "var(--color-bg)" }}>
 
       {/* Header del tutorial */}
       <div style={{ flexShrink: 0, background: "var(--color-surface)", borderBottom: "1px solid var(--color-border)", padding: "20px 32px" }}>
@@ -448,14 +461,18 @@ export default function TutorialViewer() {
           </Link>
         </div>
       ) : (
-        <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "flex-start" }}>
           <aside style={{
             width: SIDEBAR_W, flexShrink: 0,
             borderRight: "1px solid var(--color-border)",
             background: "var(--color-bg-muted)",
-            display: "flex", flexDirection: "column", minHeight: 0,
+            position: "sticky",
+            top: headerH,
+            height: `calc(100vh - ${headerH}px)`,
+            display: "flex", flexDirection: "column",
+            overflowY: "auto",
           }}>
-            <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--color-border)" }}>
+            <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
               <span style={{ fontSize: ".72rem", fontWeight: 700, color: "var(--color-text-muted)", letterSpacing: ".06em", textTransform: "uppercase" }}>
                 Páginas del tutorial
               </span>
@@ -500,7 +517,7 @@ export default function TutorialViewer() {
             </div>
           </aside>
 
-          <main style={{ flex: 1, overflowY: "auto", padding: "32px 44px", background: "var(--color-bg)", overscrollBehavior: "contain" }}>
+          <main style={{ flex: 1, minWidth: 0, padding: "32px 44px", background: "var(--color-bg)" }}>
             {!activeSlug && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--color-text-muted)", gap: 12 }}>
                 <BookOpen size={48} style={{ opacity: .15 }}/>

@@ -130,23 +130,17 @@ export default function TopNav() {
                   <div className="user-profile-dropdown">
                     <div className="user-profile-info">
                       <div className="user-profile-avatar">
-                        {avatarUrl(user?.avatar) && (
+                        {avatarUrl(user?.avatar) && !avatarError ? (
                           <img
                             src={avatarUrl(user?.avatar)}
                             alt={`${user?.first_name} ${user?.last_name}`}
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              const fallback = target.nextElementSibling as HTMLElement;
-                              if (target && fallback) {
-                                target.style.display = 'none';
-                                fallback.style.display = 'flex';
-                              }
-                            }}
+                            onError={() => setAvatarError(true)}
                           />
+                        ) : (
+                          <div className="user-profile-avatar-fallback">
+                            {getUserInitials()}
+                          </div>
                         )}
-                        <div className="user-profile-avatar-fallback">
-                          {getUserInitials()}
-                        </div>
                       </div>
                       <div className="user-profile-details">
                         <div className="user-profile-name">
