@@ -78,6 +78,7 @@ export default function PlaygroundIDE() {
   const [isLockedOut, setIsLockedOut] = useState(false);
   const [isTabSwitchLocked, setIsTabSwitchLocked] = useState(false);
   const [examFinished, setExamFinished] = useState(false);
+  const examFinishedRef = useRef(false);
 
   // Store end_time for the timer — state drives Toolbar re-render, ref drives auto-submit closure
   const [endTime, setEndTime] = useState<Date | null>(null);
@@ -174,10 +175,11 @@ export default function PlaygroundIDE() {
     //    Strategy: when user copies/cuts inside Monaco, we store the text in
     //    internalClipboardRef. On paste, we compare the clipboard text against
     //    internalClipboardRef; if it differs → it came from outside → block.
+    const normalizeLF = (s: string) => s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const handlePaste = (e: ClipboardEvent) => {
       if (allowCopyPaste) return;
       const pastedText = e.clipboardData?.getData("text") ?? "";
-      if (pastedText && pastedText !== internalClipboardRef.current) {
+      if (pastedText && normalizeLF(pastedText) !== normalizeLF(internalClipboardRef.current)) {
         e.preventDefault();
         e.stopPropagation();
         http.post(`/playground/${id}/log-cheat`, {
@@ -205,6 +207,7 @@ export default function PlaygroundIDE() {
     // 4. Fullscreen lock check
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
+        if (examFinishedRef.current) return; // exiting fullscreen as part of submit — ignore
         setIsLockedOut(true);
         http.post(`/playground/${id}/log-cheat`, {
           action: "exit_fullscreen",
@@ -254,6 +257,7 @@ export default function PlaygroundIDE() {
     const checkTimer = () => {
       if (endTimeRef.current && new Date() >= endTimeRef.current) {
         // Time's up — auto submit
+        examFinishedRef.current = true;
         if (id) {
           handleSave().then(() => {
             http.post(`/playground/${id}/submit`).catch(() => {});
@@ -273,6 +277,7 @@ export default function PlaygroundIDE() {
 
   // ── Handle exam submitted callback (from Toolbar) ──────────────────────────
   const handleExamSubmitted = useCallback(() => {
+    examFinishedRef.current = true;
     setExamFinished(true);
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});

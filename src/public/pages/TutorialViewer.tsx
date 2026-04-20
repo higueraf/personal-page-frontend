@@ -453,7 +453,7 @@ export default function TutorialViewer() {
             width: SIDEBAR_W, flexShrink: 0,
             borderRight: "1px solid var(--color-border)",
             background: "var(--color-bg-muted)",
-            display: "flex", flexDirection: "column", overflow: "hidden",
+            display: "flex", flexDirection: "column", minHeight: 0,
           }}>
             <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--color-border)" }}>
               <span style={{ fontSize: ".72rem", fontWeight: 700, color: "var(--color-text-muted)", letterSpacing: ".06em", textTransform: "uppercase" }}>
