@@ -360,10 +360,10 @@ export default function TutorialViewer() {
   const SIDEBAR_W = 260;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--color-bg)" }}>
 
       {/* Header del tutorial */}
-      <div style={{ background: "var(--color-surface)", borderBottom: "1px solid var(--color-border)", padding: "20px 32px" }}>
+      <div style={{ flexShrink: 0, background: "var(--color-surface)", borderBottom: "1px solid var(--color-border)", padding: "20px 32px" }}>
         <Link to="/tutorials" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-primary)", fontSize: ".83rem", textDecoration: "none", marginBottom: 12 }}>
           <ArrowLeft size={14}/> Todos los tutoriales
         </Link>
@@ -448,7 +448,7 @@ export default function TutorialViewer() {
           </Link>
         </div>
       ) : (
-        <div style={{ display: "flex", height: "calc(100vh - 145px)", overflow: "hidden" }}>
+        <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
           <aside style={{
             width: SIDEBAR_W, flexShrink: 0,
             borderRight: "1px solid var(--color-border)",

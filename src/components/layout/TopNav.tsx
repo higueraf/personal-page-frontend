@@ -24,6 +24,7 @@ export default function TopNav() {
   const { status, user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
   const authed = status === "authenticated";
 
@@ -109,23 +110,17 @@ export default function TopNav() {
                   aria-label="User menu"
                 >
                   <div className="user-avatar">
-                    {avatarUrl(user?.avatar) ? (
+                    {avatarUrl(user?.avatar) && !avatarError ? (
                       <img
                         src={avatarUrl(user?.avatar)}
                         alt={`${user?.first_name} ${user?.last_name}`}
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          const fallback = target.nextElementSibling as HTMLElement;
-                          if (target && fallback) {
-                            target.style.display = 'none';
-                            fallback.style.display = 'flex';
-                          }
-                        }}
+                        onError={() => setAvatarError(true)}
                       />
-                    ) : null}
-                    <div className="user-avatar-fallback">
-                      {getUserInitials()}
-                    </div>
+                    ) : (
+                      <div className="user-avatar-fallback" style={{ display: 'flex' }}>
+                        {getUserInitials()}
+                      </div>
+                    )}
                   </div>
                   <ChevronDown size={14} className="user-avatar-chevron" />
                 </button>
