@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useTheme } from "../../shared/theme/ThemeProvider";
-import { useAuth } from "../../shared/auth/useAuth";
+import { useAuth, avatarUrl } from "../../shared/auth/authStore";
 import ScrollNavLink from "./ScrollNavLink";
 import {
   Home, BookOpen, FileText, FolderGit2, User, Package, Phone,
@@ -109,9 +109,9 @@ export default function TopNav() {
                   aria-label="User menu"
                 >
                   <div className="user-avatar">
-                    {user?.first_name || user?.email ? (
+                    {avatarUrl(user?.avatar) ? (
                       <img
-                        src="/images/francisco-higuera-photo.jpg" // Reemplaza con tu foto real
+                        src={avatarUrl(user?.avatar)}
                         alt={`${user?.first_name} ${user?.last_name}`}
                         onError={(e) => {
                           const target = e.currentTarget;
@@ -135,18 +135,20 @@ export default function TopNav() {
                   <div className="user-profile-dropdown">
                     <div className="user-profile-info">
                       <div className="user-profile-avatar">
-                        <img
-                          src="/images/francisco-higuera-photo.jpg" // Reemplaza con tu foto real
-                          alt={`${user?.first_name} ${user?.last_name}`}
-                          onError={(e) => {
-                            const target = e.currentTarget;
-                            const fallback = target.nextElementSibling as HTMLElement;
-                            if (target && fallback) {
-                              target.style.display = 'none';
-                              fallback.style.display = 'flex';
-                            }
-                          }}
-                        />
+                        {avatarUrl(user?.avatar) && (
+                          <img
+                            src={avatarUrl(user?.avatar)}
+                            alt={`${user?.first_name} ${user?.last_name}`}
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (target && fallback) {
+                                target.style.display = 'none';
+                                fallback.style.display = 'flex';
+                              }
+                            }}
+                          />
+                        )}
                         <div className="user-profile-avatar-fallback">
                           {getUserInitials()}
                         </div>

@@ -1,26 +1,21 @@
-import { useState, useEffect } from "react";
-import { useAuth } from "../../shared/auth/useAuth";
-import { User, Save, Mail, Shield, RefreshCw } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useAuth, avatarUrl } from "../../shared/auth/authStore";
+import { User, Save, Mail, Shield, RefreshCw, Camera } from "lucide-react";
 import http from "../../shared/api/http";
 
 export default function UserProfile() {
   const { user, bootstrap } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [success, setSuccess]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const [preview, setPreview]     = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [form, setForm] = useState({
-    first_name: "",
-    last_name: "",
-  });
+  const [form, setForm] = useState({ first_name: "", last_name: "" });
 
   useEffect(() => {
-    if (user) {
-      setForm({
-        first_name: user.first_name || "",
-        last_name: user.last_name || "",
-      });
-    }
+    if (user) setForm({ first_name: user.first_name || "", last_name: user.last_name || "" });
   }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,10 +23,9 @@ export default function UserProfile() {
     setLoading(true);
     setError(null);
     setSuccess(false);
-
     try {
       await http.patch("/user", form);
-      await bootstrap(); // Recargar datos del usuario en el store
+      await bootstrap();
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
@@ -41,7 +35,35 @@ export default function UserProfile() {
     }
   };
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Local preview immediately
+    setPreview(URL.createObjectURL(file));
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+    setAvatarLoading(true);
+    try {
+      await http.post("/user/avatar", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      await bootstrap();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Error al subir la foto");
+      setPreview(null);
+    } finally {
+      setAvatarLoading(false);
+      // Reset so same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   if (!user) return null;
+
+  const currentAvatar = preview ?? avatarUrl(user.avatar);
+  const initials = (user.first_name ? user.first_name.charAt(0) : user.email.charAt(0)).toUpperCase();
 
   return (
     <div className="page-container" style={{ maxWidth: 800, margin: "0 auto", padding: "40px 20px" }}>
@@ -127,14 +149,70 @@ export default function UserProfile() {
           </form>
         </section>
 
-        {/* Lado derecho: Resumen visual de cuenta */}
+        {/* Lado derecho: Avatar + resumen */}
         <section style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-lg)", padding: 28, textAlign: "center" }}>
-             <div style={{ width: 100, height: 100, borderRadius: "50%", background: "var(--color-bg-muted)", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem", fontWeight: 700, color: "var(--color-primary)", border: "4px solid var(--color-surface)", boxShadow: "0 0 0 1px var(--color-border)" }}>
-               {user.first_name ? user.first_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
-             </div>
-             <h3 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700, color: "var(--color-primary)" }}>{user.first_name} {user.last_name}</h3>
-             <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem", marginTop: 4 }}>{user.email}</p>
+
+            {/* Avatar clickeable */}
+            <div style={{ position: "relative", width: 100, margin: "0 auto 16px" }}>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  width: 100, height: 100, borderRadius: "50%",
+                  background: "var(--color-bg-muted)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "2rem", fontWeight: 700, color: "var(--color-primary)",
+                  border: "4px solid var(--color-surface)",
+                  boxShadow: "0 0 0 1px var(--color-border)",
+                  cursor: "pointer", overflow: "hidden",
+                  position: "relative",
+                }}
+                title="Haz clic para cambiar tu foto"
+              >
+                {currentAvatar ? (
+                  <img
+                    src={currentAvatar}
+                    alt="Avatar"
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    onError={() => setPreview(null)}
+                  />
+                ) : (
+                  <span>{initials}</span>
+                )}
+
+                {/* Overlay on hover */}
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: "rgba(0,0,0,0.45)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  opacity: avatarLoading ? 1 : 0,
+                  transition: "opacity 0.2s",
+                }}
+                  className="avatar-overlay"
+                >
+                  {avatarLoading
+                    ? <RefreshCw size={22} color="white" className="spin" />
+                    : <Camera size={22} color="white" />
+                  }
+                </div>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={handleAvatarChange}
+              />
+            </div>
+
+            <h3 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700, color: "var(--color-primary)" }}>
+              {user.first_name} {user.last_name}
+            </h3>
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem", marginTop: 4 }}>{user.email}</p>
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", marginTop: 8 }}>
+              Haz clic en la foto para cambiarla (máx. 5 MB)
+            </p>
           </div>
 
           <div style={{ background: "rgba(var(--color-primary-rgb), 0.05)", border: "1px dashed var(--color-primary)", borderRadius: "var(--radius-lg)", padding: 20 }}>
@@ -144,6 +222,11 @@ export default function UserProfile() {
           </div>
         </section>
       </div>
+
+      <style>{`
+        .avatar-overlay { opacity: 0 !important; }
+        div:hover > .avatar-overlay { opacity: 1 !important; }
+      `}</style>
     </div>
   );
 }

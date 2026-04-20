@@ -6,6 +6,7 @@ export interface AuthUser {
   first_name: string;
   last_name: string;
   email: string;
+  avatar?: string | null;
   role?: { name: string; permissions: string[] };
   permissions?: string[];
   status?: string;
@@ -13,6 +14,11 @@ export interface AuthUser {
   full_name?: string;
   username?: string;
 }
+
+const _API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+/** Converts a stored avatar path (/uploads/avatars/file.jpg) to a full URL */
+export const avatarUrl = (path?: string | null): string | undefined =>
+  path ? `${_API_BASE.replace(/\/api$/, "")}${path}` : undefined;
 
 interface AuthState {
   user: AuthUser | null;
