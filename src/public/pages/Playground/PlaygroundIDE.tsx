@@ -77,6 +77,7 @@ export default function PlaygroundIDE() {
   const [previewWidth, setPreviewWidth] = useState(380);
   const [isLockedOut, setIsLockedOut] = useState(false);
   const [isTabSwitchLocked, setIsTabSwitchLocked] = useState(false);
+  const [isKeyboardAlertLocked, setIsKeyboardAlertLocked] = useState(false);
   const [examFinished, setExamFinished] = useState(false);
   const examFinishedRef = useRef(false);
 
@@ -249,6 +250,47 @@ export default function PlaygroundIDE() {
       }
     };
   }, [isExam, allowCopyPaste]);
+
+  // ── Exam Keyboard Lock: block navigation shortcuts ───────────────────────────
+  useEffect(() => {
+    if (!isExam || isAdminReview) return;
+
+    const handleDangerousKey = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      const isDangerous =
+        (e.altKey && e.key === 'Tab') ||          // Alt+Tab  — cambiar ventana
+        (e.altKey && e.key === 'F4') ||           // Alt+F4   — cerrar ventana
+        (e.ctrlKey && key === 'w') ||             // Ctrl+W   — cerrar pestaña
+        (e.ctrlKey && key === 't') ||             // Ctrl+T   — nueva pestaña
+        (e.ctrlKey && key === 'n') ||             // Ctrl+N   — nueva ventana
+        (e.ctrlKey && e.key === 'Tab') ||         // Ctrl+Tab — cambiar pestaña
+        (e.ctrlKey && e.shiftKey && e.key === 'Tab') || // Ctrl+Shift+Tab
+        (e.key === 'F5') ||                       // F5       — recargar
+        (e.ctrlKey && key === 'r') ||             // Ctrl+R   — recargar
+        (e.ctrlKey && key === 'l') ||             // Ctrl+L   — barra de dirección
+        (e.metaKey);                              // Tecla Windows/Cmd
+
+      if (isDangerous) {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsKeyboardAlertLocked(true);
+        const combo = [
+          e.ctrlKey && 'Ctrl',
+          e.altKey && 'Alt',
+          e.shiftKey && 'Shift',
+          e.metaKey && 'Meta',
+          e.key,
+        ].filter(Boolean).join('+');
+        http.post(`/playground/${id}/log-cheat`, {
+          action: 'keyboard_escape_attempt',
+          details: `El alumno intentó salir del examen con teclado: ${combo}`,
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener('keydown', handleDangerousKey, true);
+    return () => window.removeEventListener('keydown', handleDangerousKey, true);
+  }, [isExam, isAdminReview, id]);
 
   // ── Exam Timer: auto-submit when end_time is reached ───────────────────────
   useEffect(() => {
@@ -518,6 +560,23 @@ export default function PlaygroundIDE() {
           </p>
           <button
             onClick={() => setIsTabSwitchLocked(false)}
+            className="px-8 py-4 bg-white text-red-900 font-bold text-xl rounded-lg shadow-2xl hover:bg-gray-200 hover:scale-105 transition-all"
+          >
+            VOLVER AL EXAMEN
+          </button>
+        </div>
+      )}
+
+      {/* ── Lock Screen: keyboard escape attempt ── */}
+      {isKeyboardAlertLocked && isExam && (
+        <div className="fixed inset-0 bg-red-900/95 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-sm">
+          <AlertCircle size={80} className="mb-6 animate-pulse text-red-400" />
+          <h2 className="text-4xl font-black tracking-tight mb-4 text-white">COMBINACIÓN DE TECLAS BLOQUEADA</h2>
+          <p className="text-lg max-w-xl text-red-200 mb-8">
+            Has intentado usar una combinación de teclas para salir del examen. Esta acción está prohibida y el incidente ha sido notificado y añadido al historial de fraude.
+          </p>
+          <button
+            onClick={() => setIsKeyboardAlertLocked(false)}
             className="px-8 py-4 bg-white text-red-900 font-bold text-xl rounded-lg shadow-2xl hover:bg-gray-200 hover:scale-105 transition-all"
           >
             VOLVER AL EXAMEN
