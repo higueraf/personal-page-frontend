@@ -219,9 +219,10 @@ export default function PlaygroundIDE() {
       }
     };
 
-    // 5. Tab/window switch monitoring (anti cheat)
+    // 5. Tab/window switch monitoring — applies to ALL exams
     const handleVisibilityChange = () => {
       if (document.hidden) {
+        if (examFinishedRef.current) return;
         http.post(`/playground/${id}/log-cheat`, {
           action: "tab_switch",
           details: "El alumno cambió de pestaña, abrió otra ventana o minimizó el navegador.",
@@ -230,23 +231,37 @@ export default function PlaygroundIDE() {
       }
     };
 
+    // 6. Window blur — catches Alt+Tab to another app (visibilitychange may not fire in all browsers)
+    const handleWindowBlur = () => {
+      if (examFinishedRef.current) return;
+      http.post(`/playground/${id}/log-cheat`, {
+        action: "window_blur",
+        details: "El alumno cambió de ventana o aplicación (Alt+Tab u otro método).",
+      }).catch(() => {});
+      setIsTabSwitchLocked(true);
+    };
+
+    // Fullscreen + visibility + blur apply to all exams
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+
     if (!allowCopyPaste) {
       window.addEventListener("paste", handlePaste, true);
       window.addEventListener("copy", handleCopyCutOutsideEditor as any, true);
       window.addEventListener("cut", handleCopyCutOutsideEditor as any, true);
-      document.addEventListener("fullscreenchange", handleFullscreenChange);
-      document.addEventListener("visibilitychange", handleVisibilityChange);
     }
 
     return () => {
       document.removeEventListener("click", enterFullscreen);
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
       if (!allowCopyPaste) {
         window.removeEventListener("paste", handlePaste, true);
         window.removeEventListener("copy", handleCopyCutOutsideEditor as any, true);
         window.removeEventListener("cut", handleCopyCutOutsideEditor as any, true);
-        document.removeEventListener("fullscreenchange", handleFullscreenChange);
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
       }
     };
   }, [isExam, allowCopyPaste]);
@@ -534,7 +549,7 @@ export default function PlaygroundIDE() {
     <div className="flex flex-col h-screen overflow-hidden bg-[#f8f9fc] dark:bg-[#0d1117] text-gray-900 dark:text-white">
       
       {/* ── Lock Screen: fullscreen exit ── */}
-      {isLockedOut && isExam && !allowCopyPaste && (
+      {isLockedOut && isExam && (
         <div className="fixed inset-0 bg-red-900/95 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-sm">
           <AlertCircle size={80} className="mb-6 animate-pulse text-red-400" />
           <h2 className="text-4xl font-black tracking-tight mb-4 text-white">EXAMEN INTERRUMPIDO</h2>
@@ -551,7 +566,7 @@ export default function PlaygroundIDE() {
       )}
 
       {/* ── Lock Screen: tab / window switch ── */}
-      {isTabSwitchLocked && isExam && !allowCopyPaste && (
+      {isTabSwitchLocked && isExam && (
         <div className="fixed inset-0 bg-red-900/95 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-sm">
           <AlertCircle size={80} className="mb-6 animate-pulse text-red-400" />
           <h2 className="text-4xl font-black tracking-tight mb-4 text-white">CAMBIO DE PESTAÑA DETECTADO</h2>
