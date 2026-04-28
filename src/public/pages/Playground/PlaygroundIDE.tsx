@@ -519,12 +519,21 @@ export default function PlaygroundIDE() {
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
             Tu examen ha sido entregado exitosamente. Ya no es posible realizar modificaciones.
           </p>
-          <button
-            onClick={() => navigate("/playground")}
-            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors shadow-lg"
-          >
-            Volver al inicio
-          </button>
+          {isInSEB ? (
+            <button
+              onClick={() => { window.location.href = window.location.origin + '/seb-quit'; }}
+              className="px-6 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm font-medium transition-colors shadow-lg"
+            >
+              Cerrar Safe Exam Browser
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate("/playground")}
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors shadow-lg"
+            >
+              Volver al inicio
+            </button>
+          )}
         </div>
       </div>
     );
