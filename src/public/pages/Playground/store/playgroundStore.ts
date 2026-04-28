@@ -26,6 +26,7 @@ interface PlaygroundStore {
   language: Language;
   isExam: boolean;
   allowCopyPaste: boolean;
+  requireSeb: boolean;
   files: VirtualFile[];
   activeFileId: string | null;
   openFileIds: string[];
@@ -39,6 +40,7 @@ interface PlaygroundStore {
     language: Language,
     isExam: boolean,
     allowCopyPaste: boolean,
+    requireSeb: boolean,
     files: VirtualFile[]
   ) => void;
   setActiveFile: (id: string) => void;
@@ -59,6 +61,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
   language: "python",
   isExam: false,
   allowCopyPaste: true,
+  requireSeb: false,
   files: [],
   activeFileId: null,
   openFileIds: [],
@@ -66,7 +69,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
   isSaving: false,
   terminalLines: [],
 
-  initProject: (id, name, language, isExam, allowCopyPaste, files) => {
+  initProject: (id, name, language, isExam, allowCopyPaste, requireSeb, files) => {
     const firstFile = files.find((f) => !f.is_folder);
     set({
       projectId: id,
@@ -74,6 +77,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
       language,
       isExam,
       allowCopyPaste,
+      requireSeb,
       files,
       activeFileId: firstFile?.id ?? null,
       openFileIds: firstFile ? [firstFile.id] : [],

@@ -49,6 +49,7 @@ export default function PlaygroundIDE() {
     isExam,
     isRunning,
     allowCopyPaste,
+    requireSeb,
     projectName,
     initProject,
     openFile,
@@ -57,6 +58,10 @@ export default function PlaygroundIDE() {
     setRunning,
     setSaving,
   } = usePlaygroundStore();
+
+  // Detect Safe Exam Browser (SEB)
+  const isInSEB = typeof (window as any).SafeExamBrowser !== 'undefined'
+    || navigator.userAgent.includes('SEB');
 
   const { theme } = useTheme();
   const terminalApiRef = useRef<TerminalApi | null>(null);
@@ -130,6 +135,7 @@ export default function PlaygroundIDE() {
           data.language ?? "python",
           data.is_exam ?? false,
           data.allow_copy_paste ?? true,
+          data.require_seb ?? false,
           projectFiles
         );
         // Auto-open first file
@@ -548,6 +554,32 @@ export default function PlaygroundIDE() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#f8f9fc] dark:bg-[#0d1117] text-gray-900 dark:text-white">
       
+      {/* ── Lock Screen: SEB required ── */}
+      {requireSeb && !isInSEB && isExam && !isAdminReview && (
+        <div className="fixed inset-0 bg-gray-950 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center">
+          <div className="w-24 h-24 mb-6 rounded-2xl bg-blue-600/20 border-2 border-blue-500/40 flex items-center justify-center">
+            <ShieldCheck size={48} className="text-blue-400" />
+          </div>
+          <h2 className="text-3xl font-black tracking-tight mb-3 text-white">Safe Exam Browser Requerido</h2>
+          <p className="text-base max-w-lg text-slate-300 mb-2">
+            Este examen requiere <strong className="text-white">Safe Exam Browser (SEB)</strong> para poder acceder.
+            No puedes abrirlo desde un navegador normal.
+          </p>
+          <p className="text-sm text-slate-400 mb-8 max-w-lg">
+            Descarga el archivo de configuración <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs">.seb</code> proporcionado
+            por tu profesor, ábrelo y se lanzará automáticamente en modo seguro.
+          </p>
+          <a
+            href="https://safeexambrowser.org/download_en.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-sm transition-colors shadow-lg"
+          >
+            Descargar Safe Exam Browser
+          </a>
+        </div>
+      )}
+
       {/* ── Lock Screen: fullscreen exit ── */}
       {isLockedOut && isExam && (
         <div className="fixed inset-0 bg-red-900/95 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-sm">

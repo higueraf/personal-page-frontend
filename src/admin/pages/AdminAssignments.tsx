@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen, Search, Filter, Clock, AlertTriangle, AlertCircle,
-  Code2, Pencil, Trash2, Shield, Calendar, ChevronRight, ArrowLeft,
+  Code2, Pencil, Trash2, Shield, ShieldCheck, Calendar, ChevronRight, ArrowLeft,
   Users, CheckCircle2, XCircle, RotateCcw, Star,
 } from "lucide-react";
 import http from "../../shared/api/http";
@@ -19,6 +19,7 @@ interface ExamGroup {
   start_time: string | null;
   end_time: string | null;
   allow_copy_paste: boolean;
+  require_seb: boolean;
   created_at: string;
   total_count: number;
   submitted_count: number;
@@ -58,7 +59,7 @@ async function fetchStudents() {
   return (await http.get("/admin/users", { params: { user_type: "student", page_size: 100 } })).data.data as AdminUser[];
 }
 async function assignExam(payload: any) { return (await http.post("/playground/admin/assign-exam", payload)).data; }
-async function updateGroup(payload: { groupId: string; name?: string; start_time?: string; end_time?: string; allow_copy_paste?: boolean }) {
+async function updateGroup(payload: { groupId: string; name?: string; start_time?: string; end_time?: string; allow_copy_paste?: boolean; require_seb?: boolean }) {
   const { groupId, ...data } = payload;
   return (await http.patch(`/playground/admin/exam-groups/${groupId}`, data)).data;
 }
@@ -70,6 +71,15 @@ async function changeProjectStatus(payload: { id: string; status: string }) {
 }
 async function changeGroupStatus(payload: { groupId: string; status: string }) {
   return (await http.patch(`/playground/admin/exam-groups/${payload.groupId}/status`, { status: payload.status })).data;
+}
+async function downloadSeb(groupId: string, examName: string) {
+  const res = await http.get(`/playground/admin/exam-groups/${groupId}/seb-config`, { responseType: 'blob' });
+  const url = URL.createObjectURL(new Blob([res.data], { type: 'application/seb' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${examName.replace(/[^a-zA-Z0-9_\- ]/g, '_')}.seb`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -138,6 +148,7 @@ export default function AdminAssignments() {
   const [examStart,        setExamStart]        = useState("");
   const [examEnd,          setExamEnd]          = useState("");
   const [examCopyPaste,    setExamCopyPaste]    = useState(false);
+  const [examRequireSeb,   setExamRequireSeb]   = useState(false);
   const [assignMode,       setAssignMode]       = useState<"course"|"student">("course");
   const [targetInstFilter, setTargetInstFilter] = useState("");
   const [targetInstId,     setTargetInstId]     = useState("");
@@ -150,6 +161,7 @@ export default function AdminAssignments() {
   const [editStart,     setEditStart]     = useState("");
   const [editEnd,       setEditEnd]       = useState("");
   const [editCopyPaste, setEditCopyPaste] = useState(false);
+  const [editRequireSeb, setEditRequireSeb] = useState(false);
 
   // ── Delete confirm modal ──
   const [confirmDelete, setConfirmDelete] = useState<ExamGroup | null>(null);
@@ -220,7 +232,9 @@ export default function AdminAssignments() {
       materia: examMateria || undefined,
       start_time: examStart ? toISO(examStart) : undefined,
       end_time:   examEnd   ? toISO(examEnd)   : undefined,
-      allow_copy_paste: examCopyPaste, files: defaultFiles,
+      allow_copy_paste: examCopyPaste,
+      require_seb: examRequireSeb,
+      files: defaultFiles,
     };
     if (assignMode === "course") {
       if (!targetInstId) { alert("Seleccione un curso."); return; }
@@ -236,6 +250,7 @@ export default function AdminAssignments() {
     setEditGroup(g);
     setEditName(g.name);
     setEditCopyPaste(g.allow_copy_paste);
+    setEditRequireSeb(g.require_seb ?? false);
     setEditStart(toLocalInput(g.start_time));
     setEditEnd(toLocalInput(g.end_time));
   }
@@ -249,6 +264,7 @@ export default function AdminAssignments() {
       start_time: editStart ? toISO(editStart) : undefined,
       end_time:   editEnd   ? toISO(editEnd)   : undefined,
       allow_copy_paste: editCopyPaste,
+      require_seb: editRequireSeb,
     });
   }
 
@@ -539,6 +555,15 @@ export default function AdminAssignments() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
+                        {g.require_seb && (
+                          <button
+                            onClick={() => downloadSeb(g.group_id, g.name)}
+                            title="Descargar archivo .seb para Safe Exam Browser"
+                            className="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                          >
+                            <ShieldCheck size={15} />
+                          </button>
+                        )}
                         <button
                           onClick={() => openEditModal(g)}
                           title="Editar"
@@ -589,11 +614,20 @@ export default function AdminAssignments() {
                     className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500" />
                 </div>
               </div>
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 p-3 rounded-lg">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 p-3 rounded-lg space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
                   <input type="checkbox" checked={editCopyPaste} onChange={e => setEditCopyPaste(e.target.checked)} className="w-4 h-4 accent-red-500" />
                   Permitir Copiar / Pegar
                 </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
+                  <input type="checkbox" checked={editRequireSeb} onChange={e => setEditRequireSeb(e.target.checked)} className="w-4 h-4 accent-blue-500" />
+                  Requerir Safe Exam Browser (SEB)
+                </label>
+                {editRequireSeb && (
+                  <p className="text-[10px] text-blue-600 dark:text-blue-400 leading-tight">
+                    El alumno solo podrá acceder desde Safe Exam Browser. No compatible con Linux/Ubuntu.
+                  </p>
+                )}
               </div>
               <div className="flex justify-end gap-3 pt-2 border-t border-gray-100 dark:border-gray-800">
                 <button type="button" onClick={() => setEditGroup(null)}
@@ -745,15 +779,24 @@ export default function AdminAssignments() {
                 </div>
               </div>
 
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 p-3 rounded-lg">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 p-3 rounded-lg space-y-2">
                 <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-2">RESTRICCIONES DE SEGURIDAD</p>
                 <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
                   <input type="checkbox" checked={examCopyPaste} onChange={e => setExamCopyPaste(e.target.checked)} className="w-4 h-4 accent-red-500" />
                   Permitir Copiar / Pegar
                 </label>
-                <p className="text-[10px] text-gray-500 mt-1 leading-tight">
+                <p className="text-[10px] text-gray-500 leading-tight">
                   Al estar bloqueado, el sistema capturará cada cambio de pestaña del alumno como posible fraude.
                 </p>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-800 dark:text-gray-200 pt-1">
+                  <input type="checkbox" checked={examRequireSeb} onChange={e => setExamRequireSeb(e.target.checked)} className="w-4 h-4 accent-blue-500" />
+                  Requerir Safe Exam Browser (SEB)
+                </label>
+                {examRequireSeb && (
+                  <p className="text-[10px] text-blue-600 dark:text-blue-400 leading-tight">
+                    El alumno solo podrá acceder desde Safe Exam Browser. No compatible con Linux/Ubuntu.
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 border-t border-gray-100 dark:border-gray-800 pt-4">
