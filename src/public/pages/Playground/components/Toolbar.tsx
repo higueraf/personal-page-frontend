@@ -55,11 +55,13 @@ export default function Toolbar({
     return () => clearInterval(id);
   }, [isExam, endTime]);
 
+  const [confirmingSubmit, setConfirmingSubmit] = useState(false);
+
   const handleSubmitExam = async () => {
     if (!projectId) return;
-    if (!window.confirm("¿Estás seguro de que deseas entregar el examen? Ya no podrás realizar más modificaciones.")) return;
+    setConfirmingSubmit(false);
     try {
-      await onSave(); // save files before submitting
+      await onSave();
       await http.post(`/playground/${projectId}/submit`);
       onExamSubmitted?.();
     } catch (err) {
@@ -176,12 +178,30 @@ export default function Toolbar({
               {timeLeft}
             </div>
           )}
-          <button
-            onClick={handleSubmitExam}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-semibold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/20 transition-all"
-          >
-            <span>Entregar Examen</span>
-          </button>
+          {confirmingSubmit ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-600 dark:text-slate-300 font-medium hidden sm:inline">¿Entregar?</span>
+              <button
+                onClick={handleSubmitExam}
+                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-semibold bg-red-600 hover:bg-red-500 text-white transition-all"
+              >
+                Sí, entregar
+              </button>
+              <button
+                onClick={() => setConfirmingSubmit(false)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-semibold bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-800 dark:text-white transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmingSubmit(true)}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-semibold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/20 transition-all"
+            >
+              <span>Entregar Examen</span>
+            </button>
+          )}
         </>
       )}
 
