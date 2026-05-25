@@ -64,6 +64,7 @@ declare var console: {
   clear(): void;
   dir(obj: any): void;
 };
+declare module '*';
 `;
 
 function configureTypeScript(monaco: Monaco): void {
