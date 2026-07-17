@@ -343,6 +343,24 @@ export default function PlaygroundIDE() {
     return () => window.removeEventListener('keydown', handleDangerousKey, true);
   }, [isExam, isAdminReview, id]);
 
+  // ── Save ────────────────────────────────────────────────────────────────────
+  // Uses a single batch request to avoid URL-encoding issues with underscores,
+  // hyphens, or dots in file names, and to guarantee atomicity on time expiry.
+  const handleSave = useCallback(async () => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      const filesToSave = files
+        .filter(f => !f.is_folder)
+        .map(f => ({ id: f.id, name: f.name, content: f.content, path: f.path }));
+      await http.put(`/playground/${id}/save-all`, { files: filesToSave });
+    } catch (err) {
+      console.error("Save error:", err);
+    } finally {
+      setSaving(false);
+    }
+  }, [id, files, setSaving]);
+
   // ── Stable save ref — always points to the latest handleSave so the timer
   //    effect never captures a stale closure over an old `files` snapshot.
   const handleSaveRef = useRef<() => Promise<void>>(async () => {});
