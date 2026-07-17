@@ -10,6 +10,11 @@ import { BookOpen, ChevronRight, Lock, ArrowLeft, ChevronLeft, RefreshCw, FileTe
 import http from "../../shared/api/http";
 import { useAuth } from "../../shared/auth/useAuth";
 import hljs from "highlight.js";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import EmptyState from "@/components/patterns/EmptyState";
+import { cn } from "@/lib/utils";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -373,28 +378,30 @@ export default function TutorialViewer() {
   }, []);
 
   return (
-    <div style={{ background: "var(--color-bg)" }}>
+    <div className="bg-background">
 
       {/* Header del tutorial */}
-      <div style={{ flexShrink: 0, background: "var(--color-surface)", borderBottom: "1px solid var(--color-border)", padding: "20px 32px" }}>
-        <Link to="/tutorials" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-primary)", fontSize: ".83rem", textDecoration: "none", marginBottom: 12 }}>
-          <ArrowLeft size={14}/> Todos los tutoriales
-        </Link>
+      <div className="shrink-0 border-b border-border bg-card px-8 py-5">
+        <Button variant="ghost" size="sm" asChild className="mb-3 -ml-3 text-primary hover:text-primary">
+          <Link to="/tutorials">
+            <ArrowLeft size={14}/> Todos los tutoriales
+          </Link>
+        </Button>
         {metaQ.isLoading ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--color-text-muted)" }}>
-            <RefreshCw size={14}/> Cargando…
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <RefreshCw size={14} className="animate-spin"/> Cargando…
           </div>
         ) : (
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <BookOpen size={22} style={{ color: "var(--color-primary)", flexShrink: 0 }} />
-              <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.5rem", color: "var(--color-text)" }}>
+            <div className="flex flex-wrap items-center gap-3">
+              <BookOpen size={22} className="shrink-0 text-primary" />
+              <h1 className="font-display text-2xl font-bold text-foreground">
                 {tutorial?.title}
               </h1>
-              {tutorial?.level && <span className="badge badge--blue">{tutorial.level}</span>}
+              {tutorial?.level && <Badge variant="secondary">{tutorial.level}</Badge>}
             </div>
             {tutorial?.description && (
-              <p style={{ marginTop: 8, color: "var(--color-text-muted)", fontSize: ".93rem", maxWidth: 680, lineHeight: 1.6 }}>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 {tutorial.description}
               </p>
             )}
@@ -405,89 +412,78 @@ export default function TutorialViewer() {
       {/* Body */}
       {!canView ? (
         /* ── Sin acceso: requiere login o rol válido ───────────────────── */
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", gap: 16, textAlign: "center" }}>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--color-bg-muted)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--color-border)" }}>
-            <Lock size={28} style={{ color: "var(--color-primary)" }} />
+        <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-border bg-muted">
+            <Lock size={28} className="text-primary" />
           </div>
-          <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.2rem", color: "var(--color-text)" }}>
+          <h2 className="font-display text-xl font-bold text-foreground">
             Contenido restringido
           </h2>
-          <p style={{ color: "var(--color-text-muted)", maxWidth: 380, lineHeight: 1.6, fontSize: ".93rem" }}>
-            Necesitas una cuenta con rol <strong>student</strong>, <strong>teacher</strong> o <strong>admin</strong> para acceder al contenido de este tutorial.
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+            Necesitas una cuenta con rol <strong className="text-foreground">student</strong>, <strong className="text-foreground">teacher</strong> o <strong className="text-foreground">admin</strong> para acceder al contenido de este tutorial.
           </p>
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <Link to="/login" style={{ background: "var(--color-primary)", color: "#fff", borderRadius: "var(--radius-md)", padding: "10px 20px", fontWeight: 600, fontSize: ".9rem", textDecoration: "none" }}>
-              Iniciar sesión
-            </Link>
-            <Link to="/register" style={{ background: "var(--color-bg-muted)", color: "var(--color-text)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "10px 20px", fontSize: ".9rem", textDecoration: "none" }}>
-              Registrarse
-            </Link>
+          <div className="mt-2 flex gap-3">
+            <Button asChild>
+              <Link to="/login">Iniciar sesión</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/register">Registrarse</Link>
+            </Button>
           </div>
         </div>
       ) : restrictedCourses ? (
         /* ── Tiene rol válido pero no pertenece a la carrera ─────────── */
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", gap: 16, textAlign: "center" }}>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(245,158,11,.1)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(245,158,11,.3)" }}>
-            <Lock size={28} style={{ color: "#f59e0b" }} />
+        <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10">
+            <Lock size={28} className="text-amber-500" />
           </div>
-          <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.2rem", color: "var(--color-text)" }}>
+          <h2 className="font-display text-xl font-bold text-foreground">
             Tutorial exclusivo de carrera
           </h2>
-          <p style={{ color: "var(--color-text-muted)", maxWidth: 420, lineHeight: 1.6, fontSize: ".93rem" }}>
+          <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
             Este tutorial está disponible únicamente para alumnos de:
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+          <div className="flex flex-wrap justify-center gap-2">
             {restrictedCourses.map((name) => (
-              <span key={name} style={{
-                background: "rgba(245,158,11,.12)", color: "#d97706",
-                border: "1px solid rgba(245,158,11,.3)",
-                padding: "4px 14px", borderRadius: 99,
-                fontSize: ".88rem", fontWeight: 600,
-              }}>
+              <Badge
+                key={name}
+                variant="outline"
+                className="border-amber-500/30 bg-amber-500/10 px-3 py-1 text-sm font-semibold text-amber-600 dark:text-amber-400"
+              >
                 {name}
-              </span>
+              </Badge>
             ))}
           </div>
-          <p style={{ color: "var(--color-text-muted)", fontSize: ".83rem", maxWidth: 380, lineHeight: 1.5 }}>
+          <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
             Contacta a tu institución o administrador para que te asignen la carrera correspondiente.
           </p>
-          <Link to="/tutorials" style={{
-            marginTop: 4, background: "var(--color-bg-muted)", color: "var(--color-text)",
-            border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)",
-            padding: "9px 18px", fontSize: ".88rem", textDecoration: "none",
-            display: "inline-flex", alignItems: "center", gap: 6,
-          }}>
-            ← Volver a tutoriales
-          </Link>
+          <Button variant="outline" size="sm" asChild className="mt-1">
+            <Link to="/tutorials">← Volver a tutoriales</Link>
+          </Button>
         </div>
       ) : (
-        <div style={{ display: "flex", alignItems: "flex-start" }}>
-          <aside style={{
-            width: SIDEBAR_W, flexShrink: 0,
-            borderRight: "1px solid var(--color-border)",
-            background: "var(--color-bg-muted)",
-            position: "sticky",
-            top: headerH,
-            height: `calc(100vh - ${headerH}px)`,
-            display: "flex", flexDirection: "column",
-            overflowY: "auto",
-          }}>
-            <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
-              <span style={{ fontSize: ".72rem", fontWeight: 700, color: "var(--color-text-muted)", letterSpacing: ".06em", textTransform: "uppercase" }}>
+        <div className="flex items-start">
+          <aside
+            className="flex shrink-0 flex-col overflow-y-auto border-r border-border bg-muted/40"
+            style={{ width: SIDEBAR_W, position: "sticky", top: headerH, height: `calc(100vh - ${headerH}px)` }}
+          >
+            <div className="shrink-0 border-b border-border px-4 py-3">
+              <span className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Páginas del tutorial
               </span>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "6px 0", overscrollBehavior: "contain" }}>
+            <div className="flex-1 overflow-y-auto py-1.5" style={{ overscrollBehavior: "contain" }}>
               {pagesQ.isLoading && (
-                <div style={{ padding: "16px", color: "var(--color-text-muted)", fontSize: ".83rem", display: "flex", alignItems: "center", gap: 6 }}>
-                  <RefreshCw size={13}/> Cargando…
+                <div className="flex items-center gap-2 px-4 py-4 text-sm text-muted-foreground">
+                  <RefreshCw size={13} className="animate-spin"/> Cargando…
                 </div>
               )}
               {!pagesQ.isLoading && pages.length === 0 && (
-                <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--color-text-muted)", fontSize: ".83rem" }}>
-                  <FileText size={28} style={{ opacity: .25, display: "block", margin: "0 auto 8px" }}/>
-                  Sin páginas publicadas
-                </div>
+                <EmptyState
+                  icon={FileText}
+                  title="Sin páginas publicadas"
+                  className="rounded-none border-none py-8"
+                />
               )}
               {pages.map((p, idx) => {
                 const isActive = p.slug === activeSlug;
@@ -495,77 +491,74 @@ export default function TutorialViewer() {
                   <button
                     key={p.id}
                     onClick={() => setActiveSlug(p.slug)}
-                    style={{
-                      width: "100%", textAlign: "left", border: "none", cursor: "pointer",
-                      display: "flex", alignItems: "center", gap: 10, padding: "10px 16px",
-                      background: isActive ? "var(--color-primary)" : "transparent",
-                      color: isActive ? "#fff" : "var(--color-text)",
-                      borderLeft: isActive ? "3px solid var(--color-accent)" : "3px solid transparent",
-                      transition: "background .15s", fontFamily: "var(--font-body)",
-                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 border-l-[3px] px-4 py-2.5 text-left font-body transition-colors",
+                      isActive
+                        ? "border-l-brand-accent bg-primary text-primary-foreground"
+                        : "border-l-transparent text-foreground hover:bg-muted"
+                    )}
                   >
-                    <span style={{ fontSize: ".7rem", fontFamily: "var(--font-mono)", opacity: .55, flexShrink: 0 }}>
+                    <span className="shrink-0 font-mono text-xs opacity-55">
                       {String(p.order || idx + 1).padStart(2, "0")}
                     </span>
-                    <span style={{ flex: 1, fontSize: ".85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
+                    <span className="flex-1 truncate text-sm leading-tight">
                       {p.title}
                     </span>
-                    {isActive && <ChevronRight size={13} style={{ flexShrink: 0, opacity: .7 }}/>}
+                    {isActive && <ChevronRight size={13} className="shrink-0 opacity-70"/>}
                   </button>
                 );
               })}
             </div>
           </aside>
 
-          <main style={{ flex: 1, minWidth: 0, padding: "32px 44px", background: "var(--color-bg)" }}>
+          <main className="min-w-0 flex-1 bg-background px-11 py-8">
             {!activeSlug && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--color-text-muted)", gap: 12 }}>
-                <BookOpen size={48} style={{ opacity: .15 }}/>
-                <p style={{ fontSize: ".9rem" }}>Selecciona una página</p>
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+                <BookOpen size={48} className="opacity-15"/>
+                <p className="text-sm">Selecciona una página</p>
               </div>
             )}
             {activeSlug && contentQ.isLoading && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--color-text-muted)" }}>
-                <RefreshCw size={14}/> Cargando contenido…
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <RefreshCw size={14} className="animate-spin"/> Cargando contenido…
               </div>
             )}
             {content && !contentQ.isLoading && (
               <>
-                <div style={{ marginBottom: 28, paddingBottom: 20, borderBottom: "1px solid var(--color-border)" }}>
-                  <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.6rem", color: "var(--color-text)", marginBottom: 6 }}>
+                <div className="mb-7 border-b border-border pb-5">
+                  <h2 className="mb-1.5 font-display text-2xl font-bold text-foreground">
                     {content.lesson.title}
                   </h2>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, color: "var(--color-text-muted)", fontSize: ".8rem" }}>
-                    <span style={{ fontFamily: "var(--font-mono)" }}>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="font-mono">
                       Página {content.lesson.order} de {pages.length}
                     </span>
                   </div>
                 </div>
                 {content.markdown ? (
                   <div
-                    style={{ fontFamily: "var(--font-body)", color: "var(--color-text)", lineHeight: 1.75, maxWidth: 820 }}
+                    className="max-w-[820px] font-body leading-relaxed text-foreground"
                     dangerouslySetInnerHTML={{ __html: mdToHtml(content.markdown) }}
                   />
                 ) : (
-                  <div style={{ color: "var(--color-text-muted)", fontSize: ".9rem", fontStyle: "italic" }}>
+                  <div className="text-sm italic text-muted-foreground">
                     Esta página aún no tiene contenido.
                   </div>
                 )}
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 48, paddingTop: 20, borderTop: "1px solid var(--color-border)" }}>
+                <Separator className="mt-12" />
+                <div className="flex justify-between pt-5">
                   <div>
                     {content.nav.prev && (
-                      <button onClick={() => setActiveSlug(content.nav.prev!)}
-                        style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "9px 16px", color: "var(--color-text)", cursor: "pointer", fontFamily: "var(--font-body)", fontSize: ".85rem" }}>
+                      <Button variant="outline" onClick={() => setActiveSlug(content.nav.prev!)}>
                         <ChevronLeft size={15}/> Página anterior
-                      </button>
+                      </Button>
                     )}
                   </div>
                   <div>
                     {content.nav.next && (
-                      <button onClick={() => setActiveSlug(content.nav.next!)}
-                        style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--color-primary)", border: "none", borderRadius: "var(--radius-md)", padding: "9px 16px", color: "#fff", cursor: "pointer", fontFamily: "var(--font-body)", fontSize: ".85rem", fontWeight: 600 }}>
+                      <Button onClick={() => setActiveSlug(content.nav.next!)}>
                         Siguiente página <ChevronRight size={15}/>
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>

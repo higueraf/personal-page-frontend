@@ -7,6 +7,8 @@ import PublicLayout      from "./PublicLayout";
 import Home              from "../public/pages/Home";
 import Login             from "../public/pages/Login";
 import Register          from "../public/pages/Register";
+import ForgotPassword    from "../public/pages/ForgotPassword";
+import ResetPassword     from "../public/pages/ResetPassword";
 import TutorialsList     from "../public/pages/TutorialsList";
 import TutorialViewer    from "../public/pages/TutorialViewer";
 import VideosCoursesList from "../public/pages/VideosCoursesList";
@@ -45,8 +47,10 @@ export const router = createBrowserRouter([
     element: <PublicLayout />,
     children: [
       { index: true,  element: <Home /> },
-      { path: "login",    element: <Login /> },
-      { path: "register", element: <Register /> },
+      { path: "login",           element: <Login /> },
+      { path: "register",        element: <Register /> },
+      { path: "forgot-password", element: <ForgotPassword /> },
+      { path: "reset-password",  element: <ResetPassword /> },
 
       { path: "tutorials",             element: <TutorialsList /> },
       { path: "tutorials/:courseSlug", element: <TutorialViewer /> },

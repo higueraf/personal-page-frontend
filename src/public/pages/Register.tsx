@@ -2,6 +2,10 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle, AlertCircle, Loader2, UserPlus } from "lucide-react";
 import http from "../../shared/api/http";
+import FormCard from "@/components/patterns/FormCard";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 export default function Register() {
   const [firstName, setFirstName]           = useState("");
@@ -46,225 +50,117 @@ export default function Register() {
   // ── Pantalla de éxito ──────────────────────────────────────────────────────
   if (success) {
     return (
-      <div style={{ minHeight: "70vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-        <div style={{
-          background: "var(--color-surface)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-lg)",
-          padding: "52px 44px",
-          maxWidth: 460,
-          width: "100%",
-          textAlign: "center",
-        }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: "50%",
-            background: "rgba(34,197,94,.12)",
-            border: "1.5px solid rgba(34,197,94,.3)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 24px",
-          }}>
-            <CheckCircle size={30} style={{ color: "#22c55e" }} />
-          </div>
-
-          <h2 style={{
-            fontFamily: "var(--font-display)", fontWeight: 700,
-            fontSize: "1.45rem", color: "var(--color-text)", marginBottom: 12,
-          }}>
-            ¡Solicitud enviada!
-          </h2>
-
-          <p style={{
-            color: "var(--color-text-muted)", lineHeight: 1.7,
-            fontSize: ".93rem", marginBottom: 28, maxWidth: 360, margin: "0 auto 28px",
-          }}>
-            Tu cuenta ha sido creada exitosamente. Un administrador revisará tu
-            solicitud y recibirás acceso una vez que sea aprobada.
-          </p>
-
-          <div style={{
-            background: "var(--color-bg-muted)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-md)",
-            padding: "14px 18px",
-            fontSize: ".85rem",
-            color: "var(--color-text-muted)",
-            lineHeight: 1.6,
-            marginBottom: 28,
-          }}>
-            Mientras tanto, puedes explorar el contenido público del sitio.
-          </div>
-
-          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-            <Link
-              to="/"
-              style={{
-                background: "var(--color-primary)", color: "#fff",
-                borderRadius: "var(--radius-md)", padding: "10px 22px",
-                fontWeight: 600, fontSize: ".9rem", textDecoration: "none",
-              }}
-            >
-              Ir al inicio
-            </Link>
-            <Link
-              to="/login"
-              style={{
-                background: "var(--color-bg-muted)", color: "var(--color-text)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-md)", padding: "10px 22px",
-                fontSize: ".9rem", textDecoration: "none",
-              }}
-            >
-              Iniciar sesión
-            </Link>
-          </div>
+      <FormCard
+        icon={<CheckCircle size={22} className="text-green-500" />}
+        title="¡Solicitud enviada!"
+        description="Tu cuenta ha sido creada exitosamente. Un administrador revisará tu solicitud y recibirás acceso una vez que sea aprobada."
+      >
+        <div className="rounded-md border border-border bg-muted p-4 text-center text-sm text-muted-foreground">
+          Mientras tanto, puedes explorar el contenido público del sitio.
         </div>
-      </div>
+
+        <div className="flex justify-center gap-3">
+          <Button asChild>
+            <Link to="/">Ir al inicio</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/login">Iniciar sesión</Link>
+          </Button>
+        </div>
+      </FormCard>
     );
   }
 
   // ── Formulario ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: "70vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-      <div style={{
-        background: "var(--color-surface)",
-        border: "1px solid var(--color-border)",
-        borderRadius: "var(--radius-lg)",
-        padding: "40px 36px",
-        maxWidth: 460,
-        width: "100%",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-          <UserPlus size={22} style={{ color: "var(--color-primary)" }} />
-          <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.4rem", color: "var(--color-text)" }}>
-            Crear cuenta
-          </h1>
-        </div>
-        <p style={{ color: "var(--color-text-muted)", fontSize: ".88rem", marginBottom: 28, lineHeight: 1.5 }}>
-          Completa el formulario. Tu solicitud será revisada por el administrador antes de activarse.
-        </p>
-
-        <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={labelStyle}>Nombre</label>
-              <input
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                style={inputStyle}
-                placeholder="Francisco"
-                required
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Apellido</label>
-              <input
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                style={inputStyle}
-                placeholder="Higuera"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label style={labelStyle}>Correo electrónico</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={inputStyle}
-              placeholder="correo@dominio.com"
-              autoComplete="email"
-              required
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
-              autoComplete="new-password"
-              minLength={6}
-              required
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>Confirmar contraseña</label>
-            <input
-              type="password"
-              value={passwordConfirm}
-              onChange={(e) => setPasswordConfirm(e.target.value)}
-              style={inputStyle}
-              autoComplete="new-password"
-              minLength={6}
-              required
-            />
-          </div>
-
-          {error && (
-            <div style={{
-              display: "flex", alignItems: "flex-start", gap: 8,
-              background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.25)",
-              borderRadius: "var(--radius-md)", padding: "10px 14px",
-              color: "#ef4444", fontSize: ".85rem", lineHeight: 1.5,
-            }}>
-              <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={busy}
-            style={{
-              background: "var(--color-primary)", color: "#fff",
-              border: "none", borderRadius: "var(--radius-md)",
-              padding: "11px 0", fontWeight: 600, fontSize: ".92rem",
-              cursor: busy ? "not-allowed" : "pointer",
-              opacity: busy ? .7 : 1,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              transition: "opacity .15s",
-            }}
-          >
-            {busy && <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />}
-            {busy ? "Enviando solicitud…" : "Crear cuenta"}
-          </button>
-        </form>
-
-        <p style={{ textAlign: "center", marginTop: 20, fontSize: ".85rem", color: "var(--color-text-muted)" }}>
+    <FormCard
+      icon={<UserPlus size={22} />}
+      title="Crear cuenta"
+      description="Completa el formulario. Tu solicitud será revisada por el administrador antes de activarse."
+      footer={
+        <>
           ¿Ya tienes cuenta?{" "}
-          <Link to="/login" style={{ color: "var(--color-primary)", fontWeight: 600, textDecoration: "none" }}>
+          <Link to="/login" className="font-semibold text-primary hover:underline">
             Iniciar sesión
           </Link>
-        </p>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="firstName">Nombre</Label>
+            <Input
+              id="firstName"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Francisco"
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lastName">Apellido</Label>
+            <Input
+              id="lastName"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Higuera"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="email">Correo electrónico</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="correo@dominio.com"
+            autoComplete="email"
+            required
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="password">Contraseña</Label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={6}
+            required
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="passwordConfirm">Confirmar contraseña</Label>
+          <Input
+            id="passwordConfirm"
+            type="password"
+            value={passwordConfirm}
+            onChange={(e) => setPasswordConfirm(e.target.value)}
+            autoComplete="new-password"
+            minLength={6}
+            required
+          />
+        </div>
+
+        {error && (
+          <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle size={15} className="mt-0.5 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        <Button type="submit" className="w-full" disabled={busy}>
+          {busy && <Loader2 size={15} className="animate-spin" />}
+          {busy ? "Enviando solicitud…" : "Crear cuenta"}
+        </Button>
+      </form>
+    </FormCard>
   );
 }
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: ".82rem",
-  fontWeight: 600,
-  color: "var(--color-text-muted)",
-  marginBottom: 5,
-  letterSpacing: ".01em",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  background: "var(--color-bg-muted)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "var(--radius-md)",
-  padding: "9px 12px",
-  fontSize: ".9rem",
-  color: "var(--color-text)",
-  fontFamily: "var(--font-body)",
-  outline: "none",
-};

@@ -22,6 +22,9 @@ import {
 import http from "../../shared/api/http";
 import { useAuth } from "../../shared/auth/useAuth";
 import hljs from "highlight.js";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -213,7 +216,7 @@ function VideoPlayer({ video }: { video: LessonContent["video"] }) {
   if (video.type === "youtube" && video.embed_url) {
     return (
       <iframe src={video.embed_url}
-        style={{ width: "100%", aspectRatio: "16/9", border: "none", borderRadius: "var(--radius-md)", display: "block" }}
+        className="block aspect-video w-full rounded-md border-none"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen />
     );
@@ -221,7 +224,7 @@ function VideoPlayer({ video }: { video: LessonContent["video"] }) {
   if (video.type === "vimeo" && video.embed_url) {
     return (
       <iframe src={video.embed_url}
-        style={{ width: "100%", aspectRatio: "16/9", border: "none", borderRadius: "var(--radius-md)", display: "block" }}
+        className="block aspect-video w-full rounded-md border-none"
         allow="autoplay; fullscreen; picture-in-picture"
         allowFullScreen />
     );
@@ -229,7 +232,7 @@ function VideoPlayer({ video }: { video: LessonContent["video"] }) {
   if (video.type === "file" && video.stream_url) {
     return (
       <video src={video.stream_url} controls preload="metadata"
-        style={{ width: "100%", borderRadius: "var(--radius-md)", background: "#000", display: "block" }} />
+        className="block w-full rounded-md bg-black" />
     );
   }
   return null;
@@ -288,32 +291,32 @@ export default function CourseViewer() {
   const navigate   = (slug: string | null) => { if (slug) setActiveSlug(slug); };
 
   if (metaQ.isLoading) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", gap: 8, color: "var(--color-text-muted)" }}>
-      <RefreshCw size={16} /> Cargando…
+    <div className="flex h-[60vh] items-center justify-center gap-2 text-muted-foreground">
+      <RefreshCw size={16} className="animate-spin" /> Cargando…
     </div>
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
+    <div className="min-h-screen bg-background">
 
       {/* Header */}
-      <div style={{ background: "var(--color-surface)", borderBottom: "1px solid var(--color-border)", padding: "18px 32px" }}>
-        <Link to="/courses" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-primary)", fontSize: ".83rem", textDecoration: "none", marginBottom: 10 }}>
+      <div className="border-b border-border bg-card px-8 py-[18px]">
+        <Link to="/courses" className="mb-2.5 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
           <ArrowLeft size={14} /> Todos los cursos
         </Link>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <Video size={20} style={{ color: "var(--color-primary)", flexShrink: 0 }} />
-          <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.4rem", color: "var(--color-text)" }}>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Video size={20} className="shrink-0 text-primary" />
+          <h1 className="font-display text-xl font-bold text-foreground sm:text-2xl">
             {course?.title}
           </h1>
           {course?.level && (
-            <span style={{ fontSize: ".72rem", padding: "3px 10px", borderRadius: 99, background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", color: "var(--color-text-muted)" }}>
+            <Badge variant="secondary" className="font-normal">
               {course.level}
-            </span>
+            </Badge>
           )}
         </div>
         {course?.description && (
-          <p style={{ marginTop: 6, color: "var(--color-text-muted)", fontSize: ".88rem", maxWidth: 620, lineHeight: 1.55 }}>
+          <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted-foreground">
             {course.description}
           </p>
         )}
@@ -321,37 +324,39 @@ export default function CourseViewer() {
 
       {/* Sin acceso */}
       {!canAccess ? (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", gap: 16, textAlign: "center" }}>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--color-bg-muted)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--color-border)" }}>
-            <Lock size={28} style={{ color: "var(--color-primary)" }} />
+        <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-border bg-muted">
+            <Lock size={28} className="text-primary" />
           </div>
-          <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.2rem", color: "var(--color-text)" }}>
+          <h2 className="font-display text-xl font-bold text-foreground">
             Contenido restringido
           </h2>
-          <p style={{ color: "var(--color-text-muted)", maxWidth: 380, lineHeight: 1.6, fontSize: ".93rem" }}>
-            Necesitas una cuenta con rol <strong>student</strong>, <strong>teacher</strong> o <strong>admin</strong> para acceder al contenido de este curso.
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+            Necesitas una cuenta con rol <strong className="text-foreground">student</strong>,{" "}
+            <strong className="text-foreground">teacher</strong> o{" "}
+            <strong className="text-foreground">admin</strong> para acceder al contenido de este curso.
           </p>
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <Link to="/login" style={{ background: "var(--color-primary)", color: "#fff", borderRadius: "var(--radius-md)", padding: "10px 20px", fontWeight: 600, fontSize: ".9rem", textDecoration: "none" }}>
-              Iniciar sesión
-            </Link>
-            <Link to="/register" style={{ background: "var(--color-bg-muted)", color: "var(--color-text)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "10px 20px", fontSize: ".9rem", textDecoration: "none" }}>
-              Registrarse
-            </Link>
+          <div className="mt-2 flex gap-2.5">
+            <Button asChild>
+              <Link to="/login">Iniciar sesión</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/register">Registrarse</Link>
+            </Button>
           </div>
         </div>
       ) : (
         <>
           {/* Sin curriculum */}
           {!curriculum.length && !metaQ.isLoading && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", gap: 16, textAlign: "center" }}>
-              <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--color-bg-muted)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--color-border)" }}>
-                <Lock size={26} style={{ color: "var(--color-primary)" }} />
+            <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-border bg-muted">
+                <Lock size={26} className="text-primary" />
               </div>
-              <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.15rem", color: "var(--color-text)" }}>
+              <h2 className="font-display text-lg font-bold text-foreground">
                 Sin contenido disponible
               </h2>
-              <p style={{ color: "var(--color-text-muted)", maxWidth: 360, lineHeight: 1.6, fontSize: ".9rem" }}>
+              <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
                 Este curso aún no tiene lecciones disponibles.
               </p>
             </div>
@@ -359,42 +364,51 @@ export default function CourseViewer() {
 
           {/* Viewer */}
           {curriculum.length > 0 && (
-        <div style={{ display: "flex", height: "calc(100vh - 140px)", overflow: "hidden" }}>
+        <div className="flex h-[calc(100vh-140px)] overflow-hidden">
 
           {/* Sidebar */}
-          <aside style={{ width: 280, flexShrink: 0, borderRight: "1px solid var(--color-border)", background: "var(--color-bg-muted)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <div style={{ padding: "12px 16px 10px", borderBottom: "1px solid var(--color-border)" }}>
-              <span style={{ fontSize: ".72rem", fontWeight: 700, color: "var(--color-text-muted)", letterSpacing: ".06em", textTransform: "uppercase" }}>Contenido del curso</span>
-              <div style={{ fontSize: ".75rem", color: "var(--color-text-muted)", marginTop: 3 }}>{allLessons.length} lecciones</div>
+          <aside className="flex w-[280px] shrink-0 flex-col overflow-hidden border-r border-border bg-muted/40">
+            <div className="border-b border-border px-4 py-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Contenido del curso</span>
+              <div className="mt-0.5 text-xs text-muted-foreground">{allLessons.length} lecciones</div>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain" }}>
+            <div className="flex-1 overflow-y-auto [overscroll-behavior:contain]">
               {curriculum.map((section) => (
                 <div key={section.id}>
                   <button
                     onClick={() => setCollapsed(c => ({ ...c, [section.id]: !c[section.id] }))}
-                    style={{ width: "100%", textAlign: "left", padding: "10px 14px", background: "var(--color-surface)", border: "none", borderBottom: "1px solid var(--color-border)", cursor: "pointer", display: "flex", alignItems: "center", gap: 7, fontFamily: "var(--font-body)" }}
+                    className="flex w-full items-center gap-2 border-b border-border bg-card px-3.5 py-2.5 text-left"
                   >
                     {collapsed[section.id]
-                      ? <ChevronRight size={13} style={{ color: "var(--color-text-muted)", flexShrink: 0 }} />
-                      : <ChevronDown  size={13} style={{ color: "var(--color-text-muted)", flexShrink: 0 }} />
+                      ? <ChevronRight size={13} className="shrink-0 text-muted-foreground" />
+                      : <ChevronDown  size={13} className="shrink-0 text-muted-foreground" />
                     }
-                    <span style={{ flex: 1, fontSize: ".83rem", fontWeight: 600, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{section.title}</span>
-                    <span style={{ fontSize: ".7rem", color: "var(--color-text-muted)", flexShrink: 0 }}>{section.lessons.length}</span>
+                    <span className="flex-1 truncate text-sm font-semibold text-foreground">{section.title}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{section.lessons.length}</span>
                   </button>
                   {!collapsed[section.id] && section.lessons.map((l) => {
                     const isActive = l.slug === activeSlug;
                     const isDone   = activeIdx > allLessons.findIndex(x => x.slug === l.slug);
                     return (
                       <button key={l.id} onClick={() => setActiveSlug(l.slug)}
-                        style={{ width: "100%", textAlign: "left", border: "none", cursor: "pointer", display: "flex", alignItems: "flex-start", gap: 9, padding: "9px 14px 9px 24px", background: isActive ? "var(--color-primary)" : "transparent", color: isActive ? "#fff" : "var(--color-text)", borderLeft: isActive ? "3px solid var(--color-accent)" : "3px solid transparent", transition: "background .15s", fontFamily: "var(--font-body)" }}
+                        className={cn(
+                          "flex w-full items-start gap-2.5 border-l-[3px] py-2.5 pl-6 pr-3.5 text-left transition-colors",
+                          isActive
+                            ? "border-brand-accent bg-primary text-primary-foreground"
+                            : "border-transparent text-foreground hover:bg-muted"
+                        )}
                       >
-                        <span style={{ fontSize: ".7rem", marginTop: 2, flexShrink: 0, opacity: .6 }}>{isDone ? "✓" : isActive ? "▶" : "○"}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: ".83rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>{l.title}</div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2, opacity: .65, fontSize: ".7rem" }}>
+                        <span className="mt-0.5 shrink-0 text-xs opacity-60">{isDone ? "✓" : isActive ? "▶" : "○"}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm leading-snug">{l.title}</div>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-xs opacity-65">
                             {videoIcon(l.video_type)}
                             {l.duration_seconds > 0 && <span>{fmtDuration(l.duration_seconds)}</span>}
-                            {l.is_free_preview && <span style={{ background: "rgba(251,191,36,.2)", color: "#f59e0b", padding: "0 4px", borderRadius: 3, fontSize: ".65rem", fontWeight: 600 }}>GRATIS</span>}
+                            {l.is_free_preview && (
+                              <span className="rounded bg-brand-accent/20 px-1 text-[10px] font-semibold text-brand-accent">
+                                GRATIS
+                              </span>
+                            )}
                           </div>
                         </div>
                       </button>
@@ -406,41 +420,41 @@ export default function CourseViewer() {
           </aside>
 
           {/* Panel principal */}
-          <main style={{ flex: 1, overflowY: "auto", background: "var(--color-bg)", overscrollBehavior: "contain" }}>
+          <main className="flex-1 overflow-y-auto bg-background [overscroll-behavior:contain]">
             {lessonQ.isLoading && (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "50%", gap: 8, color: "var(--color-text-muted)" }}>
-                <RefreshCw size={14} /> Cargando lección…
+              <div className="flex h-1/2 items-center justify-center gap-2 text-muted-foreground">
+                <RefreshCw size={14} className="animate-spin" /> Cargando lección…
               </div>
             )}
             {lessonQ.isError && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60%", gap: 14, textAlign: "center", padding: 32 }}>
-                <Lock size={36} style={{ color: "var(--color-primary)", opacity: .5 }} />
-                <p style={{ color: "var(--color-text-muted)", fontSize: ".9rem", maxWidth: 320, lineHeight: 1.6 }}>
+              <div className="flex h-[60%] flex-col items-center justify-center gap-3.5 px-8 text-center">
+                <Lock size={36} className="text-primary/50" />
+                <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
                   Esta lección requiere iniciar sesión con una cuenta de estudiante.
                 </p>
-                <Link to="/login" style={{ background: "var(--color-primary)", color: "#fff", borderRadius: "var(--radius-md)", padding: "9px 20px", fontWeight: 600, fontSize: ".88rem", textDecoration: "none" }}>
-                  Iniciar sesión
-                </Link>
+                <Button asChild>
+                  <Link to="/login">Iniciar sesión</Link>
+                </Button>
               </div>
             )}
             {lesson && !lessonQ.isLoading && (
               <div>
                 {lesson.video.type !== "none" && (
-                  <div style={{ background: "#000", borderBottom: "1px solid var(--color-border)" }}>
-                    <div style={{ maxWidth: 960, margin: "0 auto" }}>
+                  <div className="border-b border-border bg-black">
+                    <div className="mx-auto max-w-[960px]">
                       <VideoPlayer video={lesson.video} />
                     </div>
                   </div>
                 )}
-                <div style={{ maxWidth: 860, margin: "0 auto", padding: "28px 32px" }}>
-                  <div style={{ marginBottom: 24, paddingBottom: 18, borderBottom: "1px solid var(--color-border)" }}>
-                    <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.5rem", color: "var(--color-text)", marginBottom: 6 }}>
+                <div className="mx-auto max-w-3xl px-8 py-7">
+                  <div className="mb-6 border-b border-border pb-[18px]">
+                    <h2 className="mb-1.5 font-display text-2xl font-bold text-foreground">
                       {lesson.lesson.title}
                     </h2>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14, color: "var(--color-text-muted)", fontSize: ".8rem" }}>
-                      <span style={{ fontFamily: "var(--font-mono)" }}>Lección {activeIdx + 1} de {allLessons.length}</span>
+                    <div className="flex items-center gap-3.5 text-sm text-muted-foreground">
+                      <span className="font-mono">Lección {activeIdx + 1} de {allLessons.length}</span>
                       {lesson.lesson.duration_seconds > 0 && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span className="flex items-center gap-1">
                           <Clock size={12} /> {fmtDuration(lesson.lesson.duration_seconds)} min
                         </span>
                       )}
@@ -448,29 +462,27 @@ export default function CourseViewer() {
                   </div>
                   {lesson.markdown ? (
                     <div
-                      style={{ fontFamily: "var(--font-body)", color: "var(--color-text)", lineHeight: 1.75 }}
+                      className="leading-relaxed text-foreground"
                       dangerouslySetInnerHTML={{ __html: mdToHtml(lesson.markdown) }}
                     />
                   ) : (
-                    <p style={{ color: "var(--color-text-muted)", fontStyle: "italic", fontSize: ".9rem" }}>
+                    <p className="text-sm italic text-muted-foreground">
                       Esta lección no tiene notas adicionales.
                     </p>
                   )}
-                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 44, paddingTop: 20, borderTop: "1px solid var(--color-border)" }}>
+                  <div className="mt-11 flex justify-between border-t border-border pt-5">
                     <div>
                       {lesson.nav.prev && (
-                        <button onClick={() => navigate(lesson.nav.prev)}
-                          style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "9px 16px", color: "var(--color-text)", cursor: "pointer", fontFamily: "var(--font-body)", fontSize: ".85rem" }}>
+                        <Button variant="outline" onClick={() => navigate(lesson.nav.prev)} className="gap-1.5">
                           <ChevronLeft size={15} /> Anterior
-                        </button>
+                        </Button>
                       )}
                     </div>
                     <div>
                       {lesson.nav.next && (
-                        <button onClick={() => navigate(lesson.nav.next)}
-                          style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--color-primary)", border: "none", borderRadius: "var(--radius-md)", padding: "9px 16px", color: "#fff", cursor: "pointer", fontFamily: "var(--font-body)", fontSize: ".85rem", fontWeight: 600 }}>
+                        <Button onClick={() => navigate(lesson.nav.next)} className="gap-1.5">
                           Siguiente <ChevronRight size={15} />
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </div>

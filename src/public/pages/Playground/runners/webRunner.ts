@@ -57,18 +57,48 @@ function buildHtmlPreview(files: VirtualFile[]): string {
   return content;
 }
 
-// ─── React ────────────────────────────────────────────────────────────────────
+// ─── React (multi-file TypeScript mini-bundler) ───────────────────────────────
+//
+// Strategy: all .tsx/.ts/.jsx/.js files are embedded into the iframe as a
+// JSON virtual-file-system. A tiny CJS-style require() runtime runs inside the
+// iframe, transpiling each file on-demand with Babel standalone (which ships
+// the React and TypeScript presets). CSS imports are intercepted and injected
+// as <style> tags. External packages are limited to react / react-dom which
+// are already loaded as UMD globals.
 
 function buildReactPreview(files: VirtualFile[]): string {
-  const appFile = files.find(
-    (f) =>
-      f.name.endsWith(".jsx") ||
-      f.name === "App.js" ||
-      f.name === "index.js"
+  // Collect JS/TS source files
+  const sourceFiles = files.filter(
+    (f) => !f.is_folder && /\.(tsx?|jsx?)$/.test(f.name)
   );
-  if (!appFile) {
-    return errorPage("No se encontró App.jsx o App.js");
+  if (sourceFiles.length === 0) {
+    return errorPage("No se encontraron archivos .tsx, .ts, .jsx o .js en el proyecto");
   }
+
+  // Normalize paths: strip leading '/' so keys look like  src/App.tsx
+  const vfs = Object.fromEntries(
+    sourceFiles.map((f) => [f.path.replace(/^\//, ""), f.content])
+  );
+
+  // Also add CSS files to the VFS so CSS imports work
+  files
+    .filter((f) => !f.is_folder && f.name.endsWith(".css"))
+    .forEach((f) => { vfs[f.path.replace(/^\//, "")] = f.content; });
+
+  // Determine entry point (priority list mirrors create-react-app / Vite conventions)
+  const entryPriority = [
+    "src/main.tsx", "src/main.ts",
+    "src/index.tsx", "src/index.ts",
+    "src/App.tsx",  "src/App.jsx",
+    "App.tsx", "App.jsx", "index.jsx", "App.js", "index.js",
+  ];
+  const normalizedPaths = new Set(Object.keys(vfs));
+  const entryPath =
+    entryPriority.find((p) => normalizedPaths.has(p)) ??
+    sourceFiles[0].path.replace(/^\//, "");
+
+  const vfsJson = JSON.stringify(vfs);
+  const entryJson = JSON.stringify("./" + entryPath);
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -81,17 +111,143 @@ function buildReactPreview(files: VirtualFile[]): string {
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    #__err {
+      display: none; position: fixed; inset: 0; background: #1a1a2e; color: #f87171;
+      font-family: monospace; font-size: 13px; padding: 2rem;
+      overflow: auto; white-space: pre-wrap; z-index: 9999;
+    }
   </style>
 </head>
 <body>
   <div id="root"></div>
-  <script type="text/babel">
-    ${appFile.content}
+  <div id="__err"></div>
+  <script>
+  (function () {
+    function showError(msg) {
+      var el = document.getElementById('__err');
+      el.style.display = 'block';
+      el.textContent = '\\u26a0\\ufe0f Error\\n\\n' + msg;
+    }
 
-    const rootEl = document.getElementById("root");
-    const root = ReactDOM.createRoot(rootEl);
-    root.render(React.createElement(App));
+    if (!window.Babel)    { showError('Babel no pudo cargarse. Verifica tu conexi\\u00f3n a internet.'); return; }
+    if (!window.React)    { showError('React no pudo cargarse. Verifica tu conexi\\u00f3n a internet.'); return; }
+    if (!window.ReactDOM) { showError('ReactDOM no pudo cargarse. Verifica tu conexi\\u00f3n a internet.'); return; }
+
+    // ── Virtual File System ─────────────────────────────────────────────────
+    var VFS = ${vfsJson};
+    var cache = {};   // path -> module.exports (prevents duplicate execution)
+
+    // Resolve "src/components" + "../utils/helper" → "src/utils/helper"
+    function joinPath(dir, rel) {
+      var parts = (dir + '/' + rel).split('/');
+      var out = [];
+      for (var i = 0; i < parts.length; i++) {
+        var p = parts[i];
+        if (p === '..') out.pop();
+        else if (p && p !== '.') out.push(p);
+      }
+      return out.join('/');
+    }
+
+    // Try exact path, then common extensions, then /index variants
+    function resolveFile(path) {
+      if (VFS[path] !== undefined) return path;
+      var exts = ['.tsx', '.ts', '.jsx', '.js'];
+      for (var i = 0; i < exts.length; i++) {
+        if (VFS[path + exts[i]] !== undefined) return path + exts[i];
+        var idx = path + '/index' + exts[i];
+        if (VFS[idx] !== undefined) return idx;
+      }
+      return null;
+    }
+
+    // Factory: returns a require() scoped to a specific file's directory
+    function makeRequire(fromPath) {
+      var fromDir = fromPath.includes('/')
+        ? fromPath.substring(0, fromPath.lastIndexOf('/'))
+        : '';
+
+      return function require(specifier) {
+        // ── Built-in packages ──────────────────────────────────────────────
+        if (specifier === 'react')  return window.React;
+        if (specifier === 'react-dom' || specifier === 'react-dom/client') return window.ReactDOM;
+
+        if (!specifier.startsWith('.')) {
+          throw new Error(
+            'Paquete externo no disponible: "' + specifier + '".' +
+            ' En el preview solo est\\u00e1n disponibles react y react-dom.'
+          );
+        }
+
+        // ── CSS import → inject <style> ────────────────────────────────────
+        if (specifier.endsWith('.css')) {
+          var cssResolved = joinPath(fromDir, specifier);
+          var cssKey = 'css:' + cssResolved;
+          if (!cache[cssKey]) {
+            cache[cssKey] = true;
+            var cssSource = VFS[cssResolved] || '';
+            var styleEl = document.createElement('style');
+            styleEl.textContent = cssSource;
+            document.head.appendChild(styleEl);
+          }
+          return {};
+        }
+
+        // ── JS / TS module ─────────────────────────────────────────────────
+        var resolved = joinPath(fromDir, specifier);
+        var filePath = resolveFile(resolved);
+        if (!filePath) {
+          throw new Error(
+            'M\\u00f3dulo no encontrado: "' + specifier + '" (buscado como: ' + resolved + ').' +
+            ' Verifica el nombre y la ruta del archivo.'
+          );
+        }
+
+        // Return cached exports (also handles circular deps gracefully)
+        if (cache[filePath] !== undefined) return cache[filePath];
+
+        // Transpile with Babel (JSX + TypeScript)
+        var source = VFS[filePath];
+        var transpiled;
+        try {
+          transpiled = Babel.transform(source, {
+            presets: [
+              ['react', { runtime: 'classic' }],
+              ['typescript', { allExtensions: true, isTSX: filePath.endsWith('.tsx') }]
+            ],
+            filename: filePath,
+          }).code;
+        } catch (e) {
+          throw new Error('Error de sintaxis en ' + filePath + ':\\n' + e.message);
+        }
+
+        // Execute module in a CommonJS wrapper
+        var mod = { exports: {} };
+        cache[filePath] = mod.exports; // seed cache before execution (circular deps)
+        try {
+          // eslint-disable-next-line no-new-func
+          new Function('require', 'module', 'exports', transpiled)(
+            makeRequire(filePath), mod, mod.exports
+          );
+        } catch (e) {
+          delete cache[filePath];
+          throw new Error('Error en tiempo de ejecuci\\u00f3n en ' + filePath + ':\\n' + e.message);
+        }
+
+        cache[filePath] = mod.exports;
+        return mod.exports;
+      };
+    }
+
+    // ── Bootstrap ───────────────────────────────────────────────────────────
+    try {
+      makeRequire('')(${entryJson});
+    } catch (e) {
+      showError(e.message);
+      console.error(e);
+    }
+  })();
   </script>
 </body>
 </html>`;

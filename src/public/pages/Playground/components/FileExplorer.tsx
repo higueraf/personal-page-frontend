@@ -7,9 +7,12 @@ import {
   ChevronDown,
   Folder,
   FolderOpen,
+  Pencil,
+  Upload,
 } from "lucide-react";
 import { usePlaygroundStore, type VirtualFile } from "../store/playgroundStore";
 import { getFileIcon, getExtension, newId } from "../utils/fileUtils";
+import http from "../../../../shared/api/http";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -63,7 +66,7 @@ interface CreatingIn {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function FileExplorer() {
-  const { files, activeFileId, language, openFile, addFile, removeFile } =
+  const { files, activeFileId, language, projectId, openFile, addFile, removeFile, renameFile, updateFileContent } =
     usePlaygroundStore();
 
   // Root-level creation
@@ -80,6 +83,14 @@ export default function FileExplorer() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
+  // Rename state: which file is being renamed and the current input value
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  // File upload
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB per file
+
   const folders = files.filter((f) => f.is_folder);
   const topFolders = folders.filter((f) => isTopLevelFolder(f, folders));
   const rootFiles = files.filter(
@@ -95,6 +106,73 @@ export default function FileExplorer() {
     setNewFolderName("");
     setCreatingIn(null);
     setCreatingInName("");
+  }
+
+  // ── File upload ────────────────────────────────────────────────────────────
+
+  function handleUploadFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    const oversized = picked.filter((f) => f.size > MAX_FILE_SIZE).map((f) => f.name);
+    if (oversized.length > 0) {
+      alert(
+        `Los siguientes archivos superan el límite de 2 MB y no serán cargados:\n• ${oversized.join("\n• ")}`
+      );
+    }
+    for (const file of picked) {
+      if (file.size > MAX_FILE_SIZE) continue;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const content = (ev.target?.result as string) ?? "";
+        // If a file with the same name already exists, update its content in-place
+        const existing = files.find((f) => !f.is_folder && f.name === file.name);
+        if (existing) {
+          updateFileContent(existing.id, content);
+          openFile(existing.id);
+          return;
+        }
+        addFile({
+          id: newId(),
+          name: file.name,
+          content,
+          language: "",
+          path: `/${file.name}`,
+          is_folder: false,
+        });
+      };
+      reader.readAsText(file, "UTF-8");
+    }
+    // Reset so the same file can be uploaded again after a modification
+    e.target.value = "";
+  }
+
+  function startRename(file: VirtualFile) {
+    cancelAll();
+    setRenamingId(file.id);
+    setRenameValue(file.name);
+  }
+
+  async function commitRename(file: VirtualFile) {
+    const trimmed = renameValue.trim();
+    if (!trimmed || trimmed === file.name) {
+      setRenamingId(null);
+      return;
+    }
+
+    const parentPath = file.path.substring(0, file.path.lastIndexOf('/') + 1);
+    const newPath = `${parentPath}${trimmed}`;
+
+    // Update store immediately for responsive UI
+    renameFile(file.id, trimmed, newPath);
+    setRenamingId(null);
+
+    // Persist to backend when file has a DB UUID (not a local ID)
+    if (projectId && !file.id.startsWith('local-')) {
+      http.patch(`/playground/${projectId}/files/${file.id}/rename`, { name: trimmed })
+        .catch(() => {
+          // Roll back store on failure
+          renameFile(file.id, file.name, file.path);
+        });
+    }
   }
 
   function toggleFolder(id: string) {
@@ -215,8 +293,14 @@ export default function FileExplorer() {
           collapsed={isCollapsed}
           totalItems={totalItems}
           confirmingDelete={confirmDelete === folder.id}
+          isRenaming={renamingId === folder.id}
+          renameValue={renamingId === folder.id ? renameValue : folder.name}
           onToggle={() => toggleFolder(folder.id)}
           onDelete={() => handleDelete(folder)}
+          onRename={() => startRename(folder)}
+          onRenameChange={setRenameValue}
+          onRenameCommit={() => commitRename(folder)}
+          onRenameCancel={() => setRenamingId(null)}
           onCreateFileIn={() => {
             cancelAll();
             setCollapsed((prev) => { const n = new Set(prev); n.delete(folder.id); return n; });
@@ -256,8 +340,14 @@ export default function FileExplorer() {
                 depth={depth + 1}
                 active={activeFileId === child.id}
                 confirmingDelete={confirmDelete === child.id}
+                isRenaming={renamingId === child.id}
+                renameValue={renamingId === child.id ? renameValue : child.name}
                 onOpen={() => openFile(child.id)}
                 onDelete={() => handleDelete(child)}
+                onRename={() => startRename(child)}
+                onRenameChange={setRenameValue}
+                onRenameCommit={() => commitRename(child)}
+                onRenameCancel={() => setRenamingId(null)}
               />
             ))}
 
@@ -300,6 +390,22 @@ export default function FileExplorer() {
           >
             <FolderPlus size={13} />
           </button>
+          {/* Upload: accepts text-based data and source files, max 2 MB each */}
+          <button
+            onClick={() => uploadInputRef.current?.click()}
+            title="Subir archivo(s) — máx. 2 MB c/u"
+            className="p-1 rounded text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          >
+            <Upload size={13} />
+          </button>
+          <input
+            ref={uploadInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            accept="*/*"
+            onChange={handleUploadFiles}
+          />
         </div>
       </div>
 
@@ -344,8 +450,14 @@ export default function FileExplorer() {
                 depth={0}
                 active={activeFileId === file.id}
                 confirmingDelete={confirmDelete === file.id}
+                isRenaming={renamingId === file.id}
+                renameValue={renamingId === file.id ? renameValue : file.name}
                 onOpen={() => openFile(file.id)}
                 onDelete={() => handleDelete(file)}
+                onRename={() => startRename(file)}
+                onRenameChange={setRenameValue}
+                onRenameCommit={() => commitRename(file)}
+                onRenameCancel={() => setRenamingId(null)}
               />
             ))}
             {topFolders.map((folder) => renderFolder(folder, 0))}
@@ -471,21 +583,52 @@ interface FolderRowProps {
   collapsed: boolean;
   totalItems: number;
   confirmingDelete: boolean;
+  isRenaming: boolean;
+  renameValue: string;
   onToggle: () => void;
   onDelete: () => void;
+  onRename: () => void;
+  onRenameChange: (v: string) => void;
+  onRenameCommit: () => void;
+  onRenameCancel: () => void;
   onCreateFileIn: () => void;
   onCreateFolderIn: () => void;
 }
 
 function FolderRow({
   folder, depth, collapsed, totalItems, confirmingDelete,
-  onToggle, onDelete, onCreateFileIn, onCreateFolderIn,
+  isRenaming, renameValue,
+  onToggle, onDelete, onRename, onRenameChange, onRenameCommit, onRenameCancel,
+  onCreateFileIn, onCreateFolderIn,
 }: FolderRowProps) {
+  if (isRenaming) {
+    return (
+      <div
+        className="flex items-center gap-1 py-1 pr-2"
+        style={{ paddingLeft: depth * 16 + 6 }}
+      >
+        <span className="text-yellow-500/80 dark:text-yellow-400/80 flex-shrink-0"><Folder size={13} /></span>
+        <input
+          autoFocus
+          value={renameValue}
+          onChange={(e) => onRenameChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onRenameCommit();
+            if (e.key === 'Escape') onRenameCancel();
+          }}
+          onBlur={onRenameCommit}
+          className="flex-1 min-w-0 bg-white dark:bg-[#1c2333] text-gray-900 dark:text-white text-xs px-2 py-0.5 rounded border border-blue-500/60 focus:outline-none focus:border-blue-400"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className="group flex items-center justify-between py-1 cursor-pointer text-xs text-gray-700 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white transition-colors"
       style={{ paddingLeft: depth * 16 + 6, paddingRight: 6 }}
       onClick={onToggle}
+      onDoubleClick={(e) => { e.stopPropagation(); onRename(); }}
     >
       <div className="flex items-center gap-1 min-w-0">
         <span className="text-gray-400 dark:text-slate-500 flex-shrink-0">
@@ -509,6 +652,13 @@ function FolderRow({
         className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
+        <button
+          onClick={onRename}
+          title="Renombrar carpeta"
+          className="p-0.5 rounded text-gray-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+        >
+          <Pencil size={11} />
+        </button>
         <button
           onClick={onCreateFileIn}
           title="Nuevo archivo aquí"
@@ -546,11 +696,43 @@ interface FileRowProps {
   depth: number;
   active: boolean;
   confirmingDelete: boolean;
+  isRenaming: boolean;
+  renameValue: string;
   onOpen: () => void;
   onDelete: () => void;
+  onRename: () => void;
+  onRenameChange: (v: string) => void;
+  onRenameCommit: () => void;
+  onRenameCancel: () => void;
 }
 
-function FileRow({ file, depth, active, confirmingDelete, onOpen, onDelete }: FileRowProps) {
+function FileRow({
+  file, depth, active, confirmingDelete,
+  isRenaming, renameValue,
+  onOpen, onDelete, onRename, onRenameChange, onRenameCommit, onRenameCancel,
+}: FileRowProps) {
+  if (isRenaming) {
+    return (
+      <div
+        className="flex items-center gap-1.5 py-1 border-l-2 border-blue-500"
+        style={{ paddingLeft: depth * 16 + 10, paddingRight: 6 }}
+      >
+        <span className="text-sm flex-shrink-0">{getFileIcon(renameValue)}</span>
+        <input
+          autoFocus
+          value={renameValue}
+          onChange={(e) => onRenameChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onRenameCommit();
+            if (e.key === 'Escape') onRenameCancel();
+          }}
+          onBlur={onRenameCommit}
+          className="flex-1 min-w-0 bg-white dark:bg-[#1c2333] text-gray-900 dark:text-white text-xs px-2 py-0.5 rounded border border-blue-500/60 focus:outline-none focus:border-blue-400 font-mono"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={`group flex items-center justify-between py-1 cursor-pointer text-xs transition-colors ${
@@ -560,22 +742,35 @@ function FileRow({ file, depth, active, confirmingDelete, onOpen, onDelete }: Fi
       }`}
       style={{ paddingLeft: depth * 16 + 10, paddingRight: 6 }}
       onClick={onOpen}
+      onDoubleClick={(e) => { e.stopPropagation(); onRename(); }}
     >
       <div className="flex items-center gap-1.5 truncate min-w-0">
         <span className="text-sm flex-shrink-0">{getFileIcon(file.name)}</span>
         <span className="truncate font-mono text-[11px]">{file.name}</span>
       </div>
-      <button
-        onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        title={confirmingDelete ? "¿Confirmar?" : "Eliminar"}
-        className={`flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-all ${
-          confirmingDelete
-            ? "text-red-500 dark:text-red-400 opacity-100"
-            : "text-gray-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-black/10 dark:hover:bg-white/10"
-        }`}
+      <div
+        className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+        onClick={(e) => e.stopPropagation()}
       >
-        <Trash2 size={11} />
-      </button>
+        <button
+          onClick={onRename}
+          title="Renombrar"
+          className="p-0.5 rounded text-gray-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+        >
+          <Pencil size={11} />
+        </button>
+        <button
+          onClick={onDelete}
+          title={confirmingDelete ? "¿Confirmar?" : "Eliminar"}
+          className={`p-0.5 rounded transition-all ${
+            confirmingDelete
+              ? "text-red-500 dark:text-red-400"
+              : "text-gray-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-black/10 dark:hover:bg-white/10"
+          }`}
+        >
+          <Trash2 size={11} />
+        </button>
+      </div>
     </div>
   );
 }

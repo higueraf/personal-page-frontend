@@ -4,6 +4,9 @@ import { useEffect } from "react";
 import { ArrowLeft, ArrowRight, Home, Clock, FileText } from "lucide-react";
 import { getLessonPage, type LessonPage } from "../api";
 import BlockRenderer from "../../components/blocks/BlockRenderer";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 export default function LessonPageViewer() {
   const { courseSlug, lessonSlug, pageOrder } = useParams();
@@ -24,14 +27,14 @@ export default function LessonPageViewer() {
 
   if (q.isLoading)
     return (
-      <div className="lesson-viewer" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-mono)", fontSize: ".85rem" }}>
+      <div className="mx-auto max-w-3xl px-6 py-10 font-mono text-sm text-muted-foreground">
         Cargando…
       </div>
     );
 
   if (q.isError || !q.data)
     return (
-      <div className="lesson-viewer" style={{ color: "#DC2626" }}>
+      <div className="mx-auto max-w-3xl px-6 py-10 text-destructive">
         No se encontró esta página.
       </div>
     );
@@ -42,40 +45,44 @@ export default function LessonPageViewer() {
     navigate(`/learn/${course.slug}/${lesson.slug}/${o}`);
 
   const NavButtons = () => (
-    <div className="lesson-nav-btns">
+    <div className="flex flex-wrap gap-2">
       {nav.prev !== null && (
-        <button className="nav-pill" onClick={() => goTo(nav.prev!)}>
+        <Button variant="outline" size="sm" onClick={() => goTo(nav.prev!)}>
           <ArrowLeft size={13} /> Anterior
-        </button>
+        </Button>
       )}
-      <Link className="nav-pill" to={`/courses/${course.slug}`}>
-        <Home size={13} /> Volver al curso
-      </Link>
+      <Button variant="outline" size="sm" asChild>
+        <Link to={`/courses/${course.slug}`}>
+          <Home size={13} /> Volver al curso
+        </Link>
+      </Button>
       {nav.next !== null && (
-        <button className="nav-pill" onClick={() => goTo(nav.next!)}>
+        <Button variant="outline" size="sm" onClick={() => goTo(nav.next!)}>
           Siguiente <ArrowRight size={13} />
-        </button>
+        </Button>
       )}
     </div>
   );
 
   return (
-    <div className="lesson-viewer">
+    <div className="mx-auto max-w-3xl px-6 py-10">
       {/* Navegación superior */}
-      <div className="lesson-nav">
-        <div className="lesson-meta">
-          <div className="lesson-breadcrumb">
-            <Link to="/courses" style={{ color: "var(--color-primary)" }}>Cursos</Link>
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-5">
+        <div className="flex flex-col gap-1">
+          <div className="font-mono text-xs text-muted-foreground">
+            <Link to="/courses" className="text-primary hover:underline">Cursos</Link>
             {" / "}
-            <Link to={`/courses/${course.slug}`} style={{ color: "var(--color-primary)" }}>{course.title}</Link>
+            <Link to={`/courses/${course.slug}`} className="text-primary hover:underline">{course.title}</Link>
           </div>
-          <h1 className="lesson-title">{lesson.title}</h1>
-          <div className="lesson-info" style={{ display: "flex", gap: 16 }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-foreground">
+            {lesson.title}
+          </h1>
+          <div className="flex gap-4 font-mono text-sm text-muted-foreground">
+            <span className="flex items-center gap-1">
               <FileText size={12} />
               Página {page.order} de {page.total_pages}
             </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span className="flex items-center gap-1">
               <Clock size={12} />
               ~{page.estimated_minutes} min
             </span>
@@ -86,28 +93,27 @@ export default function LessonPageViewer() {
 
       {/* Título de página (si existe) */}
       {page.title && (
-        <h2 style={{
-          fontFamily: "var(--font-display)", fontWeight: 700,
-          fontSize: "1.35rem", color: "var(--color-text)",
-          marginBottom: 24,
-        }}>
+        <h2 className="mb-6 font-display text-xl font-bold text-foreground">
           {page.title}
         </h2>
       )}
 
       {/* Bloques de contenido */}
-      <div className="lesson-content">
-        {blocks.length === 0 ? (
-          <p style={{ color: "var(--color-text-muted)", fontStyle: "italic" }}>
-            Esta página todavía no tiene contenido.
-          </p>
-        ) : (
-          <BlockRenderer blocks={blocks} />
-        )}
-      </div>
+      <Card>
+        <CardContent className="p-9">
+          {blocks.length === 0 ? (
+            <p className="italic text-muted-foreground">
+              Esta página todavía no tiene contenido.
+            </p>
+          ) : (
+            <BlockRenderer blocks={blocks} />
+          )}
+        </CardContent>
+      </Card>
 
       {/* Navegación inferior */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 32 }}>
+      <Separator className="mt-8" />
+      <div className="flex justify-end pt-8">
         <NavButtons />
       </div>
     </div>

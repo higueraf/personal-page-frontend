@@ -2,6 +2,12 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Mail, Phone, Linkedin, Github, Twitter, Globe, MessageSquare, Send, CheckCircle, AlertCircle, RefreshCw, Instagram, Youtube, Loader2 } from "lucide-react";
 import http from "../../shared/api/http";
+import PageHeader from "@/components/patterns/PageHeader";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
 interface ContactInfo { id: string; key: string; label: string; value: string; icon?: string; }
 interface FormState { name: string; email: string; phone: string; subject: string; message: string; }
@@ -41,111 +47,121 @@ export default function Contact() {
   function isUrl(v: string) { return v.startsWith("http"); }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
-      <div style={{ marginBottom: 36 }}>
-        <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.8rem", color: "var(--color-text)", marginBottom: 8 }}>
-          Contacto
-        </h1>
-        <p style={{ color: "var(--color-text-muted)", fontSize: ".95rem", lineHeight: 1.6, maxWidth: 560 }}>
-          ¿Tienes un proyecto en mente o quieres colaborar? Escríbeme y te respondo pronto.
-        </p>
-      </div>
+    <div className="mx-auto max-w-4xl px-6 py-10">
+      <PageHeader
+        icon={Mail}
+        title="Contacto"
+        subtitle="¿Tienes un proyecto en mente o quieres colaborar? Escríbeme y te respondo pronto."
+      />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 36, alignItems: "start" }}>
+      <div className="grid items-start gap-9 md:grid-cols-[1fr_1.5fr]">
 
         {/* Panel de datos de contacto */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1rem", color: "var(--color-text)", marginBottom: 6 }}>
+        <div className="flex flex-col gap-2.5">
+          <h2 className="mb-1 font-display text-sm font-semibold text-foreground">
             Canales de contacto
           </h2>
 
           {infoQ.isLoading && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--color-text-muted)", fontSize: ".85rem" }}>
-              <RefreshCw size={13}/> Cargando…
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <RefreshCw size={13} className="animate-spin" /> Cargando…
             </div>
           )}
 
           {contacts.map(c => (
-            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "12px 14px" }}>
-              <div style={{ width: 36, height: 36, borderRadius: 8, background: "var(--color-bg-muted)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-primary)", flexShrink: 0 }}>
-                {ICON_MAP[c.icon ?? ""] ?? <Globe size={18}/>}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: ".72rem", color: "var(--color-text-muted)", marginBottom: 1 }}>{c.label}</div>
-                {isUrl(c.value) ? (
-                  <a href={c.value} target="_blank" rel="noopener noreferrer"
-                    style={{ color: "var(--color-primary)", fontSize: ".88rem", fontWeight: 500, textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: 200 }}>
-                    {c.value.replace(/^https?:\/\//, "")}
-                  </a>
-                ) : (
-                  <span style={{ color: "var(--color-text)", fontSize: ".88rem", fontWeight: 500 }}>{c.value}</span>
-                )}
-              </div>
-            </div>
+            <Card key={c.id} className="shadow-none">
+              <CardContent className="flex items-center gap-3 p-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                  {ICON_MAP[c.icon ?? ""] ?? <Globe size={18}/>}
+                </div>
+                <div className="min-w-0">
+                  <div className="mb-0.5 text-xs text-muted-foreground">{c.label}</div>
+                  {isUrl(c.value) ? (
+                    <a
+                      href={c.value}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block max-w-[200px] truncate text-sm font-medium text-primary no-underline hover:underline"
+                    >
+                      {c.value.replace(/^https?:\/\//, "")}
+                    </a>
+                  ) : (
+                    <span className="text-sm font-medium text-foreground">{c.value}</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
 
         {/* Formulario */}
-        <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-lg)", padding: "28px 26px" }}>
-          <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1rem", color: "var(--color-text)", marginBottom: 20 }}>
-            Envíame un mensaje
-          </h2>
-
-          {sent ? (
-            <div style={{ textAlign: "center", padding: "32px 0" }}>
-              <CheckCircle size={40} style={{ color: "#22c55e", display: "block", margin: "0 auto 16px" }} />
-              <p style={{ fontWeight: 600, color: "var(--color-text)", marginBottom: 6 }}>¡Mensaje enviado!</p>
-              <p style={{ color: "var(--color-text-muted)", fontSize: ".88rem" }}>Lo revisaré pronto y te responderé.</p>
-              <button onClick={() => setSent(false)}
-                style={{ marginTop: 16, background: "var(--color-primary)", color: "#fff", border: "none", borderRadius: "var(--radius-md)", padding: "8px 18px", cursor: "pointer", fontSize: ".85rem", fontWeight: 600 }}>
-                Enviar otro
-              </button>
+        <Card>
+          <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Send size={16} />
             </div>
-          ) : (
-            <form onSubmit={e => { e.preventDefault(); mutation.mutate(form); }} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>Nombre *</label>
-                  <input value={form.name} onChange={set("name")} required style={inp} placeholder="Tu nombre" />
-                </div>
-                <div>
-                  <label style={lbl}>Correo *</label>
-                  <input type="email" value={form.email} onChange={set("email")} required style={inp} placeholder="tu@correo.com" />
-                </div>
+            <CardTitle className="font-display text-base">Envíame un mensaje</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {sent ? (
+              <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <CheckCircle size={40} className="mb-2 text-green-500" />
+                <p className="font-semibold text-foreground">¡Mensaje enviado!</p>
+                <p className="text-sm text-muted-foreground">Lo revisaré pronto y te responderé.</p>
+                <Button variant="outline" onClick={() => setSent(false)} className="mt-3">
+                  Enviar otro
+                </Button>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label style={lbl}>Teléfono</label>
-                  <input value={form.phone} onChange={set("phone")} style={inp} placeholder="+593 99 000 0000" />
+            ) : (
+              <form onSubmit={e => { e.preventDefault(); mutation.mutate(form); }} className="flex flex-col gap-3.5">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contact-name">Nombre *</Label>
+                    <Input id="contact-name" value={form.name} onChange={set("name")} required placeholder="Tu nombre" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contact-email">Correo *</Label>
+                    <Input id="contact-email" type="email" value={form.email} onChange={set("email")} required placeholder="tu@correo.com" />
+                  </div>
                 </div>
-                <div>
-                  <label style={lbl}>Asunto *</label>
-                  <input value={form.subject} onChange={set("subject")} required style={inp} placeholder="¿De qué trata?" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contact-phone">Teléfono</Label>
+                    <Input id="contact-phone" value={form.phone} onChange={set("phone")} placeholder="+593 99 000 0000" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contact-subject">Asunto *</Label>
+                    <Input id="contact-subject" value={form.subject} onChange={set("subject")} required placeholder="¿De qué trata?" />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label style={lbl}>Mensaje *</label>
-                <textarea value={form.message} onChange={set("message")} required rows={5}
-                  style={{ ...inp, resize: "vertical", minHeight: 100 }} placeholder="Cuéntame sobre tu proyecto o consulta…" />
-              </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="contact-message">Mensaje *</Label>
+                  <Textarea
+                    id="contact-message"
+                    value={form.message}
+                    onChange={set("message")}
+                    required
+                    rows={5}
+                    className="min-h-[100px] resize-y"
+                    placeholder="Cuéntame sobre tu proyecto o consulta…"
+                  />
+                </div>
 
-              {err && (
-                <div style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", borderRadius: "var(--radius-md)", padding: "9px 14px", color: "#ef4444", fontSize: ".84rem" }}>
-                  <AlertCircle size={14}/> {err}
-                </div>
-              )}
+                {err && (
+                  <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    <AlertCircle size={14}/> {err}
+                  </div>
+                )}
 
-              <button type="submit" disabled={mutation.isPending}
-                style={{ background: "var(--color-primary)", color: "#fff", border: "none", borderRadius: "var(--radius-md)", padding: "11px 0", fontWeight: 600, fontSize: ".9rem", cursor: mutation.isPending ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: mutation.isPending ? .7 : 1 }}>
-                {mutation.isPending ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }}/> Enviando…</> : <><Send size={14}/> Enviar mensaje</>}
-              </button>
-            </form>
-          )}
-        </div>
+                <Button type="submit" disabled={mutation.isPending} className="w-full">
+                  {mutation.isPending ? <Loader2 size={14} className="animate-spin"/> : <Send size={14}/>}
+                  {mutation.isPending ? "Enviando…" : "Enviar mensaje"}
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
-
-const lbl: React.CSSProperties = { display: "block", fontSize: ".78rem", fontWeight: 600, color: "var(--color-text-muted)", marginBottom: 4 };
-const inp: React.CSSProperties = { width: "100%", boxSizing: "border-box", background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "8px 10px", fontSize: ".88rem", color: "var(--color-text)", fontFamily: "var(--font-body)", outline: "none" };

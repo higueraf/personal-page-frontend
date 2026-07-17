@@ -8,7 +8,7 @@ export default function PublicLayout() {
   useScrollToTop();
 
   return (
-    <div className="app-root">
+    <div className="app-root bg-background text-foreground">
       <TopNav />
       <main className="page-main">
         <Outlet />

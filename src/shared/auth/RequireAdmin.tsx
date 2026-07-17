@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./authStore";
+import { isAdmin } from "../../domain/services/auth-authorization.service";
 
 /**
  * Guard para rutas admin.
@@ -35,8 +36,7 @@ export function RequireAdmin() {
   }
 
   // Only allow admin role
-  const roleName = user?.role?.name?.toLowerCase();
-  if (roleName !== "admin") {
+  if (!isAdmin(user)) {
     return <Navigate to="/" replace />;
   }
 

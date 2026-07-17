@@ -18,6 +18,9 @@ interface ToolbarProps {
   onTogglePreview: () => void;
   onExamSubmitted?: () => void;
   endTime?: Date | null;
+  /** Milliseconds to add to Date.now() to get the server-corrected time.
+   *  Compensates for students whose machine clock is not synced. */
+  clockOffset?: number;
 }
 
 export default function Toolbar({
@@ -31,6 +34,7 @@ export default function Toolbar({
   onTogglePreview,
   onExamSubmitted,
   endTime,
+  clockOffset = 0,
 }: ToolbarProps) {
   const navigate = useNavigate();
   const { projectId, projectName, language, isRunning, isSaving, isExam } = usePlaygroundStore();
@@ -43,7 +47,7 @@ export default function Toolbar({
     if (!isExam || !endTime) { setTimeLeft(null); return; }
 
     const tick = () => {
-      const now = Date.now();
+      const now = Date.now() + clockOffset;
       const diff = endTime.getTime() - now;
       if (diff <= 0) { setTimeLeft("00:00"); return; }
       const mins = Math.floor(diff / 60000);
@@ -53,7 +57,7 @@ export default function Toolbar({
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [isExam, endTime]);
+  }, [isExam, endTime, clockOffset]);
 
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
 

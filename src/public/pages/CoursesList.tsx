@@ -1,15 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { ArrowRight, BookOpen, Clock, Search } from "lucide-react";
 import { useState } from "react";
 import { getPublicCourses, type Course } from "../api";
 import Pagination from "../../shared/components/Pagination";
+import PageHeader from "@/components/patterns/PageHeader";
+import CourseCard, { type CardAccent } from "@/components/patterns/CourseCard";
+import EmptyState from "@/components/patterns/EmptyState";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const LEVEL_BADGE: Record<string, string> = {
-  Básico: "badge--green",
-  Intermedio: "badge--blue",
-  Avanzado: "badge--yellow",
+/** Mapea el nivel del curso a un color de acento consistente para la card. */
+const LEVEL_ACCENT: Record<string, CardAccent> = {
+  Principiante: "green",
+  Intermedio: "blue",
+  Avanzado: "purple",
 };
+
+function levelAccent(level?: string | null): CardAccent {
+  return (level && LEVEL_ACCENT[level]) || "blue";
+}
 
 export default function CoursesList() {
   const [search, setSearch] = useState("");
@@ -28,99 +37,90 @@ export default function CoursesList() {
   return (
     <div>
       {/* Cabecera */}
-      <div className="page-header">
-        <div className="page-header-inner">
-          <h1 className="page-title">Cursos</h1>
-          <p className="page-subtitle">
-            Aprende a tu ritmo — cursos paginados con código copiable y ejercicios reales.
-          </p>
+      <div className="border-b border-border bg-card">
+        <div className="mx-auto max-w-6xl px-6 py-10">
+          <PageHeader
+            icon={BookOpen}
+            title="Cursos"
+            subtitle="Aprende a tu ritmo — cursos paginados con código copiable y ejercicios reales."
+          />
         </div>
       </div>
 
       {/* Buscador */}
-      <div className="section" style={{ paddingBottom: 0 }}>
-        <div className="section-inner">
-          <div style={{ position: "relative", maxWidth: 420 }}>
-            <Search
-              size={16}
-              style={{
-                position: "absolute", left: 12, top: "50%",
-                transform: "translateY(-50%)",
-                color: "var(--color-text-sub)", pointerEvents: "none",
-              }}
-            />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Buscar curso…"
-              style={{
-                width: "100%",
-                padding: "9px 12px 9px 36px",
-                background: "var(--color-surface)",
-                border: "1.5px solid var(--color-border)",
-                borderRadius: "var(--radius-md)",
-                color: "var(--color-text)",
-                fontSize: ".9rem",
-                fontFamily: "var(--font-body)",
-                outline: "none",
-              }}
-            />
-          </div>
+      <div className="mx-auto max-w-6xl px-6 pt-8">
+        <div className="relative max-w-[420px]">
+          <Search
+            size={16}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            type="text"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Buscar curso…"
+            className="pl-9"
+          />
         </div>
       </div>
 
       {/* Listado */}
-      <div className="section">
-        <div className="section-inner">
-          {q.isLoading ? (
-            <div style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-mono)", fontSize: ".85rem" }}>
-              Cargando cursos…
-            </div>
-          ) : q.isError ? (
-            <div style={{ color: "#DC2626" }}>Error al cargar los cursos.</div>
-          ) : courses.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "60px 0", color: "var(--color-text-muted)" }}>
-              <BookOpen size={48} style={{ margin: "0 auto 16px", opacity: .4 }} />
-              <p>{search ? `Sin resultados para "${search}"` : "Pronto habrá cursos disponibles."}</p>
-            </div>
-          ) : (
-            <>
-              <div className="courses-grid">
-                {courses.map((c) => (
-                  <Link key={c.id} to={`/courses/${c.slug}`} className="course-card">
-                    <div className="course-card-header" />
-                    <div className="course-card-body">
-                      {c.level && (
-                        <span className={`badge ${LEVEL_BADGE[c.level] ?? "badge--blue"} course-level`}>
-                          {c.level}
-                        </span>
-                      )}
-                      <h2 className="course-title">{c.title}</h2>
-                      {c.description && <p className="course-desc">{c.description}</p>}
-                    </div>
-                    <div className="course-footer">
-                      <span style={{ fontSize: ".82rem", color: "var(--color-text-muted)", display: "flex", alignItems: "center", gap: 5 }}>
+      <div className="mx-auto max-w-6xl px-6 py-8">
+        {q.isLoading ? (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="overflow-hidden rounded-xl border border-border bg-card">
+                <Skeleton className="h-32 w-full rounded-none" />
+                <div className="space-y-3 p-5">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : q.isError ? (
+          <div className="text-destructive">Error al cargar los cursos.</div>
+        ) : courses.length === 0 ? (
+          <EmptyState
+            icon={BookOpen}
+            title={search ? `Sin resultados para "${search}"` : "Pronto habrá cursos disponibles."}
+          />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {courses.map((c) => (
+                <CourseCard
+                  key={c.id}
+                  to={`/courses/${c.slug}`}
+                  title={c.title}
+                  description={c.description ?? undefined}
+                  badge={c.level ?? undefined}
+                  accent={levelAccent(c.level)}
+                  icon={BookOpen}
+                  meta={
+                    <div className="flex w-full items-center justify-between">
+                      <span className="flex items-center gap-1.5">
                         <Clock size={13} /> Paginado
                       </span>
-                      <span style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--color-primary)", fontSize: ".85rem", fontWeight: 600 }}>
+                      <span className="flex items-center gap-1.5 font-medium text-primary">
                         Empezar <ArrowRight size={14} />
                       </span>
                     </div>
-                  </Link>
-                ))}
-              </div>
+                  }
+                />
+              ))}
+            </div>
 
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                onPageChange={setPage}
-                total={meta?.total_records}
-                itemLabel="cursos"
-              />
-            </>
-          )}
-        </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              total={meta?.total_records}
+              itemLabel="cursos"
+            />
+          </>
+        )}
       </div>
     </div>
   );

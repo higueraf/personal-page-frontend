@@ -2,6 +2,9 @@ import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { FolderGit2, ArrowLeft, ExternalLink, Github, RefreshCw } from "lucide-react";
 import http from "../../shared/api/http";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 interface Project {
   id: string; title: string; slug: string;
@@ -20,77 +23,82 @@ export default function ProjectDetail() {
   });
 
   if (isLoading) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "50vh", gap: 8, color: "var(--color-text-muted)" }}>
-      <RefreshCw size={16} /> Cargando…
+    <div className="flex min-h-[50vh] items-center justify-center gap-2 text-muted-foreground">
+      <RefreshCw size={16} className="animate-spin" /> Cargando…
     </div>
   );
 
   if (isError || !data) return (
-    <div style={{ maxWidth: 700, margin: "80px auto", textAlign: "center", padding: "0 24px" }}>
-      <FolderGit2 size={48} style={{ opacity: .15, display: "block", margin: "0 auto 16px", color: "var(--color-primary)" }} />
-      <h2 style={{ fontFamily: "var(--font-display)", color: "var(--color-text)" }}>Proyecto no encontrado</h2>
-      <Link to="/projects" style={{ color: "var(--color-primary)", fontSize: ".9rem" }}>← Volver a proyectos</Link>
+    <div className="mx-auto max-w-[700px] px-6 py-20 text-center">
+      <FolderGit2 size={48} className="mx-auto mb-4 text-primary opacity-15" />
+      <h2 className="font-display text-xl font-bold text-foreground">Proyecto no encontrado</h2>
+      <Link to="/projects" className="text-sm text-primary hover:underline">← Volver a proyectos</Link>
     </div>
   );
 
   const p = data;
 
   return (
-    <div style={{ maxWidth: 820, margin: "0 auto", padding: "40px 24px" }}>
-      <Link to="/projects" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-primary)", fontSize: ".83rem", textDecoration: "none", marginBottom: 28 }}>
+    <div className="mx-auto max-w-[820px] px-6 py-10">
+      <Link to="/projects" className="mb-7 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
         <ArrowLeft size={14} /> Todos los proyectos
       </Link>
 
       {p.thumbnail && (
-        <img src={p.thumbnail} alt={p.title} style={{ width: "100%", height: 320, objectFit: "cover", borderRadius: "var(--radius-lg)", marginBottom: 32, border: "1px solid var(--color-border)" }} />
+        <img src={p.thumbnail} alt={p.title} className="mb-8 h-80 w-full rounded-xl border border-border object-cover" />
       )}
 
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
-        <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "2rem", color: "var(--color-text)", margin: 0 }}>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <h1 className="font-display text-3xl font-extrabold text-foreground">
           {p.title}
         </h1>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div className="flex gap-2.5">
           {p.url && (
-            <a href={p.url} target="_blank" rel="noopener noreferrer"
-              style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--color-primary)", color: "#fff", borderRadius: "var(--radius-md)", padding: "8px 16px", fontSize: ".85rem", fontWeight: 600, textDecoration: "none" }}>
-              <ExternalLink size={14} /> Ver demo
-            </a>
+            <Button asChild>
+              <a href={p.url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink size={14} /> Ver demo
+              </a>
+            </Button>
           )}
           {p.repo_url && (
-            <a href={p.repo_url} target="_blank" rel="noopener noreferrer"
-              style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--color-bg-muted)", color: "var(--color-text)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "8px 16px", fontSize: ".85rem", textDecoration: "none" }}>
-              <Github size={14} /> Repositorio
-            </a>
+            <Button asChild variant="outline">
+              <a href={p.repo_url} target="_blank" rel="noopener noreferrer">
+                <Github size={14} /> Repositorio
+              </a>
+            </Button>
           )}
         </div>
       </div>
 
       {p.description && (
-        <p style={{ color: "var(--color-text-muted)", fontSize: "1rem", lineHeight: 1.7, marginBottom: 24 }}>
+        <p className="mb-6 text-base leading-relaxed text-muted-foreground">
           {p.description}
         </p>
       )}
 
       {p.tech_stack && p.tech_stack.length > 0 && (
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: ".75rem", fontWeight: 700, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>Stack tecnológico</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {p.tech_stack && p.tech_stack.map(t => (
-              <span key={t} style={{ background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", padding: "4px 12px", borderRadius: 99, fontSize: ".82rem", color: "var(--color-text)", fontWeight: 500 }}>
+        <div className="mb-7">
+          <div className="mb-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Stack tecnológico</div>
+          <div className="flex flex-wrap gap-2">
+            {p.tech_stack.map(t => (
+              <Badge key={t} variant="secondary" className="font-medium">
                 {t}
-              </span>
+              </Badge>
             ))}
           </div>
         </div>
       )}
 
       {p.long_description && (
-        <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 24 }}>
-          <div style={{ fontSize: ".75rem", fontWeight: 700, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 16 }}>Descripción detallada</div>
-          <div style={{ color: "var(--color-text)", lineHeight: 1.8, fontSize: ".95rem", whiteSpace: "pre-wrap" }}>
-            {p.long_description}
+        <>
+          <Separator className="mb-6" />
+          <div>
+            <div className="mb-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Descripción detallada</div>
+            <div className="whitespace-pre-wrap text-sm leading-loose text-foreground">
+              {p.long_description}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

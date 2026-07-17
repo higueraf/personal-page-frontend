@@ -15,6 +15,8 @@ import Toolbar from "./components/Toolbar";
 import FileExplorer from "./components/FileExplorer";
 import TerminalPanel from "./components/TerminalPanel";
 import PreviewPanel from "./components/PreviewPanel";
+import FlutterPreviewPanel from "./components/FlutterPreviewPanel";
+import ReactNativePreviewPanel from "./components/ReactNativePreviewPanel";
 
 import http from "../../../shared/api/http";
 import type * as MonacoEditor from "monaco-editor";
@@ -71,6 +73,10 @@ export default function PlaygroundIDE() {
   // distinguish internal paste from external paste during exams.
   const internalClipboardRef = useRef<string>("");
 
+  // Clock offset (ms) = serverTime - clientTime, computed at exam load.
+  // Corrects for machines whose system clock is not synced.
+  const clockOffsetRef = useRef<number>(0);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showTerminal, setShowTerminal] = useState(true);
@@ -102,15 +108,26 @@ export default function PlaygroundIDE() {
     setLoading(true);
     setError(null);
 
-    http
-      .get(`/playground/${id}`)
-      .then(({ data }) => {
+    // Fetch project data and server time in parallel so we can correct the
+    // student's system clock for exam timer comparisons.
+    Promise.all([
+      http.get(`/playground/${id}`),
+      http.get('/playground/server-time').catch(() => ({ data: { serverTime: null } })),
+    ])
+      .then(([{ data }, { data: timeData }]) => {
+        // Compute clock offset: positive means client is behind server
+        if (timeData?.serverTime) {
+          clockOffsetRef.current = new Date(timeData.serverTime).getTime() - Date.now();
+        }
+
         if (data.is_exam && !isAdminReview) {
           if (data.status === 'submitted' || data.status === 'graded') {
             setExamFinished(true);
             return;
           }
-          if (data.end_time && new Date() > new Date(data.end_time)) {
+          // Use server-corrected time for the expiry check
+          const correctedNow = Date.now() + clockOffsetRef.current;
+          if (data.end_time && correctedNow > new Date(data.end_time).getTime()) {
             http.post(`/playground/${id}/submit`).catch(() => {});
             setExamFinished(true);
             return;
@@ -237,14 +254,27 @@ export default function PlaygroundIDE() {
       }
     };
 
-    // 6. Window blur — catches Alt+Tab to another app (visibilitychange may not fire in all browsers)
+    // 6. Window blur — catches Alt+Tab to another app (visibilitychange may not fire in all browsers).
+    //    EXCEPTION: clicking inside the built-in HTML preview iframe also fires window.blur because
+    //    the iframe captures focus from the parent window. We must NOT flag that as a violation.
+    //    Strategy: defer the check with setTimeout(0) so the browser has time to update
+    //    document.activeElement. If the new active element is an <iframe> that lives inside this
+    //    page (i.e. the preview panel), we silently ignore the blur.
     const handleWindowBlur = () => {
       if (examFinishedRef.current) return;
-      http.post(`/playground/${id}/log-cheat`, {
-        action: "window_blur",
-        details: "El alumno cambió de ventana o aplicación (Alt+Tab u otro método).",
-      }).catch(() => {});
-      setIsTabSwitchLocked(true);
+      setTimeout(() => {
+        if (examFinishedRef.current) return;
+        // If focus moved to an iframe that belongs to this document it is the
+        // preview panel — not a real tab/window switch.
+        const active = document.activeElement;
+        if (active && active.tagName === 'IFRAME') return;
+
+        http.post(`/playground/${id}/log-cheat`, {
+          action: "window_blur",
+          details: "El alumno cambió de ventana o aplicación (Alt+Tab u otro método).",
+        }).catch(() => {});
+        setIsTabSwitchLocked(true);
+      }, 0);
     };
 
     // Fullscreen + visibility + blur apply to all exams
@@ -313,21 +343,30 @@ export default function PlaygroundIDE() {
     return () => window.removeEventListener('keydown', handleDangerousKey, true);
   }, [isExam, isAdminReview, id]);
 
+  // ── Stable save ref — always points to the latest handleSave so the timer
+  //    effect never captures a stale closure over an old `files` snapshot.
+  const handleSaveRef = useRef<() => Promise<void>>(async () => {});
+  useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
+
   // ── Exam Timer: auto-submit when end_time is reached ───────────────────────
   useEffect(() => {
     if (!isExam || examFinished || isAdminReview) return;
 
     const checkTimer = () => {
-      if (endTimeRef.current && new Date() >= endTimeRef.current) {
-        // Time's up — auto submit
+      if (!endTimeRef.current) return;
+      const correctedNow = Date.now() + clockOffsetRef.current;
+      if (correctedNow >= endTimeRef.current.getTime()) {
+        // Time's up — save current state then submit
         examFinishedRef.current = true;
         if (id) {
-          handleSave().then(() => {
+          handleSaveRef.current().then(() => {
             http.post(`/playground/${id}/submit`).catch(() => {});
-          }).catch(() => {});
+          }).catch(() => {
+            // Save failed — still submit so the exam is recorded
+            http.post(`/playground/${id}/submit`).catch(() => {});
+          });
         }
         setExamFinished(true);
-        // Exit fullscreen
         if (document.fullscreenElement) {
           document.exitFullscreen().catch(() => {});
         }
@@ -375,7 +414,12 @@ export default function PlaygroundIDE() {
 
   // ── Run ─────────────────────────────────────────────────────────────────────
   const handleRun = useCallback(() => {
-    setShowTerminal(true);
+    // Flutter and React Native use iframe embeds (DartPad / Expo Snack) —
+    // no backend execution, no terminal output relevant to the user.
+    // For all other languages the terminal stays visible.
+    if (language !== "flutter" && language !== "react-native") {
+      setShowTerminal(true);
+    }
 
     if (config.runtime === "iframe") {
       // Web preview — just refresh the iframe (no backend needed)
@@ -405,6 +449,7 @@ export default function PlaygroundIDE() {
     files,
     activeFileId,
     setRunning,
+    setShowTerminal,
     startExecution,
   ]);
 
@@ -430,19 +475,16 @@ export default function PlaygroundIDE() {
   ]);
 
   // ── Save ────────────────────────────────────────────────────────────────────
+  // Uses a single batch request to avoid URL-encoding issues with underscores,
+  // hyphens, or dots in file names, and to guarantee atomicity on time expiry.
   const handleSave = useCallback(async () => {
     if (!id) return;
     setSaving(true);
     try {
-      for (const file of files) {
-        if (!file.is_folder) {
-          await http.put(`/playground/${id}/files/${file.name}`, {
-            content: file.content,
-            is_folder: false,
-            path: file.path,
-          });
-        }
-      }
+      const filesToSave = files
+        .filter(f => !f.is_folder)
+        .map(f => ({ id: f.id, name: f.name, content: f.content, path: f.path }));
+      await http.put(`/playground/${id}/save-all`, { files: filesToSave });
     } catch (err) {
       console.error("Save error:", err);
     } finally {
@@ -665,6 +707,7 @@ export default function PlaygroundIDE() {
         onTogglePreview={() => setShowPreview((v) => !v)}
         onExamSubmitted={handleExamSubmitted}
         endTime={endTime}
+        clockOffset={clockOffsetRef.current}
       />
 
       {/* ── Body ── */}
@@ -709,9 +752,14 @@ export default function PlaygroundIDE() {
                 beforeMount={setupMonacoCompletion}
                 onMount={(editor) => {
                   editorInstanceRef.current = editor;
-                  // Track copy/cut inside Monaco for the internal clipboard
+                  // Track copy/cut inside Monaco for the internal clipboard.
+                  // Only update the ref when the user explicitly copies or cuts —
+                  // NOT on every cursor selection change. If we updated on selection
+                  // change, moving the cursor after copying would reset the ref to
+                  // the new (possibly empty) selection, causing the paste check to
+                  // block a legitimate internal paste.
                   if (isExam && !allowCopyPaste) {
-                    editor.onDidChangeCursorSelection(() => {
+                    const captureSelection = () => {
                       const selection = editor.getSelection();
                       if (selection && !selection.isEmpty()) {
                         const model = editor.getModel();
@@ -719,36 +767,23 @@ export default function PlaygroundIDE() {
                           internalClipboardRef.current = model.getValueInRange(selection);
                         }
                       }
-                    });
-                    // Also intercept the copy/cut keyboard actions to capture the text
+                    };
+
+                    // Ctrl+C — capture then copy
                     editor.addCommand(
-                      // Ctrl+C
                       // eslint-disable-next-line no-bitwise
                       (window as any).monaco?.KeyMod?.CtrlCmd | (window as any).monaco?.KeyCode?.KeyC,
                       () => {
-                        const selection = editor.getSelection();
-                        if (selection && !selection.isEmpty()) {
-                          const model = editor.getModel();
-                          if (model) {
-                            internalClipboardRef.current = model.getValueInRange(selection);
-                          }
-                        }
-                        // Trigger the default copy action
+                        captureSelection();
                         editor.trigger('keyboard', 'editor.action.clipboardCopyAction', null);
                       }
                     );
+                    // Ctrl+X — capture then cut
                     editor.addCommand(
-                      // Ctrl+X
                       // eslint-disable-next-line no-bitwise
                       (window as any).monaco?.KeyMod?.CtrlCmd | (window as any).monaco?.KeyCode?.KeyX,
                       () => {
-                        const selection = editor.getSelection();
-                        if (selection && !selection.isEmpty()) {
-                          const model = editor.getModel();
-                          if (model) {
-                            internalClipboardRef.current = model.getValueInRange(selection);
-                          }
-                        }
+                        captureSelection();
                         editor.trigger('keyboard', 'editor.action.clipboardCutAction', null);
                       }
                     );
@@ -805,7 +840,7 @@ export default function PlaygroundIDE() {
           )}
         </div>
 
-        {/* Preview panel */}
+        {/* Preview panel — each mobile language gets its own phone-frame embed */}
         {showPreviewPanel && (
           <>
             <ResizeHandle
@@ -820,7 +855,13 @@ export default function PlaygroundIDE() {
               className="flex-shrink-0 overflow-hidden"
               style={{ width: previewWidth }}
             >
-              <PreviewPanel refreshKey={previewRefreshKey} />
+              {language === "flutter" ? (
+                <FlutterPreviewPanel refreshKey={previewRefreshKey} />
+              ) : language === "react-native" ? (
+                <ReactNativePreviewPanel refreshKey={previewRefreshKey} />
+              ) : (
+                <PreviewPanel refreshKey={previewRefreshKey} />
+              )}
             </div>
           </>
         )}

@@ -6,8 +6,11 @@ export type Language =
   | "typescript"
   | "kotlin"
   | "dart"
+  | "r"
   | "html"
   | "react"
+  | "flutter"
+  | "react-native"
   | "vue"
   | "angular";
 
@@ -49,6 +52,7 @@ interface PlaygroundStore {
   updateFileContent: (id: string, content: string) => void;
   addFile: (file: VirtualFile) => void;
   removeFile: (id: string) => void;
+  renameFile: (id: string, newName: string, newPath: string) => void;
   setRunning: (v: boolean) => void;
   setSaving: (v: boolean) => void;
   appendTerminalLine: (line: string) => void;
@@ -131,6 +135,36 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
           state.activeFileId === id
             ? (remaining[remaining.length - 1] ?? null)
             : state.activeFileId,
+      };
+    }),
+
+  renameFile: (id, newName, newPath) =>
+    set((state) => {
+      const target = state.files.find((f) => f.id === id);
+      if (!target) return {};
+
+      if (!target.is_folder) {
+        // Simple file rename — only the one entry changes
+        return {
+          files: state.files.map((f) =>
+            f.id === id ? { ...f, name: newName, path: newPath } : f
+          ),
+        };
+      }
+
+      // Folder rename — must also rebase every descendant's path so the tree
+      // stays consistent (e.g. renaming /src → /source also updates
+      // /src/main.tsx → /source/main.tsx, /src/components → /source/components …)
+      const oldPrefix = target.path.endsWith("/") ? target.path : `${target.path}/`;
+      const newPrefix = newPath.endsWith("/") ? newPath : `${newPath}/`;
+      return {
+        files: state.files.map((f) => {
+          if (f.id === id) return { ...f, name: newName, path: newPath };
+          if (f.path.startsWith(oldPrefix)) {
+            return { ...f, path: newPrefix + f.path.slice(oldPrefix.length) };
+          }
+          return f;
+        }),
       };
     }),
 

@@ -4,11 +4,17 @@
  */
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Filter, Search, ChevronRight, RefreshCw } from "lucide-react";
+import { ArrowRight, BookOpen, Search } from "lucide-react";
 import http from "../../shared/api/http";
 import Pagination from "../../shared/components/Pagination";
+import PageHeader from "@/components/patterns/PageHeader";
+import CourseCard, { type CardAccent } from "@/components/patterns/CourseCard";
+import EmptyState from "@/components/patterns/EmptyState";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Tutorial {
   id: string;
@@ -36,11 +42,16 @@ async function fetchStudyCourses() {
   return r.data.data as StudyCourse[];
 }
 
-const LEVEL_CLS: Record<string, string> = {
-  Principiante: "badge--green",
-  Intermedio:   "badge--blue",
-  Avanzado:     "badge--red",
+/** Mapea el nivel del tutorial a un color de acento consistente para la card. */
+const LEVEL_ACCENT: Record<string, CardAccent> = {
+  Principiante: "green",
+  Intermedio: "blue",
+  Avanzado: "purple",
 };
+
+function levelAccent(level?: string): CardAccent {
+  return (level && LEVEL_ACCENT[level]) || "blue";
+}
 
 export default function TutorialsList() {
   const [search, setSearch]           = useState("");
@@ -64,125 +75,93 @@ export default function TutorialsList() {
   const totalPages = meta ? Math.ceil(meta.total_records / meta.page_size) : 1;
 
   return (
-    <div style={{ maxWidth: 860, margin: "0 auto", padding: "40px 24px" }}>
+    <div className="mx-auto max-w-5xl px-6 py-10">
 
       {/* Encabezado */}
-      <div style={{ marginBottom: 32 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-          <BookOpen size={24} style={{ color: "var(--color-primary)" }} />
-          <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.8rem", color: "var(--color-text)" }}>
-            Tutoriales
-          </h1>
-        </div>
-        <p style={{ color: "var(--color-text-muted)", fontSize: ".95rem", lineHeight: 1.6 }}>
-          Guías técnicas paso a paso. El contenido completo está disponible para usuarios registrados.
-        </p>
-      </div>
+      <PageHeader
+        icon={BookOpen}
+        title="Tutoriales"
+        subtitle="Guías técnicas paso a paso. El contenido completo está disponible para usuarios registrados."
+      />
 
-      {/* Buscador + filtro */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
-        <form
-          onSubmit={e => { e.preventDefault(); setQ(search); setPage(1); }}
-          style={{ display: "flex", gap: 10 }}
-        >
-          <div style={{ position: "relative", flex: 1 }}>
-            <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-muted)" }} />
-            <input
-              type="text"
-              placeholder="Buscar tutoriales…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{
-                width: "100%", padding: "10px 12px 10px 36px",
-                background: "var(--color-bg-muted)", border: "1.5px solid var(--color-border)",
-                borderRadius: "var(--radius-md)", color: "var(--color-text)",
-                fontFamily: "var(--font-body)", fontSize: ".9rem", outline: "none",
-                boxSizing: "border-box" as const,
-              }}
-            />
-          </div>
-          <button type="submit" style={{ background: "var(--color-primary)", color: "#fff", border: "none", borderRadius: "var(--radius-md)", padding: "10px 20px", fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)", fontSize: ".9rem" }}>
-            Buscar
-          </button>
-        </form>
-      </div>
+      {/* Buscador */}
+      <form
+        onSubmit={e => { e.preventDefault(); setQ(search); setPage(1); }}
+        className="mb-8 flex gap-3"
+      >
+        <div className="relative flex-1">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Buscar tutoriales…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button type="submit">Buscar</Button>
+      </form>
 
       {/* Estado carga */}
       {isLoading && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--color-text-muted)", fontSize: ".85rem" }}>
-          <RefreshCw size={14}/> Cargando…
+        <div className="mb-2 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="overflow-hidden">
+              <Skeleton className="h-32 w-full rounded-none" />
+              <div className="space-y-2 p-5">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+            </Card>
+          ))}
         </div>
       )}
 
       {/* Vacío */}
       {!isLoading && tutorials.length === 0 && (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--color-text-muted)" }}>
-          <BookOpen size={48} style={{ opacity: .15, display: "block", margin: "0 auto 16px" }}/>
-          <p>No se encontraron tutoriales.</p>
-        </div>
+        <EmptyState
+          icon={BookOpen}
+          title="No se encontraron tutoriales."
+          description="Prueba con otra búsqueda o revisa más tarde."
+        />
       )}
 
       {/* Grid de tutoriales */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 8 }}>
-        {tutorials.map(t => (
-          <Link
-            key={t.id}
-            to={`/tutorials/${t.slug}`}
-            style={{ textDecoration: "none" }}
-          >
-            <div style={{
-              background: "var(--color-surface)", border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-md)", padding: "18px 22px",
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
-              transition: "border-color .15s, box-shadow .15s",
-            }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-primary)";
-                (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--shadow-md)";
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-border)";
-                (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-                  <BookOpen size={15} style={{ color: "var(--color-primary)", flexShrink: 0 }}/>
-                  <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1rem", color: "var(--color-text)" }}>
-                    {t.title}
-                  </span>
-                  {t.level && (
-                    <span className={`badge ${LEVEL_CLS[t.level] ?? "badge--blue"}`}>{t.level}</span>
-                  )}
-                  {t.is_public && (
-                    <span className="badge badge--green">Público</span>
-                  )}
-                </div>
-                {t.description && (
-                  <p style={{ color: "var(--color-text-muted)", fontSize: ".85rem", lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 560 }}>
-                    {t.description}
-                  </p>
-                )}
-                {t.study_courses && t.study_courses.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
-                    {t.study_courses.map(sc => (
-                      <span key={sc.id} style={{
-                        fontSize: ".75rem", padding: "2px 8px",
-                        borderRadius: "var(--radius-sm)",
-                        background: "rgba(99,102,241,.1)", color: "var(--color-primary)",
-                        border: "1px solid rgba(99,102,241,.2)",
-                      }}>
+      {!isLoading && tutorials.length > 0 && (
+        <div className="mb-2 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {tutorials.map(t => (
+            <CourseCard
+              key={t.id}
+              to={`/tutorials/${t.slug}`}
+              title={t.title}
+              description={t.description}
+              badge={t.level}
+              accent={levelAccent(t.level)}
+              icon={BookOpen}
+              meta={
+                <div className="flex w-full items-center justify-between">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {t.is_public && (
+                      <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-400">
+                        Público
+                      </span>
+                    )}
+                    {t.study_courses?.slice(0, 2).map(sc => (
+                      <span key={sc.id} className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs text-primary">
                         {sc.name}
                       </span>
                     ))}
-                  </div>
-                )}
-              </div>
-              <ChevronRight size={18} style={{ color: "var(--color-primary)", flexShrink: 0 }}/>
-            </div>
-          </Link>
-        ))}
-      </div>
+                  </span>
+                  <span className="flex items-center gap-1.5 font-medium text-primary">
+                    Ver <ArrowRight size={14} />
+                  </span>
+                </div>
+              }
+            />
+          ))}
+        </div>
+      )}
 
       <Pagination
         page={page}

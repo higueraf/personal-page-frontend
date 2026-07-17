@@ -2,6 +2,14 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth, avatarUrl } from "../../shared/auth/authStore";
 import { User, Save, Mail, Shield, RefreshCw, Camera } from "lucide-react";
 import http from "../../shared/api/http";
+import PageHeader from "@/components/patterns/PageHeader";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function UserProfile() {
   const { user, bootstrap } = useAuth();
@@ -66,187 +74,142 @@ export default function UserProfile() {
   const initials = (user.first_name ? user.first_name.charAt(0) : user.email.charAt(0)).toUpperCase();
 
   return (
-    <div className="page-container" style={{ maxWidth: 800, margin: "0 auto", padding: "40px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
-        <div style={{ background: "var(--color-primary-soft)", color: "var(--color-primary)", padding: 10, borderRadius: 12 }}>
-          <User size={24} />
-        </div>
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", fontWeight: 700, margin: 0 }}>
-          Mi Perfil
-        </h1>
-      </div>
+    <div className="mx-auto max-w-4xl px-6 py-10">
+      <PageHeader icon={User} title="Mi Perfil" />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32 }}>
+      <div className="grid gap-8" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
         {/* Lado izquierdo: Datos básicos */}
-        <section style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-lg)", padding: 28 }}>
-          <h2 style={{ fontSize: "1.4rem", fontWeight: 700, marginBottom: 24, display: "flex", alignItems: "center", gap: 8, color: "var(--color-primary)" }}>
-            Información Personal
-          </h2>
-
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div className="form-group">
-                <label style={labelStyle}>Nombre</label>
-                <input
-                  type="text"
-                  value={form.first_name}
-                  onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-                  style={inputStyle}
-                  placeholder="Tu nombre"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label style={labelStyle}>Apellido</label>
-                <input
-                  type="text"
-                  value={form.last_name}
-                  onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-                  style={inputStyle}
-                  placeholder="Tu apellido"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label style={labelStyle}>Email (No editable)</label>
-              <div style={{ ...inputStyle, background: "var(--color-bg-muted)", display: "flex", alignItems: "center", gap: 10, cursor: "not-allowed" }}>
-                <Mail size={16} style={{ opacity: 0.5 }} />
-                <span style={{ opacity: 0.7 }}>{user.email}</span>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label style={labelStyle}>Rol actual</label>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 12px", borderRadius: 99, background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-                <Shield size={14} />
-                {user.role?.name || "Usuario"}
-              </div>
-            </div>
-
-            {error && (
-              <div style={{ padding: 12, borderRadius: 8, background: "rgba(239, 68, 68, 0.1)", color: "#ef4444", fontSize: "0.85rem" }}>
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div style={{ padding: 12, borderRadius: 8, background: "rgba(34, 197, 94, 0.1)", color: "#22c55e", fontSize: "0.85rem" }}>
-                ¡Perfil actualizado correctamente!
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn btn--primary"
-              style={{ alignSelf: "flex-start", marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}
-            >
-              {loading ? <RefreshCw size={18} className="spin" /> : <Save size={18} />}
-              {loading ? "Guardando..." : "Guardar cambios"}
-            </button>
-          </form>
-        </section>
-
-        {/* Lado derecho: Avatar + resumen */}
-        <section style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-lg)", padding: 28, textAlign: "center" }}>
-
-            {/* Avatar clickeable */}
-            <div style={{ position: "relative", width: 100, margin: "0 auto 16px" }}>
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  width: 100, height: 100, borderRadius: "50%",
-                  background: "var(--color-bg-muted)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "2rem", fontWeight: 700, color: "var(--color-primary)",
-                  border: "4px solid var(--color-surface)",
-                  boxShadow: "0 0 0 1px var(--color-border)",
-                  cursor: "pointer", overflow: "hidden",
-                  position: "relative",
-                }}
-                title="Haz clic para cambiar tu foto"
-              >
-                {currentAvatar ? (
-                  <img
-                    src={currentAvatar}
-                    alt="Avatar"
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    onError={() => setPreview(null)}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-display text-lg text-primary">Información Personal</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="first_name">Nombre</Label>
+                  <Input
+                    id="first_name"
+                    type="text"
+                    value={form.first_name}
+                    onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                    placeholder="Tu nombre"
+                    required
                   />
-                ) : (
-                  <span>{initials}</span>
-                )}
-
-                {/* Overlay on hover */}
-                <div style={{
-                  position: "absolute", inset: 0,
-                  background: "rgba(0,0,0,0.45)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  opacity: avatarLoading ? 1 : 0,
-                  transition: "opacity 0.2s",
-                }}
-                  className="avatar-overlay"
-                >
-                  {avatarLoading
-                    ? <RefreshCw size={22} color="white" className="spin" />
-                    : <Camera size={22} color="white" />
-                  }
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="last_name">Apellido</Label>
+                  <Input
+                    id="last_name"
+                    type="text"
+                    value={form.last_name}
+                    onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+                    placeholder="Tu apellido"
+                    required
+                  />
                 </div>
               </div>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={handleAvatarChange}
-              />
-            </div>
+              <div className="space-y-1.5">
+                <Label>Email (No editable)</Label>
+                <div className="flex cursor-not-allowed items-center gap-2.5 rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                  <Mail size={16} className="opacity-50" />
+                  <span className="opacity-70">{user.email}</span>
+                </div>
+              </div>
 
-            <h3 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700, color: "var(--color-primary)" }}>
-              {user.first_name} {user.last_name}
-            </h3>
-            <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem", marginTop: 4 }}>{user.email}</p>
-            <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", marginTop: 8 }}>
-              Haz clic en la foto para cambiarla (máx. 5 MB)
-            </p>
-          </div>
+              <div className="space-y-1.5">
+                <Label>Rol actual</Label>
+                <div>
+                  <Badge variant="secondary" className="gap-1.5 rounded-full font-normal">
+                    <Shield size={14} />
+                    {user.role?.name || "Usuario"}
+                  </Badge>
+                </div>
+              </div>
 
-          <div style={{ background: "rgba(var(--color-primary-rgb), 0.05)", border: "1px dashed var(--color-primary)", borderRadius: "var(--radius-lg)", padding: 20 }}>
-            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
+              {error && (
+                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-600">
+                  ¡Perfil actualizado correctamente!
+                </div>
+              )}
+
+              <Button type="submit" disabled={loading} className="self-start">
+                {loading ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                {loading ? "Guardando..." : "Guardar cambios"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Lado derecho: Avatar + resumen */}
+        <div className="flex flex-col gap-6">
+          <Card>
+            <CardContent className="pt-6 text-center">
+              {/* Avatar clickeable */}
+              <div
+                className="group relative mx-auto mb-4 w-24 cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+                title="Haz clic para cambiar tu foto"
+              >
+                <Avatar className="h-24 w-24 border-4 border-card shadow ring-1 ring-border">
+                  {currentAvatar && (
+                    <AvatarImage
+                      src={currentAvatar}
+                      alt="Avatar"
+                      onError={() => setPreview(null)}
+                    />
+                  )}
+                  <AvatarFallback className="text-2xl font-bold text-primary">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+
+                {/* Overlay on hover */}
+                <div
+                  className={cn(
+                    "absolute inset-0 flex items-center justify-center rounded-full bg-black/45 transition-opacity",
+                    avatarLoading ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                  )}
+                >
+                  {avatarLoading
+                    ? <RefreshCw size={22} className="animate-spin text-white" />
+                    : <Camera size={22} className="text-white" />
+                  }
+                </div>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
+              </div>
+
+              <h3 className="font-display text-xl font-bold text-primary">
+                {user.first_name} {user.last_name}
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">{user.email}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Haz clic en la foto para cambiarla (máx. 5 MB)
+              </p>
+            </CardContent>
+          </Card>
+
+          <div className="rounded-lg border border-dashed border-primary bg-primary/5 p-5">
+            <p className="m-0 text-sm leading-relaxed text-muted-foreground">
               <strong>Nota:</strong> Los cambios realizados aquí se verán reflejados en todo el sitio, incluyendo tus comentarios en tutoriales y tu perfil de estudiante.
             </p>
           </div>
-        </section>
+        </div>
       </div>
-
-      <style>{`
-        .avatar-overlay { opacity: 0 !important; }
-        div:hover > .avatar-overlay { opacity: 1 !important; }
-      `}</style>
     </div>
   );
 }
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "0.85rem",
-  fontWeight: 600,
-  color: "var(--color-text-muted)",
-  marginBottom: 8,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--color-border)",
-  background: "var(--color-bg)",
-  color: "var(--color-text)",
-  fontSize: "0.95rem",
-  outline: "none",
-  transition: "border-color 0.2s",
-};

@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Briefcase, GraduationCap, Award, Globe, Star, RefreshCw, CalendarDays, MapPin, ExternalLink } from "lucide-react";
 import http from "../../shared/api/http";
 import ProfilePhoto from "../../components/ProfilePhoto";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 type ItemType = "EXPERIENCE" | "EDUCATION" | "CERTIFICATION" | "SKILL" | "LANGUAGE" | "AWARD" | "PUBLICATION" | "VOLUNTEER";
 
@@ -32,163 +34,88 @@ function dateRange(start?: string, end?: string) {
 function ProfileCard({ item }: { item: ProfileItem }) {
   const meta = TYPE_META[item.type];
   return (
-    <div style={{
-      background: "var(--color-surface)",
-      border: "1px solid var(--color-border)",
-      borderRadius: "var(--radius-lg)",
-      padding: "24px",
-      display: "flex",
-      gap: 20,
-      transition: "all 0.3s ease",
-      position: "relative",
-      overflow: "hidden"
-    }}>
+    <Card className="relative overflow-hidden">
       {/* Efecto decorativo de fondo */}
-      <div style={{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        width: "80px",
-        height: "80px",
-        background: `linear-gradient(135deg, ${meta.color}15 0%, transparent 70%)`,
-        borderRadius: "0 0 0 100%",
-        opacity: 0.5,
-        pointerEvents: "none"
-      }} />
+      <div
+        className="pointer-events-none absolute right-0 top-0 h-20 w-20 rounded-bl-full opacity-50"
+        style={{ background: `linear-gradient(135deg, ${meta.color}15 0%, transparent 70%)` }}
+      />
 
-      {item.logo ? (
-        <div style={{
-          width: 56,
-          height: 56,
-          borderRadius: 12,
-          border: "2px solid var(--color-border)",
-          padding: 8,
-          background: "var(--color-bg)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
-        }}>
-          <img src={item.logo} alt={item.subtitle || ""} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-        </div>
-      ) : (
-        <div style={{
-          width: 56,
-          height: 56,
-          borderRadius: 12,
-          background: meta.color + "20",
-          border: `2px solid ${meta.color}40`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
-        }}>
-          <div style={{ color: meta.color, fontSize: "1.2rem" }}>
+      <CardContent className="flex gap-5 p-6">
+        {item.logo ? (
+          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl border-2 border-border bg-background p-2 shadow-md">
+            <img src={item.logo} alt={item.subtitle || ""} className="h-full w-full object-contain" />
+          </div>
+        ) : (
+          <div
+            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl shadow-md"
+            style={{ background: meta.color + "20", border: `2px solid ${meta.color}40`, color: meta.color }}
+          >
             {meta.icon}
           </div>
-        </div>
-      )}
+        )}
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-          <div>
-            <h3 style={{
-              fontFamily: "var(--font-display)",
-              fontWeight: 700,
-              fontSize: "1.15rem",
-              color: "var(--color-text)",
-              margin: "0 0 4px",
-              lineHeight: 1.3
-            }}>
-              {item.title}
-            </h3>
-            {item.subtitle && (
-              <div style={{
-                fontSize: "0.95rem",
-                color: meta.color,
-                fontWeight: 600,
-                marginTop: 4
-              }}>
-                {item.subtitle}
-              </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="font-display text-lg font-bold leading-snug text-foreground">
+                {item.title}
+              </h3>
+              {item.subtitle && (
+                <div className="mt-1 text-sm font-semibold" style={{ color: meta.color }}>
+                  {item.subtitle}
+                </div>
+              )}
+            </div>
+            {item.url && (
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all hover:-translate-y-px"
+                style={{ color: meta.color, borderColor: `${meta.color}30`, background: `${meta.color}10` }}
+              >
+                <ExternalLink size={12} /> Ver
+              </a>
             )}
           </div>
-          {item.url && (
-            <a href={item.url} target="_blank" rel="noopener noreferrer"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                color: meta.color,
-                fontSize: "0.8rem",
-                textDecoration: "none",
-                padding: "6px 12px",
-                borderRadius: "6px",
-                border: `1px solid ${meta.color}30`,
-                background: `${meta.color}10`,
-                transition: "all 0.2s ease",
-                fontWeight: 500
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = `${meta.color}20`;
-                e.currentTarget.style.transform = "translateY(-1px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = `${meta.color}10`;
-                e.currentTarget.style.transform = "translateY(0)";
-              }}>
-              <ExternalLink size={12} /> Ver
-            </a>
-          )}
-        </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8, fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-          {dateRange(item.start_date, item.end_date) && (
-            <span style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", background: "var(--color-bg-muted)", borderRadius: "4px" }}>
-              <CalendarDays size={12} /> {dateRange(item.start_date, item.end_date)}
-            </span>
-          )}
-          {item.location && (
-            <span style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", background: "var(--color-bg-muted)", borderRadius: "4px" }}>
-              <MapPin size={12} /> {item.location}
-            </span>
-          )}
-        </div>
-
-        {item.description && (
-          <p style={{
-            margin: "12px 0 0",
-            color: "var(--color-text-muted)",
-            fontSize: "0.9rem",
-            lineHeight: 1.7,
-            textAlign: "justify"
-          }}>
-            {item.description}
-          </p>
-        )}
-
-        {item.tags && item.tags.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
-            {item.tags.map(t => (
-              <span key={t} style={{
-                background: `${meta.color}15`,
-                border: `1px solid ${meta.color}30`,
-                padding: "4px 10px",
-                borderRadius: "6px",
-                fontSize: "0.75rem",
-                color: meta.color,
-                fontWeight: 500,
-                transition: "all 0.2s ease"
-              }}>
-                {t}
+          <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
+            {dateRange(item.start_date, item.end_date) && (
+              <span className="flex items-center gap-1.5 rounded bg-muted px-2 py-1">
+                <CalendarDays size={12} /> {dateRange(item.start_date, item.end_date)}
               </span>
-            ))}
+            )}
+            {item.location && (
+              <span className="flex items-center gap-1.5 rounded bg-muted px-2 py-1">
+                <MapPin size={12} /> {item.location}
+              </span>
+            )}
           </div>
-        )}
-      </div>
-    </div>
+
+          {item.description && (
+            <p className="mt-3 text-justify text-sm leading-relaxed text-muted-foreground">
+              {item.description}
+            </p>
+          )}
+
+          {item.tags && item.tags.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {item.tags.map(t => (
+                <Badge
+                  key={t}
+                  variant="outline"
+                  className="font-medium"
+                  style={{ color: meta.color, borderColor: `${meta.color}30`, background: `${meta.color}15` }}
+                >
+                  {t}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -208,76 +135,78 @@ export default function About() {
   const visibleSections = SECTIONS.filter(t => grouped[t].length > 0);
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
-      <div style={{ marginBottom: 48, display: "flex", gap: 40, alignItems: "flex-start", flexWrap: "wrap" }}>
-        <div style={{ flex: "0 0 auto", textAlign: "center" }}>
+    <div className="mx-auto max-w-4xl px-6 py-10">
+      <div className="mb-12 flex flex-wrap items-start gap-10">
+        <div className="flex-none text-center">
           <ProfilePhoto size="xl" className="mb-6" />
-          <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "2.4rem", color: "var(--color-text)", marginBottom: 12, textAlign: "center" }}>
+          <h1 className="mb-3 font-display text-4xl font-extrabold text-foreground">
             Francisco Higuera
           </h1>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 12, marginBottom: 16, padding: "8px 16px", background: "var(--color-primary-soft)", borderRadius: "20px", border: "1px solid var(--color-primary)" }}>
-            <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--color-primary)" }}>Software Developer</span>
-            <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>·</span>
-            <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--color-primary)" }}>Educator</span>
+          <div className="mb-4 inline-flex items-center gap-3 rounded-full border border-primary/30 bg-primary/10 px-4 py-2">
+            <span className="text-sm font-semibold text-primary">Software Developer</span>
+            <span className="text-xs text-muted-foreground">·</span>
+            <span className="text-sm font-semibold text-primary">Educator</span>
           </div>
-          <p style={{ color: "var(--color-text-muted)", fontSize: "1rem", lineHeight: 1.7, maxWidth: 400, margin: "0 auto", textAlign: "center" }}>
+          <p className="mx-auto max-w-[400px] text-sm leading-relaxed text-muted-foreground">
             Desarrollador full-stack con pasión por la educación técnica. Me especializo en crear
             software de producción y herramientas que faciliten el aprendizaje de las tecnologías modernas.
           </p>
         </div>
 
-        <div style={{ flex: 1, minWidth: 300 }}>
-          <div style={{ background: "linear-gradient(135deg, var(--color-surface) 0%, rgba(var(--color-primary-rgb), 0.05) 100%)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-lg)", padding: 32, marginBottom: 24 }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 600, color: "var(--color-text-muted)", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 12, height: 12, background: "var(--color-primary)", borderRadius: "50%" }} />
-              Resumen Rápido
-            </h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
-              <div>
-                <div style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", marginBottom: 4 }}>📍 Ubicación</div>
-                <div style={{ fontSize: "1rem", fontWeight: 600 }}>Quito-Ecuador</div>
+        <div className="min-w-[300px] flex-1">
+          <Card className="bg-gradient-to-br from-card to-primary/5">
+            <CardContent className="p-8">
+              <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-muted-foreground">
+                <span className="h-3 w-3 rounded-full bg-primary" />
+                Resumen Rápido
+              </h2>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <div>
+                  <div className="mb-1 text-sm text-muted-foreground">📍 Ubicación</div>
+                  <div className="text-base font-semibold text-foreground">Quito-Ecuador</div>
+                </div>
+                <div>
+                  <div className="mb-1 text-sm text-muted-foreground">💼 Experiencia</div>
+                  <div className="text-base font-semibold text-foreground">20+ años</div>
+                </div>
+                <div>
+                  <div className="mb-1 text-sm text-muted-foreground">🎓 Educación</div>
+                  <div className="text-base font-semibold text-foreground">Ingeniería en Sistemas</div>
+                </div>
+                <div>
+                  <div className="mb-1 text-sm text-muted-foreground">🚀 Especialidad</div>
+                  <div className="text-base font-semibold text-foreground">Full-Stack</div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", marginBottom: 4 }}>💼 Experiencia</div>
-                <div style={{ fontSize: "1rem", fontWeight: 600 }}>20+ años</div>
-              </div>
-              <div>
-                <div style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", marginBottom: 4 }}>🎓 Educación</div>
-                <div style={{ fontSize: "1rem", fontWeight: 600 }}>Ingeniería en Sistemas</div>
-              </div>
-              <div>
-                <div style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", marginBottom: 4 }}>🚀 Especialidad</div>
-                <div style={{ fontSize: "1rem", fontWeight: 600 }}>Full-Stack</div>
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
       {isLoading && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--color-text-muted)" }}>
+        <div className="flex items-center gap-2 text-muted-foreground">
           <RefreshCw size={14} /> Cargando…
         </div>
       )}
 
       {!isLoading && visibleSections.length === 0 && (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--color-text-muted)", fontSize: ".9rem" }}>
+        <div className="py-16 text-center text-sm text-muted-foreground">
           Contenido en construcción.
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+      <div className="flex flex-col gap-10">
         {visibleSections.map(type => {
           const meta = TYPE_META[type];
           return (
             <section key={type}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, paddingBottom: 10, borderBottom: "1px solid var(--color-border)" }}>
+              <div className="mb-5 flex items-center gap-2 border-b border-border pb-3">
                 <span style={{ color: meta.color }}>{meta.icon}</span>
-                <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.4rem", color: "#2563eb", margin: 0 }}>
+                <h2 className="font-display text-2xl font-bold text-foreground">
                   {meta.label}
                 </h2>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="flex flex-col gap-3">
                 {grouped[type].map(item => (
                   <ProfileCard key={item.id} item={item} />
                 ))}

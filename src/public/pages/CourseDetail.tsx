@@ -2,6 +2,11 @@ import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, BookOpen, FileText } from "lucide-react";
 import { getCurriculum, type Curriculum } from "../api";
+import EmptyState from "@/components/patterns/EmptyState";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function CourseDetail() {
   const { courseSlug } = useParams();
@@ -15,19 +20,20 @@ export default function CourseDetail() {
 
   if (q.isLoading)
     return (
-      <div className="section">
-        <div className="section-inner" style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-muted)", fontSize: ".85rem" }}>
-          Cargando curriculum…
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <Skeleton className="mb-6 h-8 w-2/3" />
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-xl" />
+          ))}
         </div>
       </div>
     );
 
   if (q.isError || !q.data)
     return (
-      <div className="section">
-        <div className="section-inner" style={{ color: "#DC2626" }}>
-          No se encontró el curso.
-        </div>
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <p className="text-destructive">No se encontró el curso.</p>
       </div>
     );
 
@@ -36,14 +42,14 @@ export default function CourseDetail() {
   return (
     <div>
       {/* Cabecera */}
-      <div className="page-header">
-        <div className="page-header-inner">
-          <div style={{ fontSize: ".8rem", color: "var(--color-text-sub)", marginBottom: 6, fontFamily: "var(--font-mono)" }}>
-            <Link to="/courses" style={{ color: "var(--color-primary)" }}>← Cursos</Link>
+      <div className="border-b border-border bg-card">
+        <div className="mx-auto max-w-3xl px-6 py-10">
+          <div className="mb-1.5 font-mono text-xs text-muted-foreground">
+            <Link to="/courses" className="text-primary hover:underline">← Cursos</Link>
             {" / "}{course.title}
           </div>
-          <h1 className="page-title">{course.title}</h1>
-          <p className="page-subtitle">
+          <h1 className="font-display text-2xl font-bold text-foreground">{course.title}</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
             {curriculum.reduce((acc, s) => acc + s.lessons.length, 0)} lecciones
             · {curriculum.length} secciones
           </p>
@@ -51,97 +57,65 @@ export default function CourseDetail() {
       </div>
 
       {/* Curriculum */}
-      <div className="section">
-        <div className="section-inner" style={{ maxWidth: 860 }}>
-          {curriculum.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "60px 0", color: "var(--color-text-muted)" }}>
-              <BookOpen size={40} style={{ margin: "0 auto 12px", opacity: .4 }} />
-              <p>Este curso todavía no tiene lecciones publicadas.</p>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {curriculum.map((s) => (
-                <div
-                  key={s.section.id}
-                  style={{
-                    background: "var(--color-surface)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius-lg)",
-                    overflow: "hidden",
-                    boxShadow: "var(--shadow-sm)",
-                  }}
-                >
-                  {/* Cabecera sección */}
-                  <div style={{
-                    background: "var(--color-bg-muted)",
-                    borderBottom: "1px solid var(--color-border)",
-                    padding: "14px 20px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                  }}>
-                    <BookOpen size={15} style={{ color: "var(--color-primary)", flexShrink: 0 }} />
-                    <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1rem", color: "var(--color-text)" }}>
-                      {s.section.title}
-                    </span>
-                    <span style={{ marginLeft: "auto", fontFamily: "var(--font-mono)", fontSize: ".72rem", color: "var(--color-text-sub)" }}>
-                      {s.lessons.length} lección{s.lessons.length !== 1 ? "es" : ""}
-                    </span>
-                  </div>
-
-                  {/* Lecciones */}
-                  <div style={{ padding: "6px 0" }}>
-                    {s.lessons.map((l, idx) => (
-                      <div
-                        key={l.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "11px 20px",
-                          borderBottom: idx < s.lessons.length - 1 ? "1px solid var(--color-border)" : "none",
-                          gap: 12,
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                          <span style={{
-                            width: 26, height: 26, borderRadius: "50%",
-                            background: "var(--color-bg-muted)",
-                            border: "1.5px solid var(--color-border)",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: ".72rem", fontFamily: "var(--font-mono)",
-                            color: "var(--color-text-muted)", flexShrink: 0,
-                          }}>
-                            {l.order}
-                          </span>
-                          <span style={{ fontSize: ".92rem", color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {l.title}
-                          </span>
-                        </div>
-
-                        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-                          {l.pages_count > 0 && (
-                            <span style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: "var(--font-mono)", fontSize: ".72rem", color: "var(--color-text-sub)" }}>
-                              <FileText size={11} /> {l.pages_count} {l.pages_count === 1 ? "página" : "páginas"}
-                            </span>
-                          )}
-                          {l.pages_count > 0 && (
-                            <Link
-                              to={`/learn/${course.slug}/${l.slug}/1`}
-                              className="nav-pill"
-                            >
-                              Empezar <ArrowRight size={13} />
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+      <div className="mx-auto max-w-3xl px-6 py-8">
+        {curriculum.length === 0 ? (
+          <EmptyState
+            icon={BookOpen}
+            title="Este curso todavía no tiene lecciones publicadas."
+          />
+        ) : (
+          <div className="flex flex-col gap-5">
+            {curriculum.map((s) => (
+              <Card key={s.section.id} className="overflow-hidden py-0">
+                {/* Cabecera sección */}
+                <div className="flex items-center gap-2.5 border-b border-border bg-muted/50 px-5 py-3.5">
+                  <BookOpen size={15} className="shrink-0 text-primary" />
+                  <span className="font-display text-base font-bold text-foreground">
+                    {s.section.title}
+                  </span>
+                  <span className="ml-auto font-mono text-xs text-muted-foreground">
+                    {s.lessons.length} lección{s.lessons.length !== 1 ? "es" : ""}
+                  </span>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+
+                {/* Lecciones */}
+                <CardContent className="divide-y divide-border p-0">
+                  {s.lessons.map((l) => (
+                    <div
+                      key={l.id}
+                      className="flex items-center justify-between gap-3 px-5 py-3"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-muted font-mono text-xs text-muted-foreground">
+                          {l.order}
+                        </span>
+                        <span className="truncate text-sm text-foreground">
+                          {l.title}
+                        </span>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-3">
+                        {l.pages_count > 0 && (
+                          <span className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                            <FileText size={11} /> {l.pages_count} {l.pages_count === 1 ? "página" : "páginas"}
+                          </span>
+                        )}
+                        {l.pages_count > 0 && (
+                          <Link
+                            to={`/learn/${course.slug}/${l.slug}/1`}
+                            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+                          >
+                            Empezar <ArrowRight size={13} />
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

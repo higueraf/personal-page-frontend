@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { Lock, Save, RefreshCw, AlertCircle } from "lucide-react";
 import http from "../../shared/api/http";
+import FormCard from "@/components/patterns/FormCard";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 export default function UserSettings() {
   const [loading, setLoading] = useState(false);
@@ -41,113 +46,78 @@ export default function UserSettings() {
   };
 
   return (
-    <div className="page-container" style={{ maxWidth: 600, margin: "0 auto", padding: "40px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
-        <div style={{ background: "var(--color-primary-soft)", color: "var(--color-primary)", padding: 10, borderRadius: 12 }}>
-          <Lock size={24} />
+    <FormCard
+      icon={<Lock size={22} />}
+      title="Configuración de Seguridad"
+      description="Actualiza tu contraseña para mantener tu cuenta protegida."
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="current_password">Contraseña Actual</Label>
+          <Input
+            id="current_password"
+            type="password"
+            value={form.current_password}
+            onChange={(e) => setForm({ ...form, current_password: e.target.value })}
+            placeholder="••••••••"
+            required
+          />
         </div>
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", fontWeight: 700, margin: 0 }}>
-          Configuración de Seguridad
-        </h1>
-      </div>
 
-      <section style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-lg)", padding: 32 }}>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: 24 }}>
-          Cambiar Contraseña
-        </h2>
+        <Separator />
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div className="form-group">
-            <label style={labelStyle}>Contraseña Actual</label>
-            <input
-              type="password"
-              value={form.current_password}
-              onChange={(e) => setForm({ ...form, current_password: e.target.value })}
-              style={inputStyle}
-              placeholder="••••••••"
-              required
-            />
+        <div className="space-y-1.5">
+          <Label htmlFor="new_password">Nueva Contraseña</Label>
+          <Input
+            id="new_password"
+            type="password"
+            value={form.new_password}
+            onChange={(e) => setForm({ ...form, new_password: e.target.value })}
+            placeholder="Mínimo 8 caracteres"
+            required
+            minLength={8}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="confirm_password">Confirmar Nueva Contraseña</Label>
+          <Input
+            id="confirm_password"
+            type="password"
+            value={form.confirm_password}
+            onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
+            placeholder="Repite tu nueva contraseña"
+            required
+          />
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle size={16} />
+            {error}
           </div>
+        )}
 
-          <hr style={{ border: 0, borderTop: "1px solid var(--color-border)", margin: "8px 0" }} />
-
-          <div className="form-group">
-            <label style={labelStyle}>Nueva Contraseña</label>
-            <input
-              type="password"
-              value={form.new_password}
-              onChange={(e) => setForm({ ...form, new_password: e.target.value })}
-              style={inputStyle}
-              placeholder="Mínimo 8 caracteres"
-              required
-              minLength={8}
-            />
+        {success && (
+          <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-600">
+            ✓ Tu contraseña ha sido cambiada con éxito.
           </div>
+        )}
 
-          <div className="form-group">
-            <label style={labelStyle}>Confirmar Nueva Contraseña</label>
-            <input
-              type="password"
-              value={form.confirm_password}
-              onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
-              style={inputStyle}
-              placeholder="Repite tu nueva contraseña"
-              required
-            />
-          </div>
+        <Button type="submit" disabled={loading} className="w-full">
+          {loading ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
+          {loading ? "Procesando..." : "Actualizar Contraseña"}
+        </Button>
+      </form>
 
-          {error && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: 12, borderRadius: 8, background: "rgba(239, 68, 68, 0.1)", color: "#ef4444", fontSize: "0.85rem" }}>
-              <AlertCircle size={16} />
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div style={{ padding: 12, borderRadius: 8, background: "rgba(34, 197, 94, 0.1)", color: "#22c55e", fontSize: "0.85rem" }}>
-              ✓ Tu contraseña ha sido cambiada con éxito.
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn btn--primary"
-            style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}
-          >
-            {loading ? <RefreshCw size={18} className="spin" /> : <Save size={18} />}
-            {loading ? "Procesando..." : "Actualizar Contraseña"}
-          </button>
-        </form>
-      </section>
-
-      <div style={{ marginTop: 24, padding: 20, background: "var(--color-bg-muted)", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-border)" }}>
-        <h4 style={{ margin: "0 0 8px 0", fontSize: "0.9rem", fontWeight: 600 }}>Consejos de seguridad</h4>
-        <ul style={{ margin: 0, paddingLeft: 20, fontSize: "0.85rem", color: "var(--color-text-muted)", display: "flex", flexDirection: "column", gap: 4 }}>
+      <div className="rounded-md border border-border bg-muted p-4">
+        <h4 className="mb-2 text-sm font-semibold text-foreground">Consejos de seguridad</h4>
+        <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">
           <li>Usa una mezcla de letras, números y símbolos.</li>
           <li>No uses contraseñas fáciles de adivinar (como "123456").</li>
           <li>Asegúrate de que sea diferente a la que usas en otros sitios.</li>
         </ul>
       </div>
-    </div>
+    </FormCard>
   );
 }
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "0.85rem",
-  fontWeight: 600,
-  color: "var(--color-text-muted)",
-  marginBottom: 8,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--color-border)",
-  background: "var(--color-bg)",
-  color: "var(--color-text)",
-  fontSize: "0.95rem",
-  outline: "none",
-};
