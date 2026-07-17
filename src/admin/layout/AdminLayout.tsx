@@ -66,7 +66,7 @@ export default function AdminLayout() {
         <NavLink
           to="/"
           onClick={() => setMobileOpen(false)}
-          className="mb-4 flex items-center gap-2.5 rounded-lg border border-sidebar-border bg-white/5 px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-white/10"
+          className="mb-4 flex items-center gap-2.5 rounded-2xl border border-sidebar-border bg-white/5 px-3 py-3 text-sm font-medium text-sidebar-foreground transition-all hover:bg-sidebar-hover hover:text-white"
         >
           <Globe size={16} className="text-sidebar-primary" />
           Ir al sitio
@@ -87,8 +87,9 @@ export default function AdminLayout() {
             onClick={() => setMobileOpen(false)}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                isActive && "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+                "flex items-center gap-2.5 rounded-2xl px-4 py-3 text-sm font-medium text-sidebar-foreground transition-all duration-200 hover:bg-sidebar-hover hover:text-white",
+                "border-l-4 border-transparent",
+                isActive && "bg-sidebar-accent text-sidebar-accent-foreground font-semibold border-l-sidebar-primary shadow-[inset_4px_0_0_rgba(139,92,246,.65)]"
               )
             }
           >
@@ -103,7 +104,7 @@ export default function AdminLayout() {
   return (
     <div className="admin-theme flex min-h-screen bg-background">
       {/* Sidebar desktop */}
-      <aside className="fixed inset-y-0 hidden w-64 flex-col bg-sidebar lg:flex">
+      <aside className="fixed inset-y-0 hidden w-64 flex-col bg-sidebar text-sidebar-foreground lg:flex border-r border-sidebar-border">
         {sidebarContent}
       </aside>
 

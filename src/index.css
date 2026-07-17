@@ -152,14 +152,15 @@
   --radius:                  12px;
 
   /* Tokens específicos del sidebar */
-  --sidebar-background:            #1E1733;
-  --sidebar-foreground:            rgba(255,255,255,.72);
-  --sidebar-primary:               #8B5CF6;
+  --sidebar-background:            #120d2a;
+  --sidebar-foreground:            rgba(255,255,255,.88);
+  --sidebar-primary:               #8b5cf6;
   --sidebar-primary-foreground:    #FFFFFF;
-  --sidebar-accent:                rgba(139,92,246,.18);
+  --sidebar-hover:                 rgba(255,255,255,.12);
+  --sidebar-accent:                rgba(139,92,246,.28);
   --sidebar-accent-foreground:     #FFFFFF;
-  --sidebar-border:                rgba(255,255,255,.08);
-  --sidebar-ring:                  #8B5CF6;
+  --sidebar-border:                rgba(255,255,255,.1);
+  --sidebar-ring:                  #8b5cf6;
 }
 
 /* ═══════════════════════════════════════════
