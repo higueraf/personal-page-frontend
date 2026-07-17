@@ -492,24 +492,6 @@ export default function PlaygroundIDE() {
     startExecution,
   ]);
 
-  // ── Save ────────────────────────────────────────────────────────────────────
-  // Uses a single batch request to avoid URL-encoding issues with underscores,
-  // hyphens, or dots in file names, and to guarantee atomicity on time expiry.
-  const handleSave = useCallback(async () => {
-    if (!id) return;
-    setSaving(true);
-    try {
-      const filesToSave = files
-        .filter(f => !f.is_folder)
-        .map(f => ({ id: f.id, name: f.name, content: f.content, path: f.path }));
-      await http.put(`/playground/${id}/save-all`, { files: filesToSave });
-    } catch (err) {
-      console.error("Save error:", err);
-    } finally {
-      setSaving(false);
-    }
-  }, [id, files, setSaving]);
-
   // ── Download ZIP ─────────────────────────────────────────────────────────────
   const handleDownloadZip = useCallback(async () => {
     const JSZip = (await import("jszip")).default;
