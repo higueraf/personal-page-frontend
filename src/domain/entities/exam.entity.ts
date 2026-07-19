@@ -35,6 +35,7 @@ export interface AssignExamPayload {
   allow_copy_paste?: boolean;
   require_seb?: boolean;
   files?: Array<{ id?: string; name: string; content?: string; path?: string }>;
+  templateId?: string;
   studentIds?: string[];
   studentId?: string;
   courseId?: string;

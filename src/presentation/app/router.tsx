@@ -39,6 +39,7 @@ import AdminResources    from "../pages/admin/AdminResources";
 import AdminContact      from "../pages/admin/AdminContact";
 import AdminAssignments  from "../pages/admin/AdminAssignments";
 import AdminPlaygrounds  from "../pages/admin/AdminPlaygrounds";
+import AdminPlaygroundTemplates from "../pages/admin/AdminPlaygroundTemplates";
 
 export const router = createBrowserRouter([
   // ── Público ───────────────────────────────────────────────────────────────
@@ -110,6 +111,7 @@ export const router = createBrowserRouter([
           { path: "contact",   element: <AdminContact /> },
           { path: "assignments", element: <AdminAssignments /> },
           { path: "playgrounds", element: <AdminPlaygrounds /> },
+          { path: "playground-templates", element: <AdminPlaygroundTemplates /> },
           { path: "institutions", element: <AdminInstitutions /> },
           { path: "study-courses", element: <AdminStudyCourses /> },
           { path: "users",     element: <AdminUsers /> },

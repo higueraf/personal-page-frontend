@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { LANGUAGE_CONFIGS } from "../public/Playground/templates/index";
 import { examUseCases } from "../../../infrastructure/factories/exam-module.factory";
+import { playgroundTemplateUseCases } from "../../../infrastructure/factories/playground-template-module.factory";
 import { adminUserUseCases } from "../../../infrastructure/factories/admin-user-module.factory";
 import { institutionUseCases, studyCourseUseCases } from "../../../infrastructure/factories/tutorial-module.factory";
 import { ExamGroup, ExamProject, AssignExamPayload } from "../../../domain/entities/exam.entity";
@@ -115,6 +116,7 @@ export default function AdminAssignments() {
   const [isModalOpen,      setIsModalOpen]      = useState(false);
   const [examName,         setExamName]         = useState("");
   const [examLang,         setExamLang]         = useState("python");
+  const [examTemplateId,   setExamTemplateId]   = useState("");
   const [examMateria,      setExamMateria]      = useState("");
   const [examStart,        setExamStart]        = useState("");
   const [examEnd,          setExamEnd]          = useState("");
@@ -146,6 +148,7 @@ export default function AdminAssignments() {
   const instsQ    = useQuery({ queryKey: ["admin-institutions"],                             queryFn: fetchInstitutions });
   const coursesQ  = useQuery({ queryKey: ["admin-courses"],                                  queryFn: fetchCourses });
   const studentsQ = useQuery({ queryKey: ["admin-students-lite"],                            queryFn: fetchStudents });
+  const templatesQ = useQuery({ queryKey: ["playground-templates-for-exam", examLang],       queryFn: () => playgroundTemplateUseCases.list(examLang), enabled: isModalOpen });
 
   // ── Mutations ──
   const assignMutation = useMutation({
@@ -196,8 +199,6 @@ export default function AdminAssignments() {
   function handleAssignSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!examName.trim()) return;
-    const langConfig = LANGUAGE_CONFIGS[examLang as keyof typeof LANGUAGE_CONFIGS];
-    const defaultFiles = langConfig?.defaultFiles?.map((f, i) => ({ ...f, id: `exam-init-${i}` })) ?? [];
     const payload: any = {
       name: examName.trim(), language: examLang,
       materia: examMateria || undefined,
@@ -205,8 +206,13 @@ export default function AdminAssignments() {
       end_time:   examEnd   ? toISO(examEnd)   : undefined,
       allow_copy_paste: examCopyPaste,
       require_seb: examRequireSeb,
-      files: defaultFiles,
     };
+    if (examTemplateId) {
+      payload.templateId = examTemplateId;
+    } else {
+      const langConfig = LANGUAGE_CONFIGS[examLang as keyof typeof LANGUAGE_CONFIGS];
+      payload.files = langConfig?.defaultFiles?.map((f, i) => ({ ...f, id: `exam-init-${i}` })) ?? [];
+    }
     if (assignMode === "course") {
       if (!targetInstId) { alert("Seleccione un curso."); return; }
       payload.courseId = targetInstId;
@@ -439,7 +445,7 @@ export default function AdminAssignments() {
           <p className="text-sm text-gray-500">Cada fila representa una asignación. Haz clic para ver los proyectos de cada alumno.</p>
         </div>
         <button
-          onClick={() => { setExamName(""); setExamMateria(""); setTargetInstId(""); setTargetInstFilter(""); setSelectedStudents([]); setStudentSearch(""); setIsModalOpen(true); }}
+          onClick={() => { setExamName(""); setExamMateria(""); setExamTemplateId(""); setTargetInstId(""); setTargetInstFilter(""); setSelectedStudents([]); setStudentSearch(""); setIsModalOpen(true); }}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-all shadow-sm"
         >
           <BookOpen size={20} /> Asignar Nuevo Examen
@@ -729,7 +735,7 @@ export default function AdminAssignments() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Lenguaje</label>
-                  <select value={examLang} onChange={e => setExamLang(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
+                  <select value={examLang} onChange={e => { setExamLang(e.target.value); setExamTemplateId(""); }} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
                     {["python","javascript","typescript","java","kotlin","dart","html","react","vue","angular"].map(l => <option key={l} value={l}>{l}</option>)}
                   </select>
                 </div>
@@ -737,6 +743,14 @@ export default function AdminAssignments() {
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Materia</label>
                   <input value={examMateria} onChange={e => setExamMateria(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500" />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Plantilla inicial (opcional)</label>
+                <select value={examTemplateId} onChange={e => setExamTemplateId(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
+                  <option value="">— Usar archivo por defecto —</option>
+                  {(templatesQ.data ?? []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
