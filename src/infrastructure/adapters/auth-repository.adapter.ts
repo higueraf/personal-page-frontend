@@ -35,4 +35,47 @@ export class AxiosAuthRepositoryAdapter implements AuthRepositoryPort {
     const { data } = await axiosClient.get<{ data: User }>("/user");
     return normalize(data.data);
   }
+
+  async register(payload: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    password: string;
+    password_confirm: string;
+  }): Promise<void> {
+    await axiosClient.post("/register", payload);
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    await axiosClient.post("/auth/forgot-password", { email });
+  }
+
+  async resetPassword(token: string, password: string, passwordConfirm: string): Promise<void> {
+    await axiosClient.post("/auth/reset-password", {
+      token,
+      password,
+      password_confirm: passwordConfirm,
+    });
+  }
+
+  async updateProfile(payload: { first_name?: string; last_name?: string }): Promise<User> {
+    const { data } = await axiosClient.patch<{ data: User }>("/user", payload);
+    return normalize(data.data);
+  }
+
+  async uploadAvatar(file: File): Promise<User> {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    const { data } = await axiosClient.post<{ data: User }>("/user/avatar", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return normalize(data.data);
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await axiosClient.post("/auth/change-password", {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+  }
 }
