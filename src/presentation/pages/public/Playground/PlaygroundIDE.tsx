@@ -770,6 +770,7 @@ export default function PlaygroundIDE() {
             {activeFile ? (
               <Editor
                 height="100%"
+                path={activeFile.path || activeFile.name}
                 language={getMonacoLanguage(activeFile.name)}
                 value={activeFile.content}
                 onChange={(val) =>
