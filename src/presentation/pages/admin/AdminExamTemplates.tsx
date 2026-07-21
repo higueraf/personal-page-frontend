@@ -9,16 +9,28 @@ import {
   SaveExamTemplatePayload,
 } from "../../../domain/entities/exam-template.entity";
 
-function emptyQuestion(order: number): ExamTemplateQuestion {
-  return { order, title: "", points: 2.5, statement: "" };
+const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "typescript", label: "TypeScript" },
+  { value: "flutter", label: "Flutter" },
+];
+
+/** Puntos por defecto de una pregunta nueva, según el lenguaje de la plantilla. */
+function defaultPointsFor(language: string, questionIndex: number): number {
+  if (language === "flutter") return questionIndex === 0 ? 7 : 1.5;
+  return 2.5;
 }
 
-function emptyVersion(order_index: number): ExamVersion {
+function emptyQuestion(order: number, language: string): ExamTemplateQuestion {
+  return { order, title: "", points: defaultPointsFor(language, order - 1), statement: "" };
+}
+
+function emptyVersion(order_index: number, language: string): ExamVersion {
+  const questionCount = language === "flutter" ? 3 : 4;
   return {
     id: `local-${order_index}`,
     theme_name: "",
     order_index,
-    questions: [1, 2, 3, 4].map(emptyQuestion),
+    questions: Array.from({ length: questionCount }, (_, i) => emptyQuestion(i + 1, language)),
   };
 }
 
@@ -32,8 +44,9 @@ function TemplateEditorModal({
   const queryClient = useQueryClient();
   const [name, setName] = useState(template?.name ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
+  const [language, setLanguage] = useState(template?.language ?? "typescript");
   const [versions, setVersions] = useState<ExamVersion[]>(
-    template?.versions?.length ? template.versions : [emptyVersion(0)]
+    template?.versions?.length ? template.versions : [emptyVersion(0, language)]
   );
   const [activeVersion, setActiveVersion] = useState(0);
 
@@ -47,7 +60,7 @@ function TemplateEditorModal({
   });
 
   function handleAddVersion() {
-    setVersions((prev) => [...prev, emptyVersion(prev.length)]);
+    setVersions((prev) => [...prev, emptyVersion(prev.length, language)]);
     setActiveVersion(versions.length);
   }
 
@@ -70,12 +83,32 @@ function TemplateEditorModal({
     );
   }
 
+  function handleAddQuestion(versionIndex: number) {
+    setVersions((prev) =>
+      prev.map((v, i) =>
+        i === versionIndex
+          ? { ...v, questions: [...v.questions, emptyQuestion(v.questions.length + 1, language)] }
+          : v
+      )
+    );
+  }
+
+  function handleRemoveQuestion(versionIndex: number, questionIndex: number) {
+    setVersions((prev) =>
+      prev.map((v, i) =>
+        i === versionIndex
+          ? { ...v, questions: v.questions.filter((_, qi) => qi !== questionIndex) }
+          : v
+      )
+    );
+  }
+
   function handleSave() {
     if (!name.trim() || versions.length === 0) return;
     saveMutation.mutate({
       name: name.trim(),
       description: description.trim() || undefined,
-      language: "typescript",
+      language,
       versions: versions.map((v, i) => ({
         theme_name: v.theme_name.trim(),
         order_index: i,
@@ -119,6 +152,27 @@ function TemplateEditorModal({
               className="w-full mt-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm outline-none focus:border-blue-500 resize-none"
               placeholder="Breve descripción del examen..."
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Lenguaje</label>
+            <select
+              value={language}
+              disabled={!!template}
+              onChange={(e) => {
+                const nextLanguage = e.target.value;
+                setLanguage(nextLanguage);
+                setVersions((prev) => prev.map((v, i) => emptyVersion(i, nextLanguage)));
+              }}
+              className="w-full mt-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm outline-none focus:border-blue-500 disabled:opacity-60"
+            >
+              {LANGUAGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            {template && (
+              <p className="text-[11px] text-gray-400 mt-1">El lenguaje no se puede cambiar al editar un examen existente.</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -187,6 +241,15 @@ function TemplateEditorModal({
                           className="w-20 px-2 py-1.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded text-sm outline-none focus:border-blue-500"
                           title="Puntos"
                         />
+                        {current.questions.length > 1 && (
+                          <button
+                            onClick={() => handleRemoveQuestion(activeVersion, qi)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 shrink-0"
+                            title="Quitar pregunta"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                       <textarea
                         value={q.statement}
@@ -197,6 +260,13 @@ function TemplateEditorModal({
                       />
                     </div>
                   ))}
+
+                  <button
+                    onClick={() => handleAddQuestion(activeVersion)}
+                    className="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-xs border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 hover:text-blue-500 hover:border-blue-400 rounded-lg"
+                  >
+                    <Plus size={14} /> Pregunta
+                  </button>
                 </>
               )}
             </div>
