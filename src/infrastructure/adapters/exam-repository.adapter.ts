@@ -51,4 +51,14 @@ export class AxiosExamRepositoryAdapter implements ExamRepositoryPort {
     });
     return data;
   }
+
+  async getGradingPrompt(id: string): Promise<{ prompt: string }> {
+    const { data } = await axiosClient.get<{ prompt: string }>(`/playground/admin/exam/${id}/grading-prompt`);
+    return data;
+  }
+
+  async gradeProject(id: string, grade: number, feedback?: string): Promise<ExamProject> {
+    const { data } = await axiosClient.patch<ExamProject>(`/playground/admin/exam/${id}/grade`, { grade, feedback });
+    return data;
+  }
 }

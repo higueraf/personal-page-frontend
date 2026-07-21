@@ -12,4 +12,6 @@ export interface ExamRepositoryPort {
   changeProjectStatus(id: string, status: string): Promise<ExamProject>;
   changeGroupStatus(groupId: string, status: string): Promise<ExamProject[]>;
   downloadSebConfig(groupId: string): Promise<Blob>;
+  getGradingPrompt(id: string): Promise<{ prompt: string }>;
+  gradeProject(id: string, grade: number, feedback?: string): Promise<ExamProject>;
 }

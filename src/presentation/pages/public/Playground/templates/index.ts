@@ -58,6 +58,143 @@ export const LANGUAGE_CONFIGS: Record<Language, LanguageConfig> = {
     mainFileName: "main.ts",
     defaultFiles: [{ name: "main.ts", path: "/main.ts", language: "typescript", is_folder: false, content: `const message: string = "Hello World!";\nconsole.log(message);\n` }],
   },
+  nestjs: {
+    id: "nestjs",
+    label: "NestJS",
+    description: "Framework backend con TypeScript y decoradores — tests con Jest",
+    color: "text-rose-700 dark:text-rose-400",
+    bgColor: "bg-rose-50 dark:bg-rose-950/40",
+    borderColor: "border-rose-200 dark:border-rose-500/40",
+    emoji: "🐱",
+    supportsPreview: false,
+    runtime: "backend",
+    monacoLanguage: "typescript",
+    mainFileName: "src/main.ts",
+    defaultFiles: [
+      // Folder
+      { name: "src", path: "/src", language: "plaintext", is_folder: true, content: "" },
+      // Entry point — "Ejecutar" arranca la app (no expone el puerto, pero
+      // confirma que el bootstrap y los decoradores compilan sin errores)
+      {
+        name: "main.ts", path: "/src/main.ts", language: "typescript", is_folder: false,
+        content:
+`import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  await app.listen(3000);
+  console.log('🐱 Nest application is running (bootstrap OK)');
+}
+bootstrap();
+`,
+      },
+      {
+        name: "app.module.ts", path: "/src/app.module.ts", language: "typescript", is_folder: false,
+        content:
+`import { Module } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
+@Module({
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}
+`,
+      },
+      {
+        name: "app.service.ts", path: "/src/app.service.ts", language: "typescript", is_folder: false,
+        content:
+`import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  getHello(): string {
+    return '¡Hola desde NestJS!';
+  }
+}
+`,
+      },
+      // Unit test — run it with the "Ejecutar tests" button (Jest)
+      {
+        name: "app.service.spec.ts", path: "/src/app.service.spec.ts", language: "typescript", is_folder: false,
+        content:
+`import { Test, TestingModule } from '@nestjs/testing';
+import { AppService } from './app.service';
+
+describe('AppService', () => {
+  let service: AppService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [AppService],
+    }).compile();
+
+    service = module.get<AppService>(AppService);
+  });
+
+  it('debería devolver el saludo', () => {
+    expect(service.getHello()).toBe('¡Hola desde NestJS!');
+  });
+});
+`,
+      },
+      {
+        name: "app.controller.ts", path: "/src/app.controller.ts", language: "typescript", is_folder: false,
+        content:
+`import { Controller, Get } from '@nestjs/common';
+import { AppService } from './app.service';
+
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService) {}
+
+  @Get()
+  getHello(): string {
+    return this.appService.getHello();
+  }
+}
+`,
+      },
+      // Endpoint test with supertest — no real port needed, uses
+      // app.getHttpServer() directly (in-memory HTTP)
+      {
+        name: "app.controller.spec.ts", path: "/src/app.controller.spec.ts", language: "typescript", is_folder: false,
+        content:
+`import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { AppModule } from './app.module';
+
+describe('AppController (e2e)', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('GET / devuelve el saludo', () => {
+    return request(app.getHttpServer())
+      .get('/')
+      .expect(200)
+      .expect('¡Hola desde NestJS!');
+  });
+});
+`,
+      },
+    ],
+  },
   kotlin: {
     id: "kotlin",
     label: "Kotlin",
@@ -341,6 +478,29 @@ export default function Counter({ initialCount = 0 }: Props) {
 }
 `,
       },
+      // Example test — run it with the "Ejecutar tests" button (Vitest)
+      {
+        name: "App.test.tsx", path: "/src/App.test.tsx", language: "typescript", is_folder: false,
+        content:
+`import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import App from './App';
+
+describe('App', () => {
+  it('muestra el título', () => {
+    render(<App />);
+    expect(screen.getByText(/React \\+ TypeScript/)).toBeInTheDocument();
+  });
+
+  it('incrementa el contador al hacer click en +', () => {
+    render(<App />);
+    const boton = screen.getByText('+');
+    fireEvent.click(boton);
+    expect(screen.getByText(/Contador: 1/)).toBeInTheDocument();
+  });
+});
+`,
+      },
     ],
   },
   "react-native": {
@@ -483,6 +643,7 @@ export const LANGUAGE_ORDER: Language[] = [
   "python",
   "javascript",
   "typescript",
+  "nestjs",
   "kotlin",
   "dart",
   "r",

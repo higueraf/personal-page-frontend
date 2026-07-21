@@ -4,6 +4,7 @@ export type Language =
   | "python"
   | "javascript"
   | "typescript"
+  | "nestjs"
   | "kotlin"
   | "dart"
   | "r"

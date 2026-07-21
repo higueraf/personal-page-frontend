@@ -3,7 +3,7 @@ import { useState } from "react";
 import {
   LayoutDashboard, BookOpen, Video, LogOut, Terminal, Users, FolderGit2,
   UserCircle, BookMarked, MessageSquare, Globe, Cpu, Building2, GraduationCap,
-  Menu, ChevronDown, LayoutTemplate,
+  Menu, ChevronDown, LayoutTemplate, FileQuestion,
 } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
 import { cn } from "@/presentation/lib/utils";
@@ -26,6 +26,7 @@ const MENU = [
   { to: "/admin/projects",      label: "Proyectos",  icon: FolderGit2 },
   { to: "/admin/playgrounds",   label: "Playgrounds", icon: Terminal },
   { to: "/admin/playground-templates", label: "Plantillas", icon: LayoutTemplate },
+  { to: "/admin/exam-templates", label: "Exámenes (Plantillas)", icon: FileQuestion },
   { to: "/admin/profile",       label: "Perfil / CV",icon: UserCircle },
   { to: "/admin/resources",     label: "Recursos",   icon: BookMarked },
   { to: "/admin/contact",       label: "Contacto",   icon: MessageSquare },

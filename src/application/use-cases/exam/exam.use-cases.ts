@@ -43,4 +43,12 @@ export class ExamUseCases {
   downloadSebConfig(groupId: string): Promise<Blob> {
     return this.repository.downloadSebConfig(groupId);
   }
+
+  getGradingPrompt(id: string): Promise<{ prompt: string }> {
+    return this.repository.getGradingPrompt(id);
+  }
+
+  gradeProject(payload: { id: string; grade: number; feedback?: string }): Promise<ExamProject> {
+    return this.repository.gradeProject(payload.id, payload.grade, payload.feedback);
+  }
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Play, Square, Save, Loader2, ChevronLeft, TerminalSquare, Eye, EyeOff, Sun, Moon, Timer, Download } from "lucide-react";
+import { Play, Square, Save, Loader2, ChevronLeft, TerminalSquare, Eye, EyeOff, Sun, Moon, Timer, Download, FlaskConical } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { LANGUAGE_CONFIGS } from "../templates/index";
 import { usePlaygroundStore } from "../store/playgroundStore";
@@ -12,6 +12,7 @@ interface ToolbarProps {
   onStop: () => void;
   onSave: () => void;
   onDownload: () => void;
+  onRunTests?: () => void;
   showTerminal: boolean;
   onToggleTerminal: () => void;
   showPreview: boolean;
@@ -28,6 +29,7 @@ export default function Toolbar({
   onStop,
   onSave,
   onDownload,
+  onRunTests,
   showTerminal,
   onToggleTerminal,
   showPreview,
@@ -207,6 +209,19 @@ export default function Toolbar({
             </button>
           )}
         </>
+      )}
+
+      {/* Run tests (Vitest para React, Jest para NestJS — proyectos de práctica) */}
+      {(language === "react" || language === "nestjs") && !isExam && onRunTests && (
+        <button
+          onClick={onRunTests}
+          disabled={isRunning}
+          title={language === "nestjs" ? "Ejecutar tests con Jest" : "Ejecutar tests con Vitest"}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-500/20 transition-all disabled:opacity-50"
+        >
+          <FlaskConical size={14} />
+          <span className="hidden sm:inline">Ejecutar tests</span>
+        </button>
       )}
 
       {/* Run / Stop */}

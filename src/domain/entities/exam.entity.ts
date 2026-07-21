@@ -24,6 +24,10 @@ export interface ExamProject {
   cheating_logs: Array<{ timestamp: string; action: string; details?: string }>;
   user?: { id: string; first_name: string; last_name: string; email: string };
   exam_group_id: string | null;
+  exam_version_id?: string | null;
+  examVersion?: { id: string; theme_name: string } | null;
+  grade?: number | null;
+  feedback?: string | null;
 }
 
 export interface AssignExamPayload {
@@ -36,6 +40,8 @@ export interface AssignExamPayload {
   require_seb?: boolean;
   files?: Array<{ id?: string; name: string; content?: string; path?: string }>;
   templateId?: string;
+  examTemplateId?: string;
+  fileMode?: "single" | "perQuestion";
   studentIds?: string[];
   studentId?: string;
   courseId?: string;

@@ -4,11 +4,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen, Search, Filter, Clock, AlertTriangle, AlertCircle,
   Code2, Pencil, Trash2, Shield, ShieldCheck, Calendar, ChevronRight, ArrowLeft,
-  Users, CheckCircle2, XCircle, RotateCcw, Star,
+  Users, CheckCircle2, XCircle, RotateCcw, Star, Sparkles, Copy, X,
 } from "lucide-react";
 import { LANGUAGE_CONFIGS } from "../public/Playground/templates/index";
 import { examUseCases } from "../../../infrastructure/factories/exam-module.factory";
 import { playgroundTemplateUseCases } from "../../../infrastructure/factories/playground-template-module.factory";
+import { examTemplateUseCases } from "../../../infrastructure/factories/exam-template-module.factory";
 import { adminUserUseCases } from "../../../infrastructure/factories/admin-user-module.factory";
 import { institutionUseCases, studyCourseUseCases } from "../../../infrastructure/factories/tutorial-module.factory";
 import { ExamGroup, ExamProject, AssignExamPayload } from "../../../domain/entities/exam.entity";
@@ -117,6 +118,9 @@ export default function AdminAssignments() {
   const [examName,         setExamName]         = useState("");
   const [examLang,         setExamLang]         = useState("python");
   const [examTemplateId,   setExamTemplateId]   = useState("");
+  const [initMode,         setInitMode]         = useState<"none"|"template"|"examTemplate">("none");
+  const [examExamTemplateId, setExamExamTemplateId] = useState("");
+  const [examFileMode,     setExamFileMode]     = useState<"perQuestion"|"single">("perQuestion");
   const [examMateria,      setExamMateria]      = useState("");
   const [examStart,        setExamStart]        = useState("");
   const [examEnd,          setExamEnd]          = useState("");
@@ -142,6 +146,12 @@ export default function AdminAssignments() {
   // ── Logs modal ──
   const [viewLogsOf, setViewLogsOf] = useState<ExamProject | null>(null);
 
+  // ── AI grading modal ──
+  const [gradingProject, setGradingProject] = useState<ExamProject | null>(null);
+  const [gradingPrompt,  setGradingPrompt]  = useState("");
+  const [gradeValue,     setGradeValue]     = useState("");
+  const [feedbackValue,  setFeedbackValue]  = useState("");
+
   // ── Queries ──
   const groupsQ   = useQuery({ queryKey: ["admin-exam-groups"],                             queryFn: fetchGroups });
   const projectsQ = useQuery({ queryKey: ["admin-exam-projects", activeGroup],              queryFn: () => fetchGroupProjects(activeGroup!), enabled: !!activeGroup });
@@ -149,6 +159,7 @@ export default function AdminAssignments() {
   const coursesQ  = useQuery({ queryKey: ["admin-courses"],                                  queryFn: fetchCourses });
   const studentsQ = useQuery({ queryKey: ["admin-students-lite"],                            queryFn: fetchStudents });
   const templatesQ = useQuery({ queryKey: ["playground-templates-for-exam", examLang],       queryFn: () => playgroundTemplateUseCases.list(examLang), enabled: isModalOpen });
+  const examTemplatesQ = useQuery({ queryKey: ["exam-templates-for-assign"],               queryFn: () => examTemplateUseCases.list(), enabled: isModalOpen });
 
   // ── Mutations ──
   const assignMutation = useMutation({
@@ -195,6 +206,35 @@ export default function AdminAssignments() {
     onError: (err: any) => alert("Error al cambiar estado masivo: " + (err?.response?.data?.message ?? "Desconocido")),
   });
 
+  const gradeMutation = useMutation({
+    mutationFn: (payload: { id: string; grade: number; feedback?: string }) => examUseCases.gradeProject(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-exam-projects", activeGroup] });
+      setGradingProject(null);
+    },
+    onError: (err: any) => alert("Error al calificar: " + (err?.response?.data?.message ?? "Desconocido")),
+  });
+
+  async function openGradingModal(p: ExamProject) {
+    setGradingProject(p);
+    setGradingPrompt("Cargando…");
+    setGradeValue(p.grade != null ? String(p.grade) : "");
+    setFeedbackValue(p.feedback ?? "");
+    try {
+      const { prompt } = await examUseCases.getGradingPrompt(p.id);
+      setGradingPrompt(prompt);
+    } catch (err: any) {
+      setGradingPrompt("Error al generar el prompt: " + (err?.response?.data?.message ?? "Desconocido"));
+    }
+  }
+
+  function handleSaveGrade() {
+    if (!gradingProject) return;
+    const grade = Number(gradeValue);
+    if (Number.isNaN(grade) || grade < 0 || grade > 10) { alert("La nota debe ser un número entre 0 y 10."); return; }
+    gradeMutation.mutate({ id: gradingProject.id, grade, feedback: feedbackValue || undefined });
+  }
+
   // ── Handlers ──
   function handleAssignSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -207,7 +247,11 @@ export default function AdminAssignments() {
       allow_copy_paste: examCopyPaste,
       require_seb: examRequireSeb,
     };
-    if (examTemplateId) {
+    if (initMode === "examTemplate") {
+      if (!examExamTemplateId) { alert("Seleccione un examen con variantes."); return; }
+      payload.examTemplateId = examExamTemplateId;
+      payload.fileMode = examFileMode;
+    } else if (initMode === "template" && examTemplateId) {
       payload.templateId = examTemplateId;
     } else {
       const langConfig = LANGUAGE_CONFIGS[examLang as keyof typeof LANGUAGE_CONFIGS];
@@ -334,8 +378,10 @@ export default function AdminAssignments() {
               <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                 <tr>
                   <th className="px-6 py-4 font-bold text-gray-700 dark:text-gray-300">Alumno</th>
+                  <th className="px-6 py-4 font-bold text-gray-700 dark:text-gray-300 text-center">Tema</th>
                   <th className="px-6 py-4 font-bold text-gray-700 dark:text-gray-300 text-center">Estado</th>
                   <th className="px-6 py-4 font-bold text-gray-700 dark:text-gray-300 text-center">Alertas</th>
+                  <th className="px-6 py-4 font-bold text-gray-700 dark:text-gray-300 text-center">Nota</th>
                   <th className="px-6 py-4 font-bold text-gray-700 dark:text-gray-300 text-center">Acción</th>
                 </tr>
               </thead>
@@ -351,6 +397,15 @@ export default function AdminAssignments() {
                           {p.user ? `${p.user.first_name} ${p.user.last_name}` : "Desconocido"}
                         </div>
                         <div className="text-[10px] text-gray-500">{p.user?.email}</div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {p.examVersion?.theme_name ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border border-purple-300 bg-purple-100 text-purple-700">
+                            {p.examVersion.theme_name}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex flex-col items-center gap-1.5">
@@ -382,12 +437,29 @@ export default function AdminAssignments() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <button
-                          onClick={() => navigate(`/playground/${p.id}?review=1&from=${activeGroup}`)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm"
-                        >
-                          <Code2 size={13} /> Ver código
-                        </button>
+                        {p.grade != null ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-300">
+                            {p.grade}/10
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => navigate(`/playground/${p.id}?review=1&from=${activeGroup}`)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm"
+                          >
+                            <Code2 size={13} /> Ver código
+                          </button>
+                          <button
+                            onClick={() => openGradingModal(p)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm"
+                          >
+                            <Sparkles size={13} /> Corrección IA
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -430,6 +502,63 @@ export default function AdminAssignments() {
             </div>
           </div>
         )}
+
+        {/* AI grading modal */}
+        {gradingProject && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4" onClick={e => { if (e.target === e.currentTarget) setGradingProject(null); }}>
+            <div className="bg-white dark:bg-[#161b22] border border-gray-200 dark:border-gray-700 rounded-xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3 mb-4">
+                <h3 className="text-lg font-bold flex items-center gap-2 text-purple-600 dark:text-purple-400">
+                  <Sparkles size={20} /> Corrección con IA
+                </h3>
+                <button onClick={() => setGradingProject(null)} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                  <X size={20} />
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Alumno: <strong>{gradingProject.user ? `${gradingProject.user.first_name} ${gradingProject.user.last_name}` : "Desconocido"}</strong>
+                {gradingProject.examVersion?.theme_name && <> — Tema: <strong>{gradingProject.examVersion.theme_name}</strong></>}
+              </p>
+
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Prompt para pegar en un chat de IA</label>
+              <textarea readOnly value={gradingPrompt} rows={10}
+                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-xs font-mono text-gray-800 dark:text-gray-200 outline-none resize-y" />
+              <button
+                type="button"
+                onClick={() => { navigator.clipboard.writeText(gradingPrompt); }}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-semibold transition-colors"
+              >
+                <Copy size={13} /> Copiar prompt
+              </button>
+
+              <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nota (0-10)</label>
+                  <input type="number" min={0} max={10} step={0.1} value={gradeValue} onChange={e => setGradeValue(e.target.value)}
+                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-purple-500" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Feedback (opcional)</label>
+                  <textarea value={feedbackValue} onChange={e => setFeedbackValue(e.target.value)} rows={3}
+                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-purple-500" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-4">
+                <button onClick={() => setGradingProject(null)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded font-bold text-sm transition-colors">
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveGrade}
+                  disabled={gradeMutation.isPending || !gradeValue}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-bold text-sm disabled:opacity-50 transition-colors shadow-md"
+                >
+                  {gradeMutation.isPending ? "Guardando…" : "Guardar calificación"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -445,7 +574,7 @@ export default function AdminAssignments() {
           <p className="text-sm text-gray-500">Cada fila representa una asignación. Haz clic para ver los proyectos de cada alumno.</p>
         </div>
         <button
-          onClick={() => { setExamName(""); setExamMateria(""); setExamTemplateId(""); setTargetInstId(""); setTargetInstFilter(""); setSelectedStudents([]); setStudentSearch(""); setIsModalOpen(true); }}
+          onClick={() => { setExamName(""); setExamMateria(""); setExamTemplateId(""); setInitMode("none"); setExamExamTemplateId(""); setExamFileMode("perQuestion"); setTargetInstId(""); setTargetInstFilter(""); setSelectedStudents([]); setStudentSearch(""); setIsModalOpen(true); }}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-all shadow-sm"
         >
           <BookOpen size={20} /> Asignar Nuevo Examen
@@ -746,12 +875,49 @@ export default function AdminAssignments() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Plantilla inicial (opcional)</label>
-                <select value={examTemplateId} onChange={e => setExamTemplateId(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
-                  <option value="">— Usar archivo por defecto —</option>
-                  {(templatesQ.data ?? []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Contenido inicial</label>
+                <select value={initMode} onChange={e => { setInitMode(e.target.value as any); setExamTemplateId(""); setExamExamTemplateId(""); }} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
+                  <option value="none">Archivo por defecto</option>
+                  <option value="template">Plantilla de Playground</option>
+                  <option value="examTemplate">Examen con variantes (IA)</option>
                 </select>
               </div>
+
+              {initMode === "template" && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Plantilla</label>
+                  <select value={examTemplateId} onChange={e => setExamTemplateId(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
+                    <option value="">— Elija —</option>
+                    {(templatesQ.data ?? []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {initMode === "examTemplate" && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-900/50 p-3 rounded-lg space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-purple-700 dark:text-purple-400 uppercase mb-1">Examen con variantes *</label>
+                    <select value={examExamTemplateId} onChange={e => setExamExamTemplateId(e.target.value)} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-purple-500">
+                      <option value="">— Elija —</option>
+                      {(examTemplatesQ.data ?? []).map(t => <option key={t.id} value={t.id}>{t.name} ({t.versions?.length ?? 0} temas)</option>)}
+                    </select>
+                    <p className="text-[10px] text-gray-500 mt-1">A cada alumno se le asignará automáticamente un tema distinto (round-robin), en rotación.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-purple-700 dark:text-purple-400 uppercase mb-1">Distribución de archivos</label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-1.5 text-sm text-gray-800 dark:text-gray-200 cursor-pointer">
+                        <input type="radio" name="fileMode" checked={examFileMode === "perQuestion"} onChange={() => setExamFileMode("perQuestion")} className="accent-purple-600" />
+                        Un archivo por pregunta
+                      </label>
+                      <label className="flex items-center gap-1.5 text-sm text-gray-800 dark:text-gray-200 cursor-pointer">
+                        <input type="radio" name="fileMode" checked={examFileMode === "single"} onChange={() => setExamFileMode("single")} className="accent-purple-600" />
+                        Un solo archivo
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>

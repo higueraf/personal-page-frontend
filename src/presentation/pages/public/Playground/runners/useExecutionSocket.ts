@@ -67,15 +67,32 @@ export function useExecutionSocket(options: ExecutionSocketOptions) {
     return socket;
   }, []);
 
-  /** Spawn a new execution on the backend via WebSocket */
+  /** Spawn a new execution on the backend via WebSocket. Preserves each
+   *  file's folder `path` so multi-file projects (e.g. NestJS's src/*.ts)
+   *  with relative imports resolve correctly. */
   const startExecution = useCallback(
     (language: string, files: VirtualFile[], targetFile?: string) => {
       const socket = ensureConnected();
       const codeFiles = files
         .filter((f) => !f.is_folder && f.content.trim() !== '')
-        .map((f) => ({ name: f.name, content: f.content }));
+        .map((f) => ({ name: f.name, path: f.path, content: f.content }));
 
       socket.emit('start_execution', { language, files: codeFiles, targetFile });
+    },
+    [ensureConnected],
+  );
+
+  /** Run the project's test suite (Vitest for React, Jest for NestJS) on the
+   *  backend via WebSocket. Preserves each file's folder `path` so relative
+   *  imports (./App, ../components/Counter, ./app.module) resolve correctly. */
+  const startTestExecution = useCallback(
+    (files: VirtualFile[], language: string) => {
+      const socket = ensureConnected();
+      const codeFiles = files
+        .filter((f) => !f.is_folder && f.content.trim() !== '')
+        .map((f) => ({ name: f.name, path: f.path, content: f.content }));
+
+      socket.emit('start_test_execution', { files: codeFiles, language });
     },
     [ensureConnected],
   );
@@ -90,5 +107,5 @@ export function useExecutionSocket(options: ExecutionSocketOptions) {
     socketRef.current?.emit('stop_execution');
   }, []);
 
-  return { startExecution, sendInput, stopExecution };
+  return { startExecution, startTestExecution, sendInput, stopExecution };
 }

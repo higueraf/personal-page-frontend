@@ -410,7 +410,7 @@ export default function PlaygroundIDE() {
   }, []);
 
   // ── WebSocket execution ──────────────────────────────────────────────────────
-  const { startExecution, sendInput, stopExecution } = useExecutionSocket({
+  const { startExecution, startTestExecution, sendInput, stopExecution } = useExecutionSocket({
     onOutput: useCallback((data: string) => {
       terminalApiRef.current?.write(data);
     }, []),
@@ -495,6 +495,27 @@ export default function PlaygroundIDE() {
     files,
     setRunning,
     startExecution,
+  ]);
+
+  // ── Run tests (Vitest, solo proyectos React de práctica) ────────────────────
+  const handleRunTests = useCallback(() => {
+    setShowTerminal(true);
+    terminalApiRef.current?.clear();
+    setRunning(true);
+
+    const now = new Date().toLocaleTimeString();
+    terminalApiRef.current?.write(
+      `${C.gray}[${now}]${C.reset} ${C.bold}${C.green}▶ Ejecutando tests…${C.reset}\r\n`
+    );
+    terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
+
+    startTestExecution(files, language);
+  }, [
+    files,
+    language,
+    setRunning,
+    setShowTerminal,
+    startTestExecution,
   ]);
 
   // ── Download ZIP ─────────────────────────────────────────────────────────────
@@ -706,6 +727,7 @@ export default function PlaygroundIDE() {
         onStop={stopExecution}
         onSave={handleSave}
         onDownload={handleDownloadZip}
+        onRunTests={handleRunTests}
         showTerminal={showTerminal}
         onToggleTerminal={() => setShowTerminal((v) => !v)}
         showPreview={showPreview}
