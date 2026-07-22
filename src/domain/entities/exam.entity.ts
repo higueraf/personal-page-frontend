@@ -3,6 +3,7 @@ export interface ExamGroup {
   name: string;
   materia: string | null;
   language: string;
+  is_exam: boolean;
   start_time: string | null;
   end_time: string | null;
   allow_copy_paste: boolean;

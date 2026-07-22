@@ -583,8 +583,8 @@ export default function AdminAssignments() {
     <div className="p-6 space-y-6">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Gestión de Exámenes</h1>
-          <p className="text-sm text-gray-500">Cada fila representa una asignación. Haz clic para ver los proyectos de cada alumno.</p>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Gestión de Exámenes y Simulacros</h1>
+          <p className="text-sm text-gray-500">Cada fila representa una asignación (examen o simulacro). Haz clic para ver los proyectos de cada alumno.</p>
         </div>
         <button
           onClick={() => { setExamName(""); setExamMateria(""); setExamTemplateId(""); setInitMode("none"); setExamExamTemplateId(""); setExamFileMode("perQuestion"); setTargetInstId(""); setTargetInstFilter(""); setSelectedStudents([]); setStudentSearch(""); setIsModalOpen(true); }}
@@ -617,6 +617,7 @@ export default function AdminAssignments() {
             <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
               <tr>
                 <th className="px-6 py-4 font-bold text-gray-700 dark:text-gray-300">Examen</th>
+                <th className="px-6 py-4 font-bold text-gray-700 dark:text-gray-300 text-center">Tipo</th>
                 <th className="px-6 py-4 font-bold text-gray-700 dark:text-gray-300">Plazo</th>
                 <th className="px-6 py-4 font-bold text-gray-700 dark:text-gray-300 text-center">Alumnos</th>
                 <th className="px-6 py-4 font-bold text-gray-700 dark:text-gray-300 text-center">Estado</th>
@@ -654,6 +655,17 @@ export default function AdminAssignments() {
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {g.is_exam ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 border border-purple-200">
+                          Examen
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-green-100 text-green-700 border border-green-200">
+                          Práctica
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col text-[11px] text-gray-500 font-medium">
