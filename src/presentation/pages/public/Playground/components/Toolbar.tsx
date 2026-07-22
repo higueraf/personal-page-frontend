@@ -211,8 +211,11 @@ export default function Toolbar({
         </>
       )}
 
-      {/* Run tests (Vitest para React, Jest para NestJS — proyectos de práctica) */}
-      {(language === "react" || language === "nestjs") && !isExam && onRunTests && (
+      {/* Run tests (Vitest para React, Jest para NestJS — proyectos de práctica).
+          En examen de NestJS el botón se mantiene visible: es la única forma de
+          correr los .spec.ts con Jest (el Play normal ejecuta el archivo con tsx
+          y no tiene los globals de Jest, ver handleRun en PlaygroundIDE). */}
+      {(language === "react" || language === "nestjs") && (!isExam || language === "nestjs") && onRunTests && (
         <button
           onClick={onRunTests}
           disabled={isRunning}

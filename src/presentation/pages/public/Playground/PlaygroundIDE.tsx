@@ -458,6 +458,19 @@ export default function PlaygroundIDE() {
     const activeFile = files.find((f) => f.id === activeFileId);
     const targetFile = activeFile?.name;
 
+    // NestJS .spec.ts files have no Jest globals (describe/it/expect) when run
+    // directly with tsx — they need to go through the Jest runner instead
+    // (same one the "Ejecutar tests" button uses).
+    if (language === "nestjs" && targetFile && /\.(spec|test)\.ts$/.test(targetFile)) {
+      const now = new Date().toLocaleTimeString();
+      terminalApiRef.current?.write(
+        `${C.gray}[${now}]${C.reset} ${C.yellow}⚠ ${targetFile} es un archivo de test: ejecutándolo con Jest en vez de tsx…${C.reset}\r\n`
+      );
+      terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
+      startTestExecution(files, language);
+      return;
+    }
+
     const now = new Date().toLocaleTimeString();
     const label = targetFile ?? config.label;
     terminalApiRef.current?.write(
@@ -474,6 +487,7 @@ export default function PlaygroundIDE() {
     setRunning,
     setShowTerminal,
     startExecution,
+    startTestExecution,
   ]);
 
   // ── Run specific file (from terminal commands like `kotlin archivo.kt`) ────
