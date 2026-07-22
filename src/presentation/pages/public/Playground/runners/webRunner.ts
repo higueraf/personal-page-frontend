@@ -214,7 +214,7 @@ function buildReactPreview(files: VirtualFile[]): string {
           transpiled = Babel.transform(source, {
             presets: [
               ['react', { runtime: 'classic' }],
-              ['typescript', { allExtensions: true, isTSX: filePath.endsWith('.tsx') }]
+              'typescript'
             ],
             filename: filePath,
           }).code;
