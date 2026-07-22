@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Filter, Terminal, User, Clock, FileCode2 } from "lucide-react";
+import { Search, Filter, Terminal, User, Clock, FileCode2, Share2 } from "lucide-react";
 import { adminPlaygroundUseCases } from "../../../infrastructure/factories/admin-playground-module.factory";
 
 async function fetchPlaygrounds() {
@@ -8,6 +9,7 @@ async function fetchPlaygrounds() {
 }
 
 export default function AdminPlaygrounds() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
 
   const playgroundsQ = useQuery({ queryKey: ["admin-playgrounds"], queryFn: fetchPlaygrounds });
@@ -37,6 +39,13 @@ export default function AdminPlaygrounds() {
             Explora y revisa todos los proyectos (playgrounds) creados por los estudiantes.
           </p>
         </div>
+        <button
+          onClick={() => navigate("/admin/assignments?practice=1")}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
+        >
+          <Share2 size={16} />
+          Compartir simulacro
+        </button>
       </header>
 
       {/* Filters */}

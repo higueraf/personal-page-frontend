@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -126,11 +126,22 @@ export default function AdminAssignments() {
   const [examEnd,          setExamEnd]          = useState("");
   const [examCopyPaste,    setExamCopyPaste]    = useState(false);
   const [examRequireSeb,   setExamRequireSeb]   = useState(false);
+  const [assignKind,       setAssignKind]       = useState<"exam"|"practice">("exam");
   const [assignMode,       setAssignMode]       = useState<"course"|"student">("course");
   const [targetInstFilter, setTargetInstFilter] = useState("");
   const [targetInstId,     setTargetInstId]     = useState("");
   const [studentSearch,    setStudentSearch]    = useState("");
   const [selectedStudents, setSelectedStudents] = useState<AdminUser[]>([]);
+
+  // Autoabrir el modal en modo práctica desde el botón "Compartir simulacro" de AdminPlaygrounds
+  useEffect(() => {
+    if (searchParams.get("practice") === "1") {
+      setAssignKind("practice");
+      setInitMode("examTemplate");
+      setIsModalOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Edit modal ──
   const [editGroup,     setEditGroup]     = useState<ExamGroup | null>(null);
@@ -239,14 +250,16 @@ export default function AdminAssignments() {
   function handleAssignSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!examName.trim()) return;
-    const payload: any = {
-      name: examName.trim(), language: examLang,
-      materia: examMateria || undefined,
-      start_time: examStart ? toISO(examStart) : undefined,
-      end_time:   examEnd   ? toISO(examEnd)   : undefined,
-      allow_copy_paste: examCopyPaste,
-      require_seb: examRequireSeb,
-    };
+    const payload: any = assignKind === "practice"
+      ? { name: examName.trim(), language: examLang, materia: examMateria || undefined, isPractice: true }
+      : {
+          name: examName.trim(), language: examLang,
+          materia: examMateria || undefined,
+          start_time: examStart ? toISO(examStart) : undefined,
+          end_time:   examEnd   ? toISO(examEnd)   : undefined,
+          allow_copy_paste: examCopyPaste,
+          require_seb: examRequireSeb,
+        };
     if (initMode === "examTemplate") {
       if (!examExamTemplateId) { alert("Seleccione un examen con variantes."); return; }
       payload.examTemplateId = examExamTemplateId;
@@ -788,9 +801,26 @@ export default function AdminAssignments() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4" onClick={e => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6 w-full max-w-xl shadow-2xl overflow-y-auto max-h-[90vh]">
             <h3 className="text-xl font-bold flex items-center gap-2 text-gray-800 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-3 mb-4">
-              <BookOpen size={20} className="text-blue-500" /> Asignar Nuevo Examen
+              <BookOpen size={20} className="text-blue-500" />
+              {assignKind === "practice" ? "Compartir Simulacro de Práctica" : "Asignar Nuevo Examen"}
             </h3>
             <form onSubmit={handleAssignSubmit} className="flex flex-col gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tipo</label>
+                <select
+                  value={assignKind}
+                  onChange={e => {
+                    const kind = e.target.value as "exam"|"practice";
+                    setAssignKind(kind);
+                    if (kind === "practice") setInitMode("examTemplate");
+                  }}
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500"
+                >
+                  <option value="exam">Examen (evaluado, con restricciones)</option>
+                  <option value="practice">Simulacro (práctica libre, sin restricciones)</option>
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Modo de Envío</label>
@@ -874,14 +904,16 @@ export default function AdminAssignments() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Contenido inicial</label>
-                <select value={initMode} onChange={e => { setInitMode(e.target.value as any); setExamTemplateId(""); setExamExamTemplateId(""); }} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
-                  <option value="none">Archivo por defecto</option>
-                  <option value="template">Plantilla de Playground</option>
-                  <option value="examTemplate">Examen con variantes (IA)</option>
-                </select>
-              </div>
+              {assignKind === "exam" && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Contenido inicial</label>
+                  <select value={initMode} onChange={e => { setInitMode(e.target.value as any); setExamTemplateId(""); setExamExamTemplateId(""); }} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
+                    <option value="none">Archivo por defecto</option>
+                    <option value="template">Plantilla de Playground</option>
+                    <option value="examTemplate">Examen con variantes (IA)</option>
+                  </select>
+                </div>
+              )}
 
               {initMode === "template" && (
                 <div>
@@ -919,36 +951,40 @@ export default function AdminAssignments() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Apertura</label>
-                  <input type="datetime-local" value={examStart} onChange={e => setExamStart(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500" />
+              {assignKind === "exam" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Apertura</label>
+                    <input type="datetime-local" value={examStart} onChange={e => setExamStart(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cierre</label>
+                    <input type="datetime-local" value={examEnd} onChange={e => setExamEnd(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cierre</label>
-                  <input type="datetime-local" value={examEnd} onChange={e => setExamEnd(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500" />
-                </div>
-              </div>
+              )}
 
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 p-3 rounded-lg space-y-2">
-                <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-2">RESTRICCIONES DE SEGURIDAD</p>
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
-                  <input type="checkbox" checked={examCopyPaste} onChange={e => setExamCopyPaste(e.target.checked)} className="w-4 h-4 accent-red-500" />
-                  Permitir Copiar / Pegar
-                </label>
-                <p className="text-[10px] text-gray-500 leading-tight">
-                  Al estar bloqueado, el sistema capturará cada cambio de pestaña del alumno como posible fraude.
-                </p>
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-800 dark:text-gray-200 pt-1">
-                  <input type="checkbox" checked={examRequireSeb} onChange={e => setExamRequireSeb(e.target.checked)} className="w-4 h-4 accent-blue-500" />
-                  Requerir Safe Exam Browser (SEB)
-                </label>
-                {examRequireSeb && (
-                  <p className="text-[10px] text-blue-600 dark:text-blue-400 leading-tight">
-                    El alumno solo podrá acceder desde Safe Exam Browser. No compatible con Linux/Ubuntu.
+              {assignKind === "exam" && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 p-3 rounded-lg space-y-2">
+                  <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-2">RESTRICCIONES DE SEGURIDAD</p>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
+                    <input type="checkbox" checked={examCopyPaste} onChange={e => setExamCopyPaste(e.target.checked)} className="w-4 h-4 accent-red-500" />
+                    Permitir Copiar / Pegar
+                  </label>
+                  <p className="text-[10px] text-gray-500 leading-tight">
+                    Al estar bloqueado, el sistema capturará cada cambio de pestaña del alumno como posible fraude.
                   </p>
-                )}
-              </div>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-800 dark:text-gray-200 pt-1">
+                    <input type="checkbox" checked={examRequireSeb} onChange={e => setExamRequireSeb(e.target.checked)} className="w-4 h-4 accent-blue-500" />
+                    Requerir Safe Exam Browser (SEB)
+                  </label>
+                  {examRequireSeb && (
+                    <p className="text-[10px] text-blue-600 dark:text-blue-400 leading-tight">
+                      El alumno solo podrá acceder desde Safe Exam Browser. No compatible con Linux/Ubuntu.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 border-t border-gray-100 dark:border-gray-800 pt-4">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded font-bold text-sm transition-colors">

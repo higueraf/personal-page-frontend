@@ -45,4 +45,5 @@ export interface AssignExamPayload {
   studentIds?: string[];
   studentId?: string;
   courseId?: string;
+  isPractice?: boolean;
 }
