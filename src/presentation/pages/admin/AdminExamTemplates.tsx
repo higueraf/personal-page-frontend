@@ -13,6 +13,7 @@ const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "typescript", label: "TypeScript" },
   { value: "flutter", label: "Flutter" },
   { value: "nestjs", label: "NestJS" },
+  { value: "react", label: "React" },
 ];
 
 /** Puntos por defecto de una pregunta nueva, según el lenguaje de la plantilla. */
