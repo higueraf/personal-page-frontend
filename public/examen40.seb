@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>startURL</key>
+  <string>https://www.franciscohiguera.site/playground</string>
+  <key>sendBrowserExamKey</key>
+  <false/>
+  <key>allowQuit</key>
+  <false/>
+  <key>ignoreExitKey</key>
+  <true/>
+  <key>quitURL</key>
+  <string>https://www.franciscohiguera.site/seb-quit</string>
+  <key>quitURLConfirm</key>
+  <false/>
+  <key>browserWindowAllowReload</key>
+  <false/>
+  <key>showReloadButton</key>
+  <false/>
+  <key>showTaskBar</key>
+  <false/>
+  <key>enablePrintScreen</key>
+  <false/>
+  <key>allowUserSwitching</key>
+  <false/>
+  <key>enableScreenCapture</key>
+  <false/>
+  <key>newBrowserWindowByLinkPolicy</key>
+  <integer>2</integer>
+  <key>URLFilterEnable</key>
+  <true/>
+  <key>URLFilterEnableContentFilter</key>
+  <false/>
+  <key>URLFilterRules</key>
+  <array>
+    <dict>
+      <key>active</key>
+      <true/>
+      <key>regex</key>
+      <false/>
+      <key>action</key>
+      <integer>1</integer>
+      <key>expression</key>
+      <string>https://www.franciscohiguera.site/*</string>
+    </dict>
+  </array>
+</dict>
+</plist>
