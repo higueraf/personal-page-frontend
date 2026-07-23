@@ -216,6 +216,7 @@ function buildReactPreview(files: VirtualFile[]): string {
               ['react', { runtime: 'classic' }],
               'typescript'
             ],
+            plugins: ['transform-modules-commonjs'],
             filename: filePath,
           }).code;
         } catch (e) {
