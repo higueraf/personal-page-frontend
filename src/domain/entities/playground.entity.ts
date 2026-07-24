@@ -27,6 +27,9 @@ export interface PlaygroundDetail {
   start_time?: string;
   end_time?: string;
   files?: PlaygroundFile[];
+  user?: { first_name: string; last_name: string; email: string };
+  grade?: number | null;
+  feedback?: string | null;
 }
 
 export interface CreatePlaygroundPayload {

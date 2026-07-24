@@ -19,6 +19,7 @@ import FlutterPreviewPanel from "./components/FlutterPreviewPanel";
 import ReactNativePreviewPanel from "./components/ReactNativePreviewPanel";
 
 import { playgroundUseCases } from "../../../../infrastructure/factories/playground-module.factory";
+import { examUseCases } from "../../../../infrastructure/factories/exam-module.factory";
 import type * as MonacoEditor from "monaco-editor";
 
 // ─── ANSI helpers ──────────────────────────────────────────────────────────────
@@ -53,12 +54,14 @@ export default function PlaygroundIDE() {
     allowCopyPaste,
     requireSeb,
     projectName,
+    isReadOnly,
     initProject,
     openFile,
     closeFile,
     updateFileContent,
     setRunning,
     setSaving,
+    setReadOnly,
   } = usePlaygroundStore();
 
   // Detect Safe Exam Browser (SEB)
@@ -89,8 +92,13 @@ export default function PlaygroundIDE() {
   const [isLockedOut, setIsLockedOut] = useState(false);
   const [isTabSwitchLocked, setIsTabSwitchLocked] = useState(false);
   const [isKeyboardAlertLocked, setIsKeyboardAlertLocked] = useState(false);
-  const [examFinished, setExamFinished] = useState(false);
   const examFinishedRef = useRef(false);
+
+  // Admin-review only: student identity + inline grading panel state
+  const [studentUser, setStudentUser] = useState<{ first_name: string; last_name: string; email: string } | null>(null);
+  const [grade, setGrade] = useState<number | "">("");
+  const [feedback, setFeedback] = useState("");
+  const [savingGrade, setSavingGrade] = useState(false);
 
   // Store end_time for the timer — state drives Toolbar re-render, ref drives auto-submit closure
   const [endTime, setEndTime] = useState<Date | null>(null);
@@ -120,22 +128,28 @@ export default function PlaygroundIDE() {
           clockOffsetRef.current = new Date(serverTime).getTime() - Date.now();
         }
 
+        setStudentUser(data.user ?? null);
+        setGrade(data.grade ?? "");
+        setFeedback(data.feedback ?? "");
+
+        let readOnlyNow = isAdminReview;
+
         if (data.is_exam && !isAdminReview) {
           if (data.status === 'submitted' || data.status === 'graded') {
-            setExamFinished(true);
-            return;
+            readOnlyNow = true;
+          } else {
+            // Use server-corrected time for the expiry check
+            const correctedNow = Date.now() + clockOffsetRef.current;
+            if (data.end_time && correctedNow > new Date(data.end_time).getTime()) {
+              playgroundUseCases.submit(id).catch(() => {});
+              readOnlyNow = true;
+            } else {
+              // Store end_time for the live timer
+              const et = data.end_time ? new Date(data.end_time) : null;
+              endTimeRef.current = et;
+              setEndTime(et);
+            }
           }
-          // Use server-corrected time for the expiry check
-          const correctedNow = Date.now() + clockOffsetRef.current;
-          if (data.end_time && correctedNow > new Date(data.end_time).getTime()) {
-            playgroundUseCases.submit(id).catch(() => {});
-            setExamFinished(true);
-            return;
-          }
-          // Store end_time for the live timer
-          const et = data.end_time ? new Date(data.end_time) : null;
-          endTimeRef.current = et;
-          setEndTime(et);
         }
 
         const projectFiles = (data.files ?? []).map((f: any) => ({
@@ -153,7 +167,8 @@ export default function PlaygroundIDE() {
           data.is_exam ?? false,
           data.allow_copy_paste ?? true,
           data.require_seb ?? false,
-          projectFiles
+          projectFiles,
+          readOnlyNow
         );
         // Auto-open first file
         const firstCode = projectFiles.find((f: any) => !f.is_folder);
@@ -175,7 +190,7 @@ export default function PlaygroundIDE() {
 
   // ── Exam Restrictions ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isExam || isAdminReview) return;
+    if (!isExam || isReadOnly) return;
 
     // 1. Enter Fullscreen (may require user interaction so it's a best-effort)
     const enterFullscreen = () => {
@@ -304,11 +319,11 @@ export default function PlaygroundIDE() {
         window.removeEventListener("cut", handleCopyCutOutsideEditor as any, true);
       }
     };
-  }, [isExam, allowCopyPaste]);
+  }, [isExam, isReadOnly, allowCopyPaste]);
 
   // ── Exam Keyboard Lock: block navigation shortcuts ───────────────────────────
   useEffect(() => {
-    if (!isExam || isAdminReview) return;
+    if (!isExam || isReadOnly) return;
 
     const handleDangerousKey = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
@@ -346,7 +361,7 @@ export default function PlaygroundIDE() {
 
     window.addEventListener('keydown', handleDangerousKey, true);
     return () => window.removeEventListener('keydown', handleDangerousKey, true);
-  }, [isExam, isAdminReview, id]);
+  }, [isExam, isReadOnly, id]);
 
   // ── Save ────────────────────────────────────────────────────────────────────
   // Uses a single batch request to avoid URL-encoding issues with underscores,
@@ -373,7 +388,7 @@ export default function PlaygroundIDE() {
 
   // ── Exam Timer: auto-submit when end_time is reached ───────────────────────
   useEffect(() => {
-    if (!isExam || examFinished || isAdminReview) return;
+    if (!isExam || isReadOnly) return;
 
     const checkTimer = () => {
       if (!endTimeRef.current) return;
@@ -389,7 +404,7 @@ export default function PlaygroundIDE() {
             playgroundUseCases.submit(id).catch(() => {});
           });
         }
-        setExamFinished(true);
+        setReadOnly(true);
         if (document.fullscreenElement) {
           document.exitFullscreen().catch(() => {});
         }
@@ -398,16 +413,16 @@ export default function PlaygroundIDE() {
 
     const interval = setInterval(checkTimer, 15_000); // check every 15s
     return () => clearInterval(interval);
-  }, [isExam, examFinished, id]);
+  }, [isExam, isReadOnly, id]);
 
   // ── Handle exam submitted callback (from Toolbar) ──────────────────────────
   const handleExamSubmitted = useCallback(() => {
     examFinishedRef.current = true;
-    setExamFinished(true);
+    setReadOnly(true);
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
-  }, []);
+  }, [setReadOnly]);
 
   // ── WebSocket execution ──────────────────────────────────────────────────────
   const { startExecution, startTestExecution, sendInput, stopExecution } = useExecutionSocket({
@@ -553,10 +568,10 @@ export default function PlaygroundIDE() {
 
   // ── Exam auto-save every 5 minutes ──────────────────────────────────────────
   useEffect(() => {
-    if (!isExam || examFinished || isAdminReview) return;
+    if (!isExam || isReadOnly) return;
     const interval = setInterval(() => { handleSave(); }, 5 * 60_000);
     return () => clearInterval(interval);
-  }, [isExam, examFinished, isAdminReview, handleSave]);
+  }, [isExam, isReadOnly, handleSave]);
 
   // ── Keyboard shortcut: Ctrl+S ────────────────────────────────────────────────
   useEffect(() => {
@@ -589,38 +604,6 @@ export default function PlaygroundIDE() {
     );
   }
 
-  // ── Exam Finished screen ──────────────────────────────────────────────────
-  if (examFinished) {
-    return (
-      <div className="flex items-center justify-center h-full min-h-screen bg-[#f8f9fc] dark:bg-[#0d1117] text-gray-700 dark:text-slate-300">
-        <div className="text-center max-w-md">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-            <ShieldCheck size={40} className="text-green-600 dark:text-green-400" />
-          </div>
-          <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Examen Finalizado</h2>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
-            Tu examen ha sido entregado exitosamente. Ya no es posible realizar modificaciones.
-          </p>
-          {isInSEB ? (
-            <button
-              onClick={() => { window.location.href = window.location.origin + '/seb-quit'; }}
-              className="px-6 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm font-medium transition-colors shadow-lg"
-            >
-              Cerrar Safe Exam Browser
-            </button>
-          ) : (
-            <button
-              onClick={() => navigate("/playground")}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors shadow-lg"
-            >
-              Volver al inicio
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="flex items-center justify-center h-full min-h-screen bg-[#f8f9fc] dark:bg-[#0d1117] text-gray-700 dark:text-slate-300">
@@ -646,7 +629,7 @@ export default function PlaygroundIDE() {
     <div className="flex flex-col h-screen overflow-hidden bg-[#f8f9fc] dark:bg-[#0d1117] text-gray-900 dark:text-white">
       
       {/* ── Lock Screen: SEB required ── */}
-      {requireSeb && !isInSEB && isExam && !isAdminReview && (
+      {requireSeb && !isInSEB && isExam && !isReadOnly && (
         <div className="fixed inset-0 bg-gray-950 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center">
           <div className="w-24 h-24 mb-6 rounded-2xl bg-blue-600/20 border-2 border-blue-500/40 flex items-center justify-center">
             <ShieldCheck size={48} className="text-blue-400" />
@@ -722,16 +705,63 @@ export default function PlaygroundIDE() {
         </div>
       )}
 
-      {/* ── Admin review banner ── */}
-      {isAdminReview && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-sm font-medium shrink-0">
-          <button
-            onClick={() => reviewFrom ? navigate(`/admin/assignments?group=${reviewFrom}`) : navigate("/admin/assignments")}
-            className="flex items-center gap-1.5 px-3 py-1 bg-amber-200 dark:bg-amber-800/50 hover:bg-amber-300 dark:hover:bg-amber-700/60 rounded-lg text-amber-900 dark:text-amber-200 font-semibold text-xs transition-colors"
-          >
-            ← Volver a proyectos del examen
-          </button>
-          <span className="text-xs opacity-70">Modo revisión — solo lectura del examen del alumno</span>
+      {/* ── Read-only banner: admin review OR student post-submission ── */}
+      {isReadOnly && (
+        <div className="flex flex-col gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-sm font-medium shrink-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            {isAdminReview && (
+              <button
+                onClick={() => reviewFrom ? navigate(`/admin/assignments?group=${reviewFrom}`) : navigate("/admin/assignments")}
+                className="flex items-center gap-1.5 px-3 py-1 bg-amber-200 dark:bg-amber-800/50 hover:bg-amber-300 dark:hover:bg-amber-700/60 rounded-lg text-amber-900 dark:text-amber-200 font-semibold text-xs transition-colors"
+              >
+                ← Volver a proyectos del examen
+              </button>
+            )}
+            <span className="text-xs opacity-90">
+              {isAdminReview
+                ? `Modo revisión — revisando examen de ${studentUser ? `${studentUser.first_name} ${studentUser.last_name}` : "alumno"}`
+                : "Examen entregado — modo solo lectura, puedes ver y ejecutar tu código"}
+            </span>
+          </div>
+
+          {isAdminReview && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="text-xs">Nota (0-10):</label>
+              <input
+                type="number"
+                min={0}
+                max={10}
+                step={0.1}
+                value={grade}
+                onChange={(e) => setGrade(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-20 px-2 py-1 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-[#1c1a10] text-xs text-gray-900 dark:text-white"
+              />
+              <textarea
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="Feedback (opcional)"
+                rows={1}
+                className="flex-1 min-w-[200px] px-2 py-1 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-[#1c1a10] text-xs text-gray-900 dark:text-white resize-y"
+              />
+              <button
+                disabled={savingGrade || grade === ""}
+                onClick={async () => {
+                  if (!id || grade === "") return;
+                  setSavingGrade(true);
+                  try {
+                    await examUseCases.gradeProject({ id, grade: Number(grade), feedback });
+                  } catch (err) {
+                    console.error("Grade save error:", err);
+                  } finally {
+                    setSavingGrade(false);
+                  }
+                }}
+                className="px-3 py-1 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded text-xs font-semibold transition-colors"
+              >
+                {savingGrade ? "Guardando…" : "Guardar nota"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -832,6 +862,7 @@ export default function PlaygroundIDE() {
                   }
                 }}
                 options={{
+                  readOnly: isReadOnly,
                   fontSize: 14,
                   fontFamily:
                     '"Cascadia Code", "Fira Code", "JetBrains Mono", monospace',

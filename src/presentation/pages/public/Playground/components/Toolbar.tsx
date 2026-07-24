@@ -39,7 +39,7 @@ export default function Toolbar({
   clockOffset = 0,
 }: ToolbarProps) {
   const navigate = useNavigate();
-  const { projectId, projectName, language, isRunning, isSaving, isExam } = usePlaygroundStore();
+  const { projectId, projectName, language, isRunning, isSaving, isExam, isReadOnly } = usePlaygroundStore();
   const { theme, toggle } = useTheme();
 
   // ── Countdown timer ─────────────────────────────────────────────────────────
@@ -156,21 +156,23 @@ export default function Toolbar({
       </button>
 
       {/* Save */}
-      <button
-        onClick={onSave}
-        disabled={isSaving}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white transition-colors disabled:opacity-50"
-      >
-        {isSaving ? (
-          <Loader2 size={14} className="animate-spin" />
-        ) : (
-          <Save size={14} />
-        )}
-        <span className="hidden sm:inline">Guardar</span>
-      </button>
+      {!isReadOnly && (
+        <button
+          onClick={onSave}
+          disabled={isSaving}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white transition-colors disabled:opacity-50"
+        >
+          {isSaving ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Save size={14} />
+          )}
+          <span className="hidden sm:inline">Guardar</span>
+        </button>
+      )}
 
       {/* Submit Exam + Timer */}
-      {isExam && (
+      {isExam && !isReadOnly && (
         <>
           {timeLeft !== null && (
             <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-mono font-bold border ${

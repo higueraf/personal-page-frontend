@@ -22,6 +22,7 @@ import UserProfile       from "../pages/public/UserProfile";
 import UserSettings      from "../pages/public/UserSettings";
 import PlaygroundList     from "../pages/public/Playground/PlaygroundList";
 import PlaygroundIDE      from "../pages/public/Playground/PlaygroundIDE";
+import PlaygroundExamGroupRedirect from "../pages/public/Playground/PlaygroundExamGroupRedirect";
 
 // ── Páginas admin ─────────────────────────────────────────────────────────────
 import AdminLayout       from "../layout/AdminLayout";
@@ -83,6 +84,7 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth />,
     children: [
+      { path: "/playground/exam/:groupId", element: <PlaygroundExamGroupRedirect /> },
       { path: "/playground/:id", element: <PlaygroundIDE /> },
     ],
   },

@@ -17,4 +17,5 @@ export interface PlaygroundRepositoryPort {
   submit(id: string): Promise<void>;
   logCheat(id: string, action: string, details?: string): Promise<void>;
   execute(language: string, files: PlaygroundFile[]): Promise<RunResult>;
+  getMyProjectInExamGroup(groupId: string): Promise<string>;
 }

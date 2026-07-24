@@ -57,4 +57,9 @@ export class AxiosPlaygroundRepositoryAdapter implements PlaygroundRepositoryPor
     const { data } = await axiosClient.post<RunResult>("/playground/execute", { language, files });
     return data;
   }
+
+  async getMyProjectInExamGroup(groupId: string): Promise<string> {
+    const { data } = await axiosClient.get(`/playground/exam-group/${groupId}/my-project`);
+    return data.id;
+  }
 }

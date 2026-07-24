@@ -49,4 +49,8 @@ export class PlaygroundUseCases {
   execute(language: string, files: PlaygroundFile[]): Promise<RunResult> {
     return this.repository.execute(language, files);
   }
+
+  getMyProjectInExamGroup(groupId: string): Promise<string> {
+    return this.repository.getMyProjectInExamGroup(groupId);
+  }
 }

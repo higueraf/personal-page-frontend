@@ -31,6 +31,7 @@ interface PlaygroundStore {
   isExam: boolean;
   allowCopyPaste: boolean;
   requireSeb: boolean;
+  isReadOnly: boolean;
   files: VirtualFile[];
   activeFileId: string | null;
   openFileIds: string[];
@@ -45,7 +46,8 @@ interface PlaygroundStore {
     isExam: boolean,
     allowCopyPaste: boolean,
     requireSeb: boolean,
-    files: VirtualFile[]
+    files: VirtualFile[],
+    isReadOnly?: boolean
   ) => void;
   setActiveFile: (id: string) => void;
   openFile: (id: string) => void;
@@ -56,6 +58,7 @@ interface PlaygroundStore {
   renameFile: (id: string, newName: string, newPath: string) => void;
   setRunning: (v: boolean) => void;
   setSaving: (v: boolean) => void;
+  setReadOnly: (v: boolean) => void;
   appendTerminalLine: (line: string) => void;
   clearTerminal: () => void;
 }
@@ -67,6 +70,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
   isExam: false,
   allowCopyPaste: true,
   requireSeb: false,
+  isReadOnly: false,
   files: [],
   activeFileId: null,
   openFileIds: [],
@@ -74,7 +78,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
   isSaving: false,
   terminalLines: [],
 
-  initProject: (id, name, language, isExam, allowCopyPaste, requireSeb, files) => {
+  initProject: (id, name, language, isExam, allowCopyPaste, requireSeb, files, isReadOnly = false) => {
     const firstFile = files.find((f) => !f.is_folder);
     set({
       projectId: id,
@@ -83,6 +87,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
       isExam,
       allowCopyPaste,
       requireSeb,
+      isReadOnly,
       files,
       activeFileId: firstFile?.id ?? null,
       openFileIds: firstFile ? [firstFile.id] : [],
@@ -171,6 +176,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
 
   setRunning: (v) => set({ isRunning: v }),
   setSaving: (v) => set({ isSaving: v }),
+  setReadOnly: (v) => set({ isReadOnly: v }),
 
   appendTerminalLine: (line) =>
     set((state) => ({ terminalLines: [...state.terminalLines, line] })),

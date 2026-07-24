@@ -66,7 +66,7 @@ interface CreatingIn {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function FileExplorer() {
-  const { files, activeFileId, language, projectId, openFile, addFile, removeFile, renameFile, updateFileContent } =
+  const { files, activeFileId, language, projectId, isReadOnly, openFile, addFile, removeFile, renameFile, updateFileContent } =
     usePlaygroundStore();
 
   // Root-level creation
@@ -295,6 +295,7 @@ export default function FileExplorer() {
           confirmingDelete={confirmDelete === folder.id}
           isRenaming={renamingId === folder.id}
           renameValue={renamingId === folder.id ? renameValue : folder.name}
+          readOnly={isReadOnly}
           onToggle={() => toggleFolder(folder.id)}
           onDelete={() => handleDelete(folder)}
           onRename={() => startRename(folder)}
@@ -342,6 +343,7 @@ export default function FileExplorer() {
                 confirmingDelete={confirmDelete === child.id}
                 isRenaming={renamingId === child.id}
                 renameValue={renamingId === child.id ? renameValue : child.name}
+                readOnly={isReadOnly}
                 onOpen={() => openFile(child.id)}
                 onDelete={() => handleDelete(child)}
                 onRename={() => startRename(child)}
@@ -375,38 +377,40 @@ export default function FileExplorer() {
         <span className="text-[10px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-widest">
           Explorador
         </span>
-        <div className="flex gap-1">
-          <button
-            onClick={() => { cancelAll(); setShowNewFile((v) => !v); }}
-            title="Nuevo archivo raíz"
-            className="p-1 rounded text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-          >
-            <FilePlus size={13} />
-          </button>
-          <button
-            onClick={() => { cancelAll(); setShowNewFolder((v) => !v); }}
-            title="Nueva carpeta raíz"
-            className="p-1 rounded text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-          >
-            <FolderPlus size={13} />
-          </button>
-          {/* Upload: accepts text-based data and source files, max 2 MB each */}
-          <button
-            onClick={() => uploadInputRef.current?.click()}
-            title="Subir archivo(s) — máx. 2 MB c/u"
-            className="p-1 rounded text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-          >
-            <Upload size={13} />
-          </button>
-          <input
-            ref={uploadInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            accept="*/*"
-            onChange={handleUploadFiles}
-          />
-        </div>
+        {!isReadOnly && (
+          <div className="flex gap-1">
+            <button
+              onClick={() => { cancelAll(); setShowNewFile((v) => !v); }}
+              title="Nuevo archivo raíz"
+              className="p-1 rounded text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+            >
+              <FilePlus size={13} />
+            </button>
+            <button
+              onClick={() => { cancelAll(); setShowNewFolder((v) => !v); }}
+              title="Nueva carpeta raíz"
+              className="p-1 rounded text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+            >
+              <FolderPlus size={13} />
+            </button>
+            {/* Upload: accepts text-based data and source files, max 2 MB each */}
+            <button
+              onClick={() => uploadInputRef.current?.click()}
+              title="Subir archivo(s) — máx. 2 MB c/u"
+              className="p-1 rounded text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+            >
+              <Upload size={13} />
+            </button>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              accept="*/*"
+              onChange={handleUploadFiles}
+            />
+          </div>
+        )}
       </div>
 
       {/* Root-level new file */}
@@ -452,6 +456,7 @@ export default function FileExplorer() {
                 confirmingDelete={confirmDelete === file.id}
                 isRenaming={renamingId === file.id}
                 renameValue={renamingId === file.id ? renameValue : file.name}
+                readOnly={isReadOnly}
                 onOpen={() => openFile(file.id)}
                 onDelete={() => handleDelete(file)}
                 onRename={() => startRename(file)}
@@ -585,6 +590,7 @@ interface FolderRowProps {
   confirmingDelete: boolean;
   isRenaming: boolean;
   renameValue: string;
+  readOnly: boolean;
   onToggle: () => void;
   onDelete: () => void;
   onRename: () => void;
@@ -597,7 +603,7 @@ interface FolderRowProps {
 
 function FolderRow({
   folder, depth, collapsed, totalItems, confirmingDelete,
-  isRenaming, renameValue,
+  isRenaming, renameValue, readOnly,
   onToggle, onDelete, onRename, onRenameChange, onRenameCommit, onRenameCancel,
   onCreateFileIn, onCreateFolderIn,
 }: FolderRowProps) {
@@ -628,7 +634,7 @@ function FolderRow({
       className="group flex items-center justify-between py-1 cursor-pointer text-xs text-gray-700 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white transition-colors"
       style={{ paddingLeft: depth * 16 + 6, paddingRight: 6 }}
       onClick={onToggle}
-      onDoubleClick={(e) => { e.stopPropagation(); onRename(); }}
+      onDoubleClick={(e) => { e.stopPropagation(); if (!readOnly) onRename(); }}
     >
       <div className="flex items-center gap-1 min-w-0">
         <span className="text-gray-400 dark:text-slate-500 flex-shrink-0">
@@ -648,43 +654,45 @@ function FolderRow({
       </div>
 
       {/* Action buttons — visible on hover */}
-      <div
-        className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onRename}
-          title="Renombrar carpeta"
-          className="p-0.5 rounded text-gray-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+      {!readOnly && (
+        <div
+          className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+          onClick={(e) => e.stopPropagation()}
         >
-          <Pencil size={11} />
-        </button>
-        <button
-          onClick={onCreateFileIn}
-          title="Nuevo archivo aquí"
-          className="p-0.5 rounded text-gray-400 dark:text-slate-500 hover:text-green-600 dark:hover:text-green-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-        >
-          <FilePlus size={11} />
-        </button>
-        <button
-          onClick={onCreateFolderIn}
-          title="Nueva subcarpeta aquí"
-          className="p-0.5 rounded text-gray-400 dark:text-slate-500 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-        >
-          <FolderPlus size={11} />
-        </button>
-        <button
-          onClick={onDelete}
-          title={confirmingDelete ? "¿Confirmar? Borrará contenido" : "Eliminar carpeta"}
-          className={`p-0.5 rounded transition-colors ${
-            confirmingDelete
-              ? "text-red-500 dark:text-red-400"
-              : "text-gray-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-black/10 dark:hover:bg-white/10"
-          }`}
-        >
-          <Trash2 size={11} />
-        </button>
-      </div>
+          <button
+            onClick={onRename}
+            title="Renombrar carpeta"
+            className="p-0.5 rounded text-gray-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          >
+            <Pencil size={11} />
+          </button>
+          <button
+            onClick={onCreateFileIn}
+            title="Nuevo archivo aquí"
+            className="p-0.5 rounded text-gray-400 dark:text-slate-500 hover:text-green-600 dark:hover:text-green-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          >
+            <FilePlus size={11} />
+          </button>
+          <button
+            onClick={onCreateFolderIn}
+            title="Nueva subcarpeta aquí"
+            className="p-0.5 rounded text-gray-400 dark:text-slate-500 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          >
+            <FolderPlus size={11} />
+          </button>
+          <button
+            onClick={onDelete}
+            title={confirmingDelete ? "¿Confirmar? Borrará contenido" : "Eliminar carpeta"}
+            className={`p-0.5 rounded transition-colors ${
+              confirmingDelete
+                ? "text-red-500 dark:text-red-400"
+                : "text-gray-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-black/10 dark:hover:bg-white/10"
+            }`}
+          >
+            <Trash2 size={11} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -698,6 +706,7 @@ interface FileRowProps {
   confirmingDelete: boolean;
   isRenaming: boolean;
   renameValue: string;
+  readOnly: boolean;
   onOpen: () => void;
   onDelete: () => void;
   onRename: () => void;
@@ -708,7 +717,7 @@ interface FileRowProps {
 
 function FileRow({
   file, depth, active, confirmingDelete,
-  isRenaming, renameValue,
+  isRenaming, renameValue, readOnly,
   onOpen, onDelete, onRename, onRenameChange, onRenameCommit, onRenameCancel,
 }: FileRowProps) {
   if (isRenaming) {
@@ -742,35 +751,37 @@ function FileRow({
       }`}
       style={{ paddingLeft: depth * 16 + 10, paddingRight: 6 }}
       onClick={onOpen}
-      onDoubleClick={(e) => { e.stopPropagation(); onRename(); }}
+      onDoubleClick={(e) => { e.stopPropagation(); if (!readOnly) onRename(); }}
     >
       <div className="flex items-center gap-1.5 truncate min-w-0">
         <span className="text-sm flex-shrink-0">{getFileIcon(file.name)}</span>
         <span className="truncate font-mono text-[11px]">{file.name}</span>
       </div>
-      <div
-        className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onRename}
-          title="Renombrar"
-          className="p-0.5 rounded text-gray-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+      {!readOnly && (
+        <div
+          className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+          onClick={(e) => e.stopPropagation()}
         >
-          <Pencil size={11} />
-        </button>
-        <button
-          onClick={onDelete}
-          title={confirmingDelete ? "¿Confirmar?" : "Eliminar"}
-          className={`p-0.5 rounded transition-all ${
-            confirmingDelete
-              ? "text-red-500 dark:text-red-400"
-              : "text-gray-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-black/10 dark:hover:bg-white/10"
-          }`}
-        >
-          <Trash2 size={11} />
-        </button>
-      </div>
+          <button
+            onClick={onRename}
+            title="Renombrar"
+            className="p-0.5 rounded text-gray-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          >
+            <Pencil size={11} />
+          </button>
+          <button
+            onClick={onDelete}
+            title={confirmingDelete ? "¿Confirmar?" : "Eliminar"}
+            className={`p-0.5 rounded transition-all ${
+              confirmingDelete
+                ? "text-red-500 dark:text-red-400"
+                : "text-gray-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-black/10 dark:hover:bg-white/10"
+            }`}
+          >
+            <Trash2 size={11} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
