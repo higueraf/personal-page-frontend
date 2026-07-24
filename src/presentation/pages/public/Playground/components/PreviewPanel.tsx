@@ -97,7 +97,16 @@ export default function PreviewPanel({ refreshKey = 0 }: PreviewPanelProps) {
             ref={iframeRef}
             srcDoc={srcdoc}
             title="Web Preview"
-            sandbox="allow-scripts allow-same-origin allow-modals allow-forms"
+            // No "allow-same-origin": with it, Chrome treats a srcDoc iframe's
+            // document URL as identical to the parent page's real URL, so any
+            // in-app hash link (e.g. our React exams' custom hash router) resolves
+            // to a real, same-origin, servable URL and triggers a genuine
+            // navigation instead of an internal fragment change — loading the
+            // actual host app (nested) inside the preview. Without this flag the
+            // iframe gets an opaque origin, so "#/ruta" stays a harmless internal
+            // fragment navigation. Not needed anyway: the bundler only touches its
+            // own DOM/head, never cookies/localStorage/parent access.
+            sandbox="allow-scripts allow-modals allow-forms"
             className="w-full h-full border-0 bg-white"
           />
         </div>
