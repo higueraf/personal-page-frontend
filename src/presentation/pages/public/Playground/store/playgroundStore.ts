@@ -10,6 +10,7 @@ export type Language =
   | "r"
   | "html"
   | "react"
+  | "react-cypress"
   | "flutter"
   | "react-native"
   | "vue"

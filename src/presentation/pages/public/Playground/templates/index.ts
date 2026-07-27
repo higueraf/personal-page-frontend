@@ -503,6 +503,105 @@ describe('App', () => {
       },
     ],
   },
+  "react-cypress": {
+    id: "react-cypress",
+    label: "React + Cypress",
+    description: "Componentes con TypeScript y TSX, evaluados con specs E2E de Cypress (corrección manual, sin ejecución en vivo)",
+    color: "text-cyan-700 dark:text-cyan-400",
+    bgColor: "bg-cyan-50 dark:bg-cyan-950/40",
+    borderColor: "border-cyan-200 dark:border-cyan-400/40",
+    emoji: "🌲",
+    supportsPreview: true,
+    runtime: "iframe",
+    monacoLanguage: "typescript",
+    mainFileName: "src/main.tsx",
+    defaultFiles: [
+      // Folders
+      { name: "src",        path: "/src",            language: "plaintext", is_folder: true,  content: "" },
+      { name: "components", path: "/src/components", language: "plaintext", is_folder: true,  content: "" },
+      { name: "cypress",    path: "/cypress",         language: "plaintext", is_folder: true,  content: "" },
+      { name: "e2e",        path: "/cypress/e2e",     language: "plaintext", is_folder: true,  content: "" },
+      // Entry point
+      {
+        name: "main.tsx", path: "/src/main.tsx", language: "typescript", is_folder: false,
+        content:
+`import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root')!);
+root.render(<App />);
+`,
+      },
+      // Root component
+      {
+        name: "App.tsx", path: "/src/App.tsx", language: "typescript", is_folder: false,
+        content:
+`import React from 'react';
+import Counter from './components/Counter';
+
+export default function App() {
+  return (
+    <div style={{ fontFamily: 'sans-serif', padding: '2rem', maxWidth: 600, margin: '0 auto' }}>
+      <h1 style={{ color: '#0ea5e9' }}>🌲 React + Cypress</h1>
+      <p style={{ color: '#64748b' }}>Edita los archivos en <code>src/</code> para empezar.</p>
+      <Counter />
+    </div>
+  );
+}
+`,
+      },
+      // Example component with TypeScript types and hooks
+      {
+        name: "Counter.tsx", path: "/src/components/Counter.tsx", language: "typescript", is_folder: false,
+        content:
+`import React, { useState } from 'react';
+
+interface Props {
+  initialCount?: number;
+}
+
+export default function Counter({ initialCount = 0 }: Props) {
+  const [count, setCount] = useState<number>(initialCount);
+
+  return (
+    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '1rem', marginTop: '1rem' }}>
+      <p style={{ fontSize: '1.1rem', margin: '0 0 0.75rem' }}>
+        Contador: <strong data-testid="contador-valor">{count}</strong>
+      </p>
+      <button onClick={() => setCount(c => c + 1)} style={{ marginRight: 8, padding: '4px 12px', cursor: 'pointer' }}>
+        +
+      </button>
+      <button onClick={() => setCount(c => c - 1)} style={{ padding: '4px 12px', cursor: 'pointer' }}>
+        −
+      </button>
+    </div>
+  );
+}
+`,
+      },
+      // Example Cypress E2E spec — este playground NO ejecuta Cypress en vivo (no hay
+      // navegador real ni servidor persistente en el sandbox); correlo localmente con
+      // `npm run dev` + `npm run cy:run` sobre un proyecto Vite con este mismo código.
+      {
+        name: "app.cy.ts", path: "/cypress/e2e/app.cy.ts", language: "typescript", is_folder: false,
+        content:
+`describe('App', () => {
+  it('muestra el título', () => {
+    cy.visit('/');
+    cy.contains('React + Cypress').should('be.visible');
+  });
+
+  it('incrementa el contador al hacer click en +', () => {
+    cy.visit('/');
+    cy.contains('+').click();
+    cy.get('[data-testid="contador-valor"]').should('have.text', '1');
+  });
+});
+`,
+      },
+    ],
+  },
   "react-native": {
     id: "react-native",
     label: "React Native",

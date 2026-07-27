@@ -74,6 +74,7 @@ export function getExtension(language: string): string {
     html: "html",
     css: "css",
     react: "tsx",
+    "react-cypress": "tsx",
     vue: "js",
     angular: "ts",
     java: "java",

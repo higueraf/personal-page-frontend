@@ -14,6 +14,7 @@ const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "flutter", label: "Flutter" },
   { value: "nestjs", label: "NestJS" },
   { value: "react", label: "React" },
+  { value: "react-cypress", label: "React + Cypress" },
   { value: "react-native", label: "React Native" },
 ];
 
@@ -28,7 +29,7 @@ function emptyQuestion(order: number, language: string): ExamTemplateQuestion {
 }
 
 function emptyVersion(order_index: number, language: string): ExamVersion {
-  const questionCount = language === "flutter" || language === "react-native" ? 3 : 4;
+  const questionCount = language === "flutter" || language === "react-native" || language === "react-cypress" ? 3 : 4;
   return {
     id: `local-${order_index}`,
     theme_name: "",
