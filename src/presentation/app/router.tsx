@@ -23,6 +23,7 @@ import UserSettings      from "../pages/public/UserSettings";
 import PlaygroundList     from "../pages/public/Playground/PlaygroundList";
 import PlaygroundIDE      from "../pages/public/Playground/PlaygroundIDE";
 import PlaygroundExamGroupRedirect from "../pages/public/Playground/PlaygroundExamGroupRedirect";
+import SebQuit from "../pages/public/Playground/SebQuit";
 
 // ── Páginas admin ─────────────────────────────────────────────────────────────
 import AdminLayout       from "../layout/AdminLayout";
@@ -90,6 +91,9 @@ export const router = createBrowserRouter([
   },
 
   { path: "/admin/login", element: <Login /> },
+
+  // Target of the SEB `quitURL` — SEB intercepts navigation here and closes itself.
+  { path: "/seb-quit", element: <SebQuit /> },
 
   // ── Admin protegido (solo rol admin) ───────────────────────────────────────
   {

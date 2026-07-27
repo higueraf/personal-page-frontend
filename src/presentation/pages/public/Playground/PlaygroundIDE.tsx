@@ -722,6 +722,14 @@ export default function PlaygroundIDE() {
                 ? `Modo revisión — revisando examen de ${studentUser ? `${studentUser.first_name} ${studentUser.last_name}` : "alumno"}`
                 : "Examen entregado — modo solo lectura, puedes ver y ejecutar tu código"}
             </span>
+            {!isAdminReview && isInSEB && (
+              <button
+                onClick={() => { window.location.href = "/seb-quit"; }}
+                className="flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-500 rounded-lg text-white font-semibold text-xs transition-colors"
+              >
+                Cerrar Safe Exam Browser
+              </button>
+            )}
           </div>
 
           {isAdminReview && (
