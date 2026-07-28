@@ -13,6 +13,7 @@ import { examTemplateUseCases } from "../../../infrastructure/factories/exam-tem
 import { adminUserUseCases } from "../../../infrastructure/factories/admin-user-module.factory";
 import { institutionUseCases, studyCourseUseCases } from "../../../infrastructure/factories/tutorial-module.factory";
 import { ExamGroup, ExamProject, AssignExamPayload } from "../../../domain/entities/exam.entity";
+import { groupCheatingIncidents } from "../../lib/utils";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -401,7 +402,8 @@ export default function AdminAssignments() {
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {projects.map(p => {
                   const st = statusInfo(p);
-                  const hasCheated = p.cheating_logs?.length > 0;
+                  const cheatIncidents = groupCheatingIncidents(p.cheating_logs);
+                  const hasCheated = cheatIncidents.length > 0;
                   const isChanging = changeStatusMutation.isPending && changeStatusMutation.variables?.id === p.id;
                   return (
                     <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
@@ -443,7 +445,7 @@ export default function AdminAssignments() {
                             onClick={() => setViewLogsOf(p)}
                             className="inline-flex items-center gap-1 text-red-600 bg-red-100 hover:bg-red-200 px-2 py-1 rounded border border-red-200 font-bold text-xs transition-colors"
                           >
-                            <AlertTriangle size={13} /> {p.cheating_logs.length}
+                            <AlertTriangle size={13} /> {cheatIncidents.length}
                           </button>
                         ) : (
                           <span className="text-gray-400 text-xs">—</span>
@@ -489,23 +491,48 @@ export default function AdminAssignments() {
               <h3 className="text-lg font-bold flex items-center gap-2 text-red-600 border-b border-gray-100 dark:border-gray-800 pb-3 mb-4">
                 <AlertCircle size={20} /> Historial de Infracciones
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                 Alumno: <strong>{viewLogsOf.user ? `${viewLogsOf.user.first_name} ${viewLogsOf.user.last_name}` : "Desconocido"}</strong>
               </p>
+              {(() => {
+                const groups = groupCheatingIncidents(viewLogsOf.cheating_logs);
+                const rawCount = viewLogsOf.cheating_logs?.length ?? 0;
+                return (
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
+                    <strong className="text-red-600 dark:text-red-400">{groups.length}</strong> incidente(s) real(es)
+                    {rawCount !== groups.length && (
+                      <> (agrupando eventos casi simultáneos del navegador; {rawCount} eventos registrados en total)</>
+                    )}
+                  </p>
+                );
+              })()}
               <div className="max-h-60 overflow-y-auto space-y-3 pr-2">
-                {viewLogsOf.cheating_logs.map((log, i) => (
-                  <div key={i} className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 p-3 rounded-lg text-sm">
-                    <div className="flex justify-between items-start mb-1">
-                      <strong className="text-red-700 dark:text-red-400 flex items-center gap-2">
-                        <Clock size={12} /> {new Date(log.timestamp).toLocaleString("es-EC")}
-                      </strong>
-                      <span className="bg-red-200 dark:bg-red-900 text-red-800 dark:text-red-200 text-[10px] px-2 py-0.5 rounded font-mono uppercase">
-                        {log.action}
-                      </span>
+                {groupCheatingIncidents(viewLogsOf.cheating_logs).map((group, i) => {
+                  const first = group[0];
+                  const actions = Array.from(new Set(group.map(g => g.action)));
+                  return (
+                    <div key={i} className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 p-3 rounded-lg text-sm">
+                      <div className="flex justify-between items-start mb-1">
+                        <strong className="text-red-700 dark:text-red-400 flex items-center gap-2">
+                          <Clock size={12} /> {new Date(first.timestamp).toLocaleString("es-EC")}
+                        </strong>
+                        <div className="flex flex-wrap gap-1 justify-end">
+                          {actions.map(a => (
+                            <span key={a} className="bg-red-200 dark:bg-red-900 text-red-800 dark:text-red-200 text-[10px] px-2 py-0.5 rounded font-mono uppercase">
+                              {a}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      {group.length > 1 && (
+                        <div className="text-red-700/70 dark:text-red-400/70 text-[10px] mb-1">
+                          {group.length} eventos del navegador agrupados como un solo incidente
+                        </div>
+                      )}
+                      <div className="text-red-900/80 dark:text-red-300/80 text-xs">{first.details || "Sin detalles"}</div>
                     </div>
-                    <div className="text-red-900/80 dark:text-red-300/80 text-xs">{log.details || "Sin detalles"}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <div className="mt-6 flex justify-end">
                 <button onClick={() => setViewLogsOf(null)} className="bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded font-semibold hover:bg-gray-300 dark:hover:bg-gray-700">
