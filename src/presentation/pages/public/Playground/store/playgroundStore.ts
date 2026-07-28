@@ -10,6 +10,7 @@ export type Language =
   | "r"
   | "html"
   | "react"
+  | "react-crud"
   | "react-cypress"
   | "flutter"
   | "react-native"

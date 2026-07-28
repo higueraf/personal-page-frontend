@@ -9,6 +9,7 @@ export function buildIframeSrcdoc(
     case "html":
       return buildHtmlPreview(files);
     case "react":
+    case "react-crud":
     case "react-cypress":
       return buildReactPreview(files);
     case "vue":

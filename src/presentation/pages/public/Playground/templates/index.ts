@@ -503,6 +503,81 @@ describe('App', () => {
       },
     ],
   },
+  "react-crud": {
+    id: "react-crud",
+    label: "React — CRUD",
+    description: "Componentes con TypeScript, TSX y hooks — preview en vivo (sin tests)",
+    color: "text-cyan-700 dark:text-cyan-400",
+    bgColor: "bg-cyan-50 dark:bg-cyan-950/40",
+    borderColor: "border-cyan-200 dark:border-cyan-400/40",
+    emoji: "⚛️",
+    supportsPreview: true,
+    runtime: "iframe",
+    monacoLanguage: "typescript",
+    mainFileName: "src/main.tsx",
+    // Solo se usa para exámenes: los archivos reales siempre vienen del generador del backend
+    // (buildReactCrudExamFiles) — este defaultFiles nunca se muestra, se clona el de "react".
+    defaultFiles: [
+      { name: "src",        path: "/src",            language: "plaintext", is_folder: true,  content: "" },
+      { name: "components", path: "/src/components", language: "plaintext", is_folder: true,  content: "" },
+      {
+        name: "main.tsx", path: "/src/main.tsx", language: "typescript", is_folder: false,
+        content:
+`import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root')!);
+root.render(<App />);
+`,
+      },
+      {
+        name: "App.tsx", path: "/src/App.tsx", language: "typescript", is_folder: false,
+        content:
+`import React from 'react';
+import Counter from './components/Counter';
+
+export default function App() {
+  return (
+    <div style={{ fontFamily: 'sans-serif', padding: '2rem', maxWidth: 600, margin: '0 auto' }}>
+      <h1 style={{ color: '#0ea5e9' }}>⚛️ React + TypeScript</h1>
+      <p style={{ color: '#64748b' }}>Edita los archivos en <code>src/</code> para empezar.</p>
+      <Counter />
+    </div>
+  );
+}
+`,
+      },
+      {
+        name: "Counter.tsx", path: "/src/components/Counter.tsx", language: "typescript", is_folder: false,
+        content:
+`import React, { useState } from 'react';
+
+interface Props {
+  initialCount?: number;
+}
+
+export default function Counter({ initialCount = 0 }: Props) {
+  const [count, setCount] = useState<number>(initialCount);
+
+  return (
+    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '1rem', marginTop: '1rem' }}>
+      <p style={{ fontSize: '1.1rem', margin: '0 0 0.75rem' }}>
+        Contador: <strong>{count}</strong>
+      </p>
+      <button onClick={() => setCount(c => c + 1)} style={{ marginRight: 8, padding: '4px 12px', cursor: 'pointer' }}>
+        +
+      </button>
+      <button onClick={() => setCount(c => c - 1)} style={{ padding: '4px 12px', cursor: 'pointer' }}>
+        −
+      </button>
+    </div>
+  );
+}
+`,
+      },
+    ],
+  },
   "react-cypress": {
     id: "react-cypress",
     label: "React + Cypress",
