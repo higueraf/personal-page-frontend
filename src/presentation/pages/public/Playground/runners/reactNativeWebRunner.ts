@@ -127,6 +127,32 @@ export function buildReactNativeWebPreview(files: VirtualFile[]): string {
       // Matches: import ... from "spec" / export ... from "spec" / import "spec"
       var SPECIFIER_RE = /((?:from|import)\\s*)(['"])([^'"]+)\\2/g;
 
+      // Matches: import Default, { A, B } from "./relative"  /  import { A, B } from "./relative"
+      var NAMED_IMPORT_RE = /import\\s+(?:([\\w$]+)\\s*,\\s*)?\\{([^}]*)\\}\\s*from\\s*(['"])(\\.[^'"]+)\\3/g;
+
+      var moduleExportsCache = {}; // filePath -> { [exportedName]: true }
+
+      // Scans a transpiled file's *runtime* exports (const/let/var/function/class
+      // declarations and export lists). TypeScript interface/type declarations
+      // compile away to nothing, so they never show up here — that's exactly
+      // what lets us detect "phantom" named imports below.
+      function getExportedNames(code) {
+        var names = {};
+        var m;
+        var re1 = /export\\s+(?:const|let|var|function\\*?|class|async\\s+function)\\s+([A-Za-z0-9_$]+)/g;
+        while ((m = re1.exec(code))) names[m[1]] = true;
+        var re2 = /export\\s*\\{([^}]*)\\}/g;
+        while ((m = re2.exec(code))) {
+          m[1].split(',').forEach(function (part) {
+            var piece = part.trim();
+            if (!piece) return;
+            var asMatch = piece.match(/^([A-Za-z0-9_$]+)\\s+as\\s+([A-Za-z0-9_$]+)$/);
+            names[asMatch ? asMatch[2] : piece] = true;
+          });
+        }
+        return names;
+      }
+
       // Transpiles a file, rewrites its relative import specifiers to Blob
       // URLs (recursing into each), and returns a Blob URL for the file itself.
       function processFile(filePath) {
@@ -150,7 +176,40 @@ export function buildReactNativeWebPreview(files: VirtualFile[]): string {
           throw new Error('Error de sintaxis en ' + filePath + ':\\n' + e.message);
         }
 
-        var rewritten = transpiled.replace(SPECIFIER_RE, function (match, kw, quote, spec) {
+        moduleExportsCache[filePath] = getExportedNames(transpiled);
+
+        // Pass 1: named imports from relative files — prune specifiers that
+        // reference TypeScript types Babel failed to elide (they don't exist
+        // as runtime exports of the target module) before rewriting the URL.
+        var pruned = transpiled.replace(NAMED_IMPORT_RE, function (match, defaultName, namedList, quote, spec) {
+          var resolved = joinPath(fromDir, spec);
+          var childPath = resolveFile(resolved);
+          if (!childPath) {
+            throw new Error(
+              'M\\u00f3dulo no encontrado: "' + spec + '" (buscado como: ' + resolved + ').' +
+              ' Verifica el nombre y la ruta del archivo.'
+            );
+          }
+          var childUrl = processFile(childPath);
+          var childExports = moduleExportsCache[childPath] || {};
+          var kept = namedList
+            .split(',')
+            .map(function (p) { return p.trim(); })
+            .filter(function (p) {
+              if (!p) return false;
+              var asMatch = p.match(/^([A-Za-z0-9_$]+)\\s+as\\s+([A-Za-z0-9_$]+)$/);
+              var localSource = asMatch ? asMatch[1] : p;
+              return !!childExports[localSource];
+            });
+          var namedClause = kept.length ? ('{ ' + kept.join(', ') + ' }') : '{}';
+          var defaultClause = defaultName ? (defaultName + ', ') : '';
+          return 'import ' + defaultClause + namedClause + ' from ' + quote + childUrl + quote;
+        });
+
+        // Pass 2: everything else (default-only imports, namespace imports,
+        // bare side-effect imports, dynamic import()). Blob URLs from pass 1
+        // don't start with "." so they're left untouched here.
+        var rewritten = pruned.replace(SPECIFIER_RE, function (match, kw, quote, spec) {
           if (!spec.startsWith('.')) return match; // bare specifier → import map handles it
           var resolved = joinPath(fromDir, spec);
           var childPath = resolveFile(resolved);
