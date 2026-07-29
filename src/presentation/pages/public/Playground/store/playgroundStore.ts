@@ -9,6 +9,7 @@ export type Language =
   | "dart"
   | "r"
   | "html"
+  | "html-array"
   | "react"
   | "react-crud"
   | "react-cypress"

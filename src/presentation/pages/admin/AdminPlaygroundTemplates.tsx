@@ -10,7 +10,7 @@ import {
 } from "../../../domain/entities/playground-template.entity";
 
 const LANGUAGE_OPTIONS = [
-  "python", "javascript", "typescript", "java", "kotlin", "dart", "html", "react", "vue", "angular",
+  "python", "javascript", "typescript", "java", "kotlin", "dart", "html", "html-array", "react", "vue", "angular",
 ];
 
 function emptyFile(path: string): PlaygroundTemplateFile {

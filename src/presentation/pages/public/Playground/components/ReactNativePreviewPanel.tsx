@@ -1,49 +1,27 @@
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { usePlaygroundStore } from "../store/playgroundStore";
+import { buildReactNativeWebPreview } from "../runners/reactNativeWebRunner";
 
 interface ReactNativePreviewPanelProps {
   /** Incremented externally (▶ Ejecutar) to reload the preview with the latest code */
   refreshKey?: number;
 }
 
-/**
- * Builds an Expo Snack embed URL with the current App.tsx code encoded as a
- * query parameter.  platform=web renders instantly via React Native Web —
- * no cloud compilation required.
- */
-function buildSnackUrl(): string {
-  const { files } = usePlaygroundStore.getState();
-  const appFile =
-    files.find((f) => !f.is_folder && f.name === "App.tsx") ??
-    files.find((f) => !f.is_folder && (f.name.endsWith(".tsx") || f.name.endsWith(".jsx")));
-  const code = appFile?.content ?? "";
-  return (
-    "https://snack.expo.dev/embedded" +
-    "?platform=web" +
-    "&preview=true" +
-    "&theme=dark" +
-    "&sdkVersion=51.0.0" +
-    `&code=${encodeURIComponent(code)}`
-  );
-}
-
 export default function ReactNativePreviewPanel({ refreshKey = 0 }: ReactNativePreviewPanelProps) {
-  // src + key are updated together so the iframe fully reloads with the new URL
-  const [iframeKey, setIframeKey] = useState(0);
-  const [snackSrc, setSnackSrc]   = useState(buildSnackUrl);
+  const { files } = usePlaygroundStore();
+  const [localKey, setLocalKey] = useState(0);
 
-  // ▶ Ejecutar pressed externally → rebuild URL with latest code and reload
+  const srcDoc = buildReactNativeWebPreview(files);
+  const combinedKey = `${refreshKey}-${localKey}`;
+
   useEffect(() => {
-    if (refreshKey === 0) return;
-    setSnackSrc(buildSnackUrl());
-    setIframeKey((k) => k + 1);
-  }, [refreshKey]);
-
-  function handleRefresh() {
-    setSnackSrc(buildSnackUrl());
-    setIframeKey((k) => k + 1);
-  }
+    // Auto-refresh when files change (debounced), same convention as PreviewPanel.tsx
+    const timer = setTimeout(() => {
+      setLocalKey((k) => k + 1);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [files]);
 
   return (
     <div className="flex flex-col h-full bg-[#0d1117]">
@@ -52,12 +30,12 @@ export default function ReactNativePreviewPanel({ refreshKey = 0 }: ReactNativeP
         <div className="flex items-center gap-2">
           <span className="text-sm">📲</span>
           <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-            React Native · Expo Snack
+            React Native · react-native-web
           </span>
         </div>
         <button
-          onClick={handleRefresh}
-          title="Recargar preview (Expo Snack)"
+          onClick={() => setLocalKey((k) => k + 1)}
+          title="Recargar preview"
           className="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-white/10 transition-colors"
         >
           <RefreshCw size={13} />
@@ -124,13 +102,12 @@ export default function ReactNativePreviewPanel({ refreshKey = 0 }: ReactNativeP
               </div>
             </div>
 
-            {/* Expo Snack embed — platform=web renders via React Native Web, no compilation wait */}
+            {/* react-native-web preview, loaded/transpiled entirely locally */}
             <iframe
-              key={iframeKey}
-              src={snackSrc}
-              title="React Native Preview — Expo Snack"
-              allow="geolocation; camera; microphone"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads"
+              key={combinedKey}
+              srcDoc={srcDoc}
+              title="React Native Preview — react-native-web"
+              sandbox="allow-scripts allow-modals allow-forms"
               style={{ width:"100%", height:"100%", border:"none" }}
             />
 

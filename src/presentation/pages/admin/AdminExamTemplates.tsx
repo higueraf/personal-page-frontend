@@ -18,6 +18,7 @@ const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "react-cypress", label: "React + Cypress" },
   { value: "react-native", label: "React Native" },
   { value: "html", label: "HTML/CSS/JS (DOM)" },
+  { value: "html-array", label: "HTML/CSS/JS (Arreglo, sin API)" },
 ];
 
 /** Puntos por defecto de una pregunta nueva, según el lenguaje de la plantilla. */

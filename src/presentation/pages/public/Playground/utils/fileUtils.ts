@@ -72,6 +72,7 @@ export function getExtension(language: string): string {
     flutter: "dart",
     "react-native": "tsx",
     html: "html",
+    "html-array": "html",
     css: "css",
     react: "tsx",
     "react-cypress": "tsx",

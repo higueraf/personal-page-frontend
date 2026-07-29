@@ -7,6 +7,7 @@ export function buildIframeSrcdoc(
 ): string {
   switch (language) {
     case "html":
+    case "html-array":
       return buildHtmlPreview(files);
     case "react":
     case "react-crud":
