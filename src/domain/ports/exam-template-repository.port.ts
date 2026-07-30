@@ -6,4 +6,5 @@ export interface ExamTemplateRepositoryPort {
   create(payload: SaveExamTemplatePayload): Promise<ExamTemplateSummary>;
   update(id: string, payload: Partial<SaveExamTemplatePayload>): Promise<ExamTemplateSummary>;
   remove(id: string): Promise<void>;
+  resetPracticeData(): Promise<void>;
 }

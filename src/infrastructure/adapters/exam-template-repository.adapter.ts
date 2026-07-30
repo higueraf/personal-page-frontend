@@ -26,4 +26,8 @@ export class AxiosExamTemplateRepositoryAdapter implements ExamTemplateRepositor
   async remove(id: string): Promise<void> {
     await axiosClient.delete(`/playground/admin/exam-templates/${id}`);
   }
+
+  async resetPracticeData(): Promise<void> {
+    await axiosClient.post("/playground/admin/exam-templates/reset-practice-data");
+  }
 }

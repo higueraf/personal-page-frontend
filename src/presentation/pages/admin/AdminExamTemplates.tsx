@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileQuestion, Plus, Trash2, Pencil, X, Save } from "lucide-react";
+import { FileQuestion, Plus, Trash2, Pencil, X, Save, RotateCcw } from "lucide-react";
 import { examTemplateUseCases } from "../../../infrastructure/factories/exam-template-module.factory";
 import {
   ExamTemplateSummary,
@@ -314,11 +314,26 @@ export default function AdminExamTemplates() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["exam-templates"] }),
   });
 
+  const resetPracticeDataMutation = useMutation({
+    mutationFn: () => examTemplateUseCases.resetPracticeData(),
+  });
+
   const templates = useMemo(() => templatesQ.data ?? [], [templatesQ.data]);
 
   function handleDelete(t: ExamTemplateSummary) {
     if (confirm(`¿Eliminar el examen "${t.name}"? Esta acción no se puede deshacer.`)) {
       removeMutation.mutate(t.id);
+    }
+  }
+
+  function handleResetPracticeData() {
+    if (
+      confirm(
+        "¿Restablecer los datos de To-Do y de todas las variantes de practice-api a sus valores iniciales?\n\n" +
+          "Esto borra los cambios (creaciones, ediciones, eliminaciones) que hayan hecho los estudiantes en esas tablas compartidas durante los exámenes con CRUD real. No se puede deshacer."
+      )
+    ) {
+      resetPracticeDataMutation.mutate();
     }
   }
 
@@ -333,13 +348,35 @@ export default function AdminExamTemplates() {
             Exámenes reutilizables con variantes temáticas para repartir automáticamente entre alumnos y evitar copias.
           </p>
         </div>
-        <button
-          onClick={() => setEditing(null)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg self-start"
-        >
-          <Plus size={16} /> Nuevo examen
-        </button>
+        <div className="flex items-center gap-2 self-start">
+          <button
+            onClick={handleResetPracticeData}
+            disabled={resetPracticeDataMutation.isPending}
+            title="Restablece las tablas de To-Do y de todas las variantes de practice-api a sus valores iniciales"
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg disabled:opacity-50"
+          >
+            <RotateCcw size={16} />
+            {resetPracticeDataMutation.isPending ? "Restableciendo..." : "Restablecer datos de práctica"}
+          </button>
+          <button
+            onClick={() => setEditing(null)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg"
+          >
+            <Plus size={16} /> Nuevo examen
+          </button>
+        </div>
       </header>
+
+      {resetPracticeDataMutation.isSuccess && (
+        <p className="text-xs text-green-600 dark:text-green-400">
+          Datos de práctica restablecidos correctamente.
+        </p>
+      )}
+      {resetPracticeDataMutation.isError && (
+        <p className="text-xs text-red-600 dark:text-red-400">
+          Ocurrió un error al restablecer los datos de práctica.
+        </p>
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
         {templatesQ.isLoading ? (

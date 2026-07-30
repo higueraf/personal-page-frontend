@@ -371,8 +371,7 @@ export default function PlaygroundIDE() {
     setSaving(true);
     try {
       const filesToSave = files
-        .filter(f => !f.is_folder)
-        .map(f => ({ id: f.id, name: f.name, content: f.content, path: f.path }));
+        .map(f => ({ id: f.id, name: f.name, content: f.content, path: f.path, is_folder: f.is_folder }));
       await playgroundUseCases.saveAll(id, filesToSave);
     } catch (err) {
       console.error("Save error:", err);

@@ -23,4 +23,8 @@ export class ExamTemplateUseCases {
   remove(id: string): Promise<void> {
     return this.repository.remove(id);
   }
+
+  resetPracticeData(): Promise<void> {
+    return this.repository.resetPracticeData();
+  }
 }
