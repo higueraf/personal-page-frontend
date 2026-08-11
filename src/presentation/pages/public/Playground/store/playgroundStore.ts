@@ -35,6 +35,7 @@ interface PlaygroundStore {
   allowCopyPaste: boolean;
   requireSeb: boolean;
   isReadOnly: boolean;
+  securityLocked: boolean;
   files: VirtualFile[];
   activeFileId: string | null;
   openFileIds: string[];
@@ -50,7 +51,8 @@ interface PlaygroundStore {
     allowCopyPaste: boolean,
     requireSeb: boolean,
     files: VirtualFile[],
-    isReadOnly?: boolean
+    isReadOnly?: boolean,
+    securityLocked?: boolean
   ) => void;
   setActiveFile: (id: string) => void;
   openFile: (id: string) => void;
@@ -62,6 +64,7 @@ interface PlaygroundStore {
   setRunning: (v: boolean) => void;
   setSaving: (v: boolean) => void;
   setReadOnly: (v: boolean) => void;
+  setSecurityLocked: (v: boolean) => void;
   appendTerminalLine: (line: string) => void;
   clearTerminal: () => void;
 }
@@ -74,6 +77,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
   allowCopyPaste: true,
   requireSeb: false,
   isReadOnly: false,
+  securityLocked: false,
   files: [],
   activeFileId: null,
   openFileIds: [],
@@ -81,7 +85,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
   isSaving: false,
   terminalLines: [],
 
-  initProject: (id, name, language, isExam, allowCopyPaste, requireSeb, files, isReadOnly = false) => {
+  initProject: (id, name, language, isExam, allowCopyPaste, requireSeb, files, isReadOnly = false, securityLocked = false) => {
     const firstFile = files.find((f) => !f.is_folder);
     set({
       projectId: id,
@@ -91,6 +95,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
       allowCopyPaste,
       requireSeb,
       isReadOnly,
+      securityLocked,
       files,
       activeFileId: firstFile?.id ?? null,
       openFileIds: firstFile ? [firstFile.id] : [],
@@ -180,6 +185,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
   setRunning: (v) => set({ isRunning: v }),
   setSaving: (v) => set({ isSaving: v }),
   setReadOnly: (v) => set({ isReadOnly: v }),
+  setSecurityLocked: (v) => set({ securityLocked: v }),
 
   appendTerminalLine: (line) =>
     set((state) => ({ terminalLines: [...state.terminalLines, line] })),

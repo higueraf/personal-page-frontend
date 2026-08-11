@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Editor } from "@monaco-editor/react";
-import { X, AlertCircle, WifiOff, ShieldCheck } from "lucide-react";
+import { X, AlertCircle, WifiOff, ShieldCheck, Lock, History } from "lucide-react";
 import { useTheme } from "../../../providers/ThemeProvider";
 
 import { usePlaygroundStore, type Language } from "./store/playgroundStore";
@@ -55,6 +55,7 @@ export default function PlaygroundIDE() {
     requireSeb,
     projectName,
     isReadOnly,
+    securityLocked,
     initProject,
     openFile,
     closeFile,
@@ -62,6 +63,7 @@ export default function PlaygroundIDE() {
     setRunning,
     setSaving,
     setReadOnly,
+    setSecurityLocked,
   } = usePlaygroundStore();
 
   // Detect Safe Exam Browser (SEB)
@@ -104,6 +106,13 @@ export default function PlaygroundIDE() {
   const [endTime, setEndTime] = useState<Date | null>(null);
   const endTimeRef = useRef<Date | null>(null);
 
+  // Admin-review only: change history (snapshots) viewer
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyList, setHistoryList] = useState<{ id: string; created_at: string; file_count: number }[]>([]);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<{ id: string; created_at: string; files: any[] } | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
+
   const config = LANGUAGE_CONFIGS[language];
 
   // ── Load project ────────────────────────────────────────────────────────────
@@ -135,7 +144,7 @@ export default function PlaygroundIDE() {
         let readOnlyNow = isAdminReview;
 
         if (data.is_exam && !isAdminReview) {
-          if (data.status === 'submitted' || data.status === 'graded') {
+          if (data.status === 'submitted' || data.status === 'graded' || data.security_locked) {
             readOnlyNow = true;
           } else {
             // Use server-corrected time for the expiry check
@@ -168,7 +177,8 @@ export default function PlaygroundIDE() {
           data.allow_copy_paste ?? true,
           data.require_seb ?? false,
           projectFiles,
-          readOnlyNow
+          readOnlyNow,
+          data.security_locked ?? false
         );
         // Auto-open first file
         const firstCode = projectFiles.find((f: any) => !f.is_folder);
@@ -188,9 +198,25 @@ export default function PlaygroundIDE() {
     setShowPreview(config.supportsPreview);
   }, [config.supportsPreview]);
 
+  // Called after every logCheat response: the backend groups incidents and
+  // may have just crossed the 5-incident threshold — if so, lock the editor
+  // immediately client-side too, without waiting for a page refresh.
+  const handleCheatLogResult = useCallback((res: { security_locked: boolean }) => {
+    if (res.security_locked) {
+      setSecurityLocked(true);
+      setReadOnly(true);
+    }
+  }, [setSecurityLocked, setReadOnly]);
+
   // ── Exam Restrictions ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isExam || isReadOnly) return;
+
+    // 0. Best-effort clipboard clear at exam start — an extra layer so a
+    //    student can't paste content copied from outside before the exam
+    //    began (does NOT replace the external-paste block below, which is
+    //    the actual protection during the exam).
+    navigator.clipboard?.writeText("").catch(() => {});
 
     // 1. Enter Fullscreen (may require user interaction so it's a best-effort)
     const enterFullscreen = () => {
@@ -225,7 +251,7 @@ export default function PlaygroundIDE() {
           id as string,
           "paste_external",
           "El alumno intentó pegar contenido externo al editor."
-        ).catch(() => {});
+        ).then(handleCheatLogResult).catch(() => {});
         alert("Solo puedes pegar contenido que hayas copiado dentro del editor. Pegar texto externo está bloqueado durante este examen.");
       }
     };
@@ -244,6 +270,15 @@ export default function PlaygroundIDE() {
       e.stopPropagation();
     };
 
+    // Block drag-and-drop of external text into the editor — without this,
+    // dragging text from another app/window bypasses the paste block above
+    // entirely, since `drop` never fires a `paste` ClipboardEvent.
+    const handleDropOrDragOver = (e: DragEvent) => {
+      if (allowCopyPaste) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
     // 4. Fullscreen lock check
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
@@ -253,7 +288,7 @@ export default function PlaygroundIDE() {
           id as string,
           "exit_fullscreen",
           "El alumno salió del modo pantalla completa."
-        ).catch(() => {});
+        ).then(handleCheatLogResult).catch(() => {});
       } else {
         setIsLockedOut(false);
       }
@@ -267,7 +302,7 @@ export default function PlaygroundIDE() {
           id as string,
           "tab_switch",
           "El alumno cambió de pestaña, abrió otra ventana o minimizó el navegador."
-        ).catch(() => {});
+        ).then(handleCheatLogResult).catch(() => {});
         setIsTabSwitchLocked(true);
       }
     };
@@ -291,7 +326,7 @@ export default function PlaygroundIDE() {
           id as string,
           "window_blur",
           "El alumno cambió de ventana o aplicación (Alt+Tab u otro método)."
-        ).catch(() => {});
+        ).then(handleCheatLogResult).catch(() => {});
         setIsTabSwitchLocked(true);
       }, 0);
     };
@@ -305,6 +340,8 @@ export default function PlaygroundIDE() {
       window.addEventListener("paste", handlePaste, true);
       window.addEventListener("copy", handleCopyCutOutsideEditor as any, true);
       window.addEventListener("cut", handleCopyCutOutsideEditor as any, true);
+      window.addEventListener("drop", handleDropOrDragOver, true);
+      window.addEventListener("dragover", handleDropOrDragOver, true);
     }
 
     return () => {
@@ -317,6 +354,8 @@ export default function PlaygroundIDE() {
         window.removeEventListener("paste", handlePaste, true);
         window.removeEventListener("copy", handleCopyCutOutsideEditor as any, true);
         window.removeEventListener("cut", handleCopyCutOutsideEditor as any, true);
+        window.removeEventListener("drop", handleDropOrDragOver, true);
+        window.removeEventListener("dragover", handleDropOrDragOver, true);
       }
     };
   }, [isExam, isReadOnly, allowCopyPaste]);
@@ -355,7 +394,7 @@ export default function PlaygroundIDE() {
           id as string,
           'keyboard_escape_attempt',
           `El alumno intentó salir del examen con teclado: ${combo}`
-        ).catch(() => {});
+        ).then(handleCheatLogResult).catch(() => {});
       }
     };
 
@@ -481,7 +520,7 @@ export default function PlaygroundIDE() {
         `${C.gray}[${now}]${C.reset} ${C.yellow}⚠ ${targetFile} es un archivo de test: ejecutándolo con Jest en vez de tsx…${C.reset}\r\n`
       );
       terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
-      startTestExecution(files, language);
+      startTestExecution(files, language, id);
       return;
     }
 
@@ -492,12 +531,13 @@ export default function PlaygroundIDE() {
     );
     terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
 
-    startExecution(language, files, targetFile);
+    startExecution(language, files, targetFile, id);
   }, [
     config,
     language,
     files,
     activeFileId,
+    id,
     setRunning,
     setShowTerminal,
     startExecution,
@@ -506,6 +546,16 @@ export default function PlaygroundIDE() {
 
   // ── Run specific file (from terminal commands like `kotlin archivo.kt`) ────
   const handleRunFile = useCallback((targetFile: string) => {
+    // Framework/bundled projects (React, React Native, Vue, Angular, HTML…) always run
+    // as a whole project through their entry point — never a single active/open file
+    // (e.g. clicking "Ejecutar" while ENUNCIADO.md or any non-entry file is open must
+    // never attempt to execute that file's raw content as if it were the app).
+    if (config.runtime === "iframe") {
+      setPreviewRefreshKey((k) => k + 1);
+      setShowPreview(true);
+      return;
+    }
+
     setShowTerminal(true);
 
     terminalApiRef.current?.clear();
@@ -517,11 +567,14 @@ export default function PlaygroundIDE() {
     );
     terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
 
-    startExecution(language, files, targetFile);
+    startExecution(language, files, targetFile, id);
   }, [
+    config,
     language,
     files,
+    id,
     setRunning,
+    setShowPreview,
     startExecution,
   ]);
 
@@ -537,10 +590,11 @@ export default function PlaygroundIDE() {
     );
     terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
 
-    startTestExecution(files, language);
+    startTestExecution(files, language, id);
   }, [
     files,
     language,
+    id,
     setRunning,
     setShowTerminal,
     startTestExecution,
@@ -564,6 +618,46 @@ export default function PlaygroundIDE() {
     a.click();
     URL.revokeObjectURL(url);
   }, [files, projectName]);
+
+  // ── Admin: change history (snapshots) ───────────────────────────────────────
+  const handleOpenHistory = useCallback(async () => {
+    if (!id) return;
+    setShowHistory(true);
+    setHistoryLoading(true);
+    setSelectedSnapshot(null);
+    try {
+      const list = await playgroundUseCases.getProjectHistory(id);
+      setHistoryList(list);
+    } catch (err) {
+      console.error("History load error:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [id]);
+
+  const handleViewSnapshot = useCallback(async (snapshotId: string) => {
+    if (!id) return;
+    try {
+      const snap = await playgroundUseCases.getProjectSnapshot(id, snapshotId);
+      setSelectedSnapshot(snap);
+    } catch (err) {
+      console.error("Snapshot load error:", err);
+    }
+  }, [id]);
+
+  // ── Admin: reactivar examen bloqueado por incidentes de seguridad ──────────
+  const handleUnlockProject = useCallback(async () => {
+    if (!id) return;
+    setUnlocking(true);
+    try {
+      await playgroundUseCases.unlockProject(id);
+      setSecurityLocked(false);
+    } catch (err) {
+      console.error("Unlock error:", err);
+    } finally {
+      setUnlocking(false);
+    }
+  }, [id, setSecurityLocked]);
 
   // ── Exam auto-save every 5 minutes ──────────────────────────────────────────
   useEffect(() => {
@@ -627,6 +721,22 @@ export default function PlaygroundIDE() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#f8f9fc] dark:bg-[#0d1117] text-gray-900 dark:text-white">
       
+      {/* ── Lock Screen: security lockout (persistent, no dismiss — 5+ real incidents) ── */}
+      {securityLocked && isExam && !isAdminReview && (
+        <div className="fixed inset-0 bg-gray-950 z-[10000] flex flex-col items-center justify-center text-white p-8 text-center">
+          <div className="w-24 h-24 mb-6 rounded-2xl bg-red-600/20 border-2 border-red-500/40 flex items-center justify-center">
+            <Lock size={48} className="text-red-400" />
+          </div>
+          <h2 className="text-3xl font-black tracking-tight mb-3 text-white">Editor Bloqueado</h2>
+          <p className="text-base max-w-lg text-slate-300 mb-2">
+            Tu editor fue bloqueado por múltiples incidentes de seguridad detectados durante este examen.
+          </p>
+          <p className="text-sm text-slate-400 max-w-lg">
+            Contacta a tu profesor para que revise tu caso y reactive el examen.
+          </p>
+        </div>
+      )}
+
       {/* ── Lock Screen: SEB required ── */}
       {requireSeb && !isInSEB && isExam && !isReadOnly && (
         <div className="fixed inset-0 bg-gray-950 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center">
@@ -714,6 +824,23 @@ export default function PlaygroundIDE() {
                 className="flex items-center gap-1.5 px-3 py-1 bg-amber-200 dark:bg-amber-800/50 hover:bg-amber-300 dark:hover:bg-amber-700/60 rounded-lg text-amber-900 dark:text-amber-200 font-semibold text-xs transition-colors"
               >
                 ← Volver a proyectos del examen
+              </button>
+            )}
+            {isAdminReview && (
+              <button
+                onClick={handleOpenHistory}
+                className="flex items-center gap-1.5 px-3 py-1 bg-amber-200 dark:bg-amber-800/50 hover:bg-amber-300 dark:hover:bg-amber-700/60 rounded-lg text-amber-900 dark:text-amber-200 font-semibold text-xs transition-colors"
+              >
+                <History size={14} /> Ver historial
+              </button>
+            )}
+            {isAdminReview && securityLocked && (
+              <button
+                disabled={unlocking}
+                onClick={handleUnlockProject}
+                className="flex items-center gap-1.5 px-3 py-1 bg-red-200 dark:bg-red-800/50 hover:bg-red-300 dark:hover:bg-red-700/60 disabled:opacity-50 rounded-lg text-red-900 dark:text-red-200 font-semibold text-xs transition-colors"
+              >
+                <Lock size={14} /> {unlocking ? "Reactivando…" : "Reactivar examen bloqueado"}
               </button>
             )}
             <span className="text-xs opacity-90">
@@ -946,6 +1073,72 @@ export default function PlaygroundIDE() {
           </>
         )}
       </div>
+
+      {/* ── Admin: modal de historial de cambios (snapshots) ── */}
+      {showHistory && isAdminReview && (
+        <div className="fixed inset-0 bg-black/60 z-[10001] flex items-center justify-center p-6">
+          <div className="bg-white dark:bg-[#161b22] rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-black/10 dark:border-white/10">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <History size={16} /> Historial de cambios
+              </h3>
+              <button
+                onClick={() => { setShowHistory(false); setSelectedSnapshot(null); }}
+                className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 dark:text-slate-400"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex flex-1 overflow-hidden">
+              {/* Timeline */}
+              <div className="w-64 shrink-0 border-r border-black/10 dark:border-white/10 overflow-y-auto">
+                {historyLoading ? (
+                  <p className="text-xs text-gray-500 dark:text-slate-400 p-4">Cargando…</p>
+                ) : historyList.length === 0 ? (
+                  <p className="text-xs text-gray-500 dark:text-slate-400 p-4">Sin snapshots guardados aún.</p>
+                ) : (
+                  <ul>
+                    {historyList.map((snap) => (
+                      <li key={snap.id}>
+                        <button
+                          onClick={() => handleViewSnapshot(snap.id)}
+                          className={`w-full text-left px-4 py-2 text-xs border-b border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
+                            selectedSnapshot?.id === snap.id ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-slate-300"
+                          }`}
+                        >
+                          <div className="font-medium">{new Date(snap.created_at).toLocaleString()}</div>
+                          <div className="text-[11px] opacity-70">{snap.file_count} archivo(s)</div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              {/* Snapshot files viewer (read-only, no afecta el proyecto real) */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {!selectedSnapshot ? (
+                  <p className="text-xs text-gray-500 dark:text-slate-400">Selecciona un momento del historial para ver los archivos de ese snapshot.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {selectedSnapshot.files
+                      .filter((f) => !f.is_folder)
+                      .map((f, idx) => (
+                        <div key={f.id ?? idx} className="border border-black/10 dark:border-white/10 rounded-lg overflow-hidden">
+                          <div className="px-3 py-1.5 bg-gray-100 dark:bg-[#0d1117] text-xs font-mono text-gray-700 dark:text-slate-300">
+                            {f.path || f.name}
+                          </div>
+                          <pre className="p-3 text-xs overflow-x-auto bg-white dark:bg-[#0d1117] text-gray-800 dark:text-slate-200 whitespace-pre-wrap">
+                            {f.content}
+                          </pre>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -71,13 +71,13 @@ export function useExecutionSocket(options: ExecutionSocketOptions) {
    *  file's folder `path` so multi-file projects (e.g. NestJS's src/*.ts)
    *  with relative imports resolve correctly. */
   const startExecution = useCallback(
-    (language: string, files: VirtualFile[], targetFile?: string) => {
+    (language: string, files: VirtualFile[], targetFile?: string, projectId?: string) => {
       const socket = ensureConnected();
       const codeFiles = files
         .filter((f) => !f.is_folder && f.content.trim() !== '')
         .map((f) => ({ name: f.name, path: f.path, content: f.content }));
 
-      socket.emit('start_execution', { language, files: codeFiles, targetFile });
+      socket.emit('start_execution', { language, files: codeFiles, targetFile, projectId });
     },
     [ensureConnected],
   );
@@ -86,13 +86,13 @@ export function useExecutionSocket(options: ExecutionSocketOptions) {
    *  backend via WebSocket. Preserves each file's folder `path` so relative
    *  imports (./App, ../components/Counter, ./app.module) resolve correctly. */
   const startTestExecution = useCallback(
-    (files: VirtualFile[], language: string) => {
+    (files: VirtualFile[], language: string, projectId?: string) => {
       const socket = ensureConnected();
       const codeFiles = files
         .filter((f) => !f.is_folder && f.content.trim() !== '')
         .map((f) => ({ name: f.name, path: f.path, content: f.content }));
 
-      socket.emit('start_test_execution', { files: codeFiles, language });
+      socket.emit('start_test_execution', { files: codeFiles, language, projectId });
     },
     [ensureConnected],
   );

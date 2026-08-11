@@ -23,6 +23,7 @@ export interface ExamProject {
   end_time: string | null;
   allow_copy_paste: boolean;
   cheating_logs: Array<{ timestamp: string; action: string; details?: string }>;
+  security_locked?: boolean;
   user?: { id: string; first_name: string; last_name: string; email: string };
   exam_group_id: string | null;
   exam_version_id?: string | null;

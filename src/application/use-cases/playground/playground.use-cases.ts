@@ -5,6 +5,8 @@ import {
   CreatePlaygroundPayload,
   PlaygroundFile,
   RunResult,
+  PlaygroundSnapshotSummary,
+  PlaygroundSnapshotDetail,
 } from "../../../domain/entities/playground.entity";
 
 export class PlaygroundUseCases {
@@ -42,7 +44,7 @@ export class PlaygroundUseCases {
     return this.repository.submit(id);
   }
 
-  logCheat(id: string, action: string, details?: string): Promise<void> {
+  logCheat(id: string, action: string, details?: string): Promise<{ security_locked: boolean }> {
     return this.repository.logCheat(id, action, details);
   }
 
@@ -52,5 +54,17 @@ export class PlaygroundUseCases {
 
   getMyProjectInExamGroup(groupId: string): Promise<string> {
     return this.repository.getMyProjectInExamGroup(groupId);
+  }
+
+  getProjectHistory(projectId: string): Promise<PlaygroundSnapshotSummary[]> {
+    return this.repository.getProjectHistory(projectId);
+  }
+
+  getProjectSnapshot(projectId: string, snapshotId: string): Promise<PlaygroundSnapshotDetail> {
+    return this.repository.getProjectSnapshot(projectId, snapshotId);
+  }
+
+  unlockProject(projectId: string): Promise<void> {
+    return this.repository.unlockProject(projectId);
   }
 }

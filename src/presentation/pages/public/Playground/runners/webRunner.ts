@@ -1,5 +1,52 @@
 import type { VirtualFile, Language } from "../store/playgroundStore";
 
+// ─── Error/console reporting ──────────────────────────────────────────────────
+//
+// Injected into every generated preview document so runtime errors, unhandled
+// promise rejections and console.* calls are forwarded to the parent window
+// via postMessage. The parent (PreviewPanel) surfaces them in a "Consola" tab
+// so a blank/broken preview always has somewhere to look for the cause.
+
+const ERROR_REPORTING_SCRIPT = `<script>
+(function () {
+  function post(type, message) {
+    try {
+      window.parent.postMessage({ __playgroundPreview: true, type: type, message: String(message) }, '*');
+    } catch (e) {}
+  }
+  window.addEventListener('error', function (e) {
+    var loc = e.filename ? ' (' + e.filename + (e.lineno ? ':' + e.lineno : '') + ')' : '';
+    post('error', (e.message || 'Error') + loc);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var reason = e.reason;
+    post('error', 'Promesa rechazada sin manejar: ' + (reason && reason.message ? reason.message : reason));
+  });
+  var origLog = console.log, origWarn = console.warn, origError = console.error;
+  function toStr(args) {
+    try {
+      return Array.prototype.slice.call(args).map(function (a) {
+        return typeof a === 'string' ? a : JSON.stringify(a);
+      }).join(' ');
+    } catch (e) { return Array.prototype.slice.call(args).join(' '); }
+  }
+  console.log = function () { post('log', toStr(arguments)); origLog.apply(console, arguments); };
+  console.warn = function () { post('warn', toStr(arguments)); origWarn.apply(console, arguments); };
+  console.error = function () { post('error', toStr(arguments)); origError.apply(console, arguments); };
+})();
+</script>`;
+
+/** Injects the error/console reporting script as early as possible in a full HTML document. */
+function injectErrorReporting(html: string): string {
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/<head[^>]*>/i, (m) => `${m}${ERROR_REPORTING_SCRIPT}`);
+  }
+  if (/<html[^>]*>/i.test(html)) {
+    return html.replace(/<html[^>]*>/i, (m) => `${m}${ERROR_REPORTING_SCRIPT}`);
+  }
+  return ERROR_REPORTING_SCRIPT + html;
+}
+
 /** Builds the srcdoc HTML string for the iframe preview */
 export function buildIframeSrcdoc(
   files: VirtualFile[],
@@ -57,7 +104,7 @@ function buildHtmlPreview(files: VirtualFile[]): string {
       );
     });
 
-  return content;
+  return injectErrorReporting(content);
 }
 
 // ─── React (multi-file TypeScript mini-bundler) ───────────────────────────────
@@ -109,6 +156,7 @@ function buildReactPreview(files: VirtualFile[]): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>React Preview</title>
+  ${ERROR_REPORTING_SCRIPT}
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -131,6 +179,7 @@ function buildReactPreview(files: VirtualFile[]): string {
       var el = document.getElementById('__err');
       el.style.display = 'block';
       el.textContent = '\\u26a0\\ufe0f Error\\n\\n' + msg;
+      console.error(msg);
     }
 
     if (!window.Babel)    { showError('Babel no pudo cargarse. Verifica tu conexi\\u00f3n a internet.'); return; }
@@ -276,6 +325,7 @@ function buildVuePreview(files: VirtualFile[]): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vue Preview</title>
+  ${ERROR_REPORTING_SCRIPT}
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <style>
     * { box-sizing: border-box; }
@@ -289,6 +339,7 @@ function buildVuePreview(files: VirtualFile[]): string {
       ${appFile.content}
     } catch(e) {
       document.body.innerHTML = '<div style="color:red; padding:1rem; font-family:monospace;">Error: ' + e.message + '</div>';
+      console.error(e.message);
     }
   </script>
 </body>
@@ -312,6 +363,7 @@ function buildAngularPreview(files: VirtualFile[]): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Angular Preview</title>
+  ${ERROR_REPORTING_SCRIPT}
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; }
@@ -323,6 +375,7 @@ function buildAngularPreview(files: VirtualFile[]): string {
       ${jsCode}
     } catch(e) {
       document.body.innerHTML = '<div style="color:red; padding:1rem; font-family:monospace;">Error: ' + e.message + '</div>';
+      console.error(e.message);
     }
   </script>
 </body>
@@ -358,11 +411,13 @@ function escapeRegex(str: string): string {
 function errorPage(message: string): string {
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><style>
+<head><meta charset="UTF-8">${ERROR_REPORTING_SCRIPT}<style>
   body { font-family: monospace; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #1a1a2e; }
   .box { color: #ef4444; padding: 2rem; text-align: center; }
   .icon { font-size: 3rem; margin-bottom: 1rem; }
 </style></head>
-<body><div class="box"><div class="icon">⚠️</div><p>${message}</p></div></body>
+<body><div class="box"><div class="icon">⚠️</div><p>${message}</p></div>
+<script>console.error(${JSON.stringify(message)});</script>
+</body>
 </html>`;
 }

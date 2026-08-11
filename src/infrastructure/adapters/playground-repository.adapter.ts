@@ -6,6 +6,8 @@ import {
   CreatePlaygroundPayload,
   PlaygroundFile,
   RunResult,
+  PlaygroundSnapshotSummary,
+  PlaygroundSnapshotDetail,
 } from "../../domain/entities/playground.entity";
 
 export class AxiosPlaygroundRepositoryAdapter implements PlaygroundRepositoryPort {
@@ -49,8 +51,9 @@ export class AxiosPlaygroundRepositoryAdapter implements PlaygroundRepositoryPor
     await axiosClient.post(`/playground/${id}/submit`);
   }
 
-  async logCheat(id: string, action: string, details?: string): Promise<void> {
-    await axiosClient.post(`/playground/${id}/log-cheat`, { action, details });
+  async logCheat(id: string, action: string, details?: string): Promise<{ security_locked: boolean }> {
+    const { data } = await axiosClient.post(`/playground/${id}/log-cheat`, { action, details });
+    return { security_locked: !!data?.security_locked };
   }
 
   async execute(language: string, files: PlaygroundFile[]): Promise<RunResult> {
@@ -61,5 +64,19 @@ export class AxiosPlaygroundRepositoryAdapter implements PlaygroundRepositoryPor
   async getMyProjectInExamGroup(groupId: string): Promise<string> {
     const { data } = await axiosClient.get(`/playground/exam-group/${groupId}/my-project`);
     return data.id;
+  }
+
+  async getProjectHistory(projectId: string): Promise<PlaygroundSnapshotSummary[]> {
+    const { data } = await axiosClient.get(`/playground/admin/projects/${projectId}/history`);
+    return data?.data ?? [];
+  }
+
+  async getProjectSnapshot(projectId: string, snapshotId: string): Promise<PlaygroundSnapshotDetail> {
+    const { data } = await axiosClient.get(`/playground/admin/projects/${projectId}/history/${snapshotId}`);
+    return data;
+  }
+
+  async unlockProject(projectId: string): Promise<void> {
+    await axiosClient.post(`/playground/admin/projects/${projectId}/unlock`);
   }
 }

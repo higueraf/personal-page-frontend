@@ -4,10 +4,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen, Search, Filter, Clock, AlertTriangle, AlertCircle,
   Code2, Pencil, Trash2, Shield, ShieldCheck, Calendar, ChevronRight, ArrowLeft,
-  Users, CheckCircle2, XCircle, RotateCcw, Star, Sparkles, Copy, X,
+  Users, CheckCircle2, XCircle, RotateCcw, Star, Sparkles, Copy, X, Lock,
 } from "lucide-react";
 import { LANGUAGE_CONFIGS } from "../public/Playground/templates/index";
 import { examUseCases } from "../../../infrastructure/factories/exam-module.factory";
+import { playgroundUseCases } from "../../../infrastructure/factories/playground-module.factory";
 import { playgroundTemplateUseCases } from "../../../infrastructure/factories/playground-template-module.factory";
 import { examTemplateUseCases } from "../../../infrastructure/factories/exam-template-module.factory";
 import { adminUserUseCases } from "../../../infrastructure/factories/admin-user-module.factory";
@@ -216,6 +217,14 @@ export default function AdminAssignments() {
       qc.invalidateQueries({ queryKey: ["admin-exam-groups"] });
     },
     onError: (err: any) => alert("Error al cambiar estado masivo: " + (err?.response?.data?.message ?? "Desconocido")),
+  });
+
+  const unlockMutation = useMutation({
+    mutationFn: (projectId: string) => playgroundUseCases.unlockProject(projectId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-exam-projects", activeGroup] });
+    },
+    onError: (err: any) => alert("Error al reactivar: " + (err?.response?.data?.message ?? "Desconocido")),
   });
 
   const gradeMutation = useMutation({
@@ -440,16 +449,23 @@ export default function AdminAssignments() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {hasCheated ? (
-                          <button
-                            onClick={() => setViewLogsOf(p)}
-                            className="inline-flex items-center gap-1 text-red-600 bg-red-100 hover:bg-red-200 px-2 py-1 rounded border border-red-200 font-bold text-xs transition-colors"
-                          >
-                            <AlertTriangle size={13} /> {cheatIncidents.length}
-                          </button>
-                        ) : (
-                          <span className="text-gray-400 text-xs">—</span>
-                        )}
+                        <div className="flex flex-col items-center gap-1.5">
+                          {hasCheated ? (
+                            <button
+                              onClick={() => setViewLogsOf(p)}
+                              className="inline-flex items-center gap-1 text-red-600 bg-red-100 hover:bg-red-200 px-2 py-1 rounded border border-red-200 font-bold text-xs transition-colors"
+                            >
+                              <AlertTriangle size={13} /> {cheatIncidents.length}
+                            </button>
+                          ) : (
+                            <span className="text-gray-400 text-xs">—</span>
+                          )}
+                          {p.security_locked && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border border-red-300 bg-red-100 text-red-700">
+                              <Lock size={11} /> Bloqueado
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-center">
                         {p.grade != null ? (
@@ -474,6 +490,15 @@ export default function AdminAssignments() {
                           >
                             <Sparkles size={13} /> Corrección IA
                           </button>
+                          {p.security_locked && (
+                            <button
+                              disabled={unlockMutation.isPending && unlockMutation.variables === p.id}
+                              onClick={() => unlockMutation.mutate(p.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm"
+                            >
+                              <Lock size={13} /> {unlockMutation.isPending && unlockMutation.variables === p.id ? "Reactivando…" : "Reactivar"}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
