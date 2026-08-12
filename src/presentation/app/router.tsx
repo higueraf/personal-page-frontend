@@ -1,6 +1,8 @@
 import { createBrowserRouter } from "react-router-dom";
-import { RequireAuth }   from "../auth/RequireAuth";
-import { RequireAdmin }  from "../auth/RequireAdmin";
+import { RequireAuth }     from "../auth/RequireAuth";
+import { RequireAuthExam } from "../auth/RequireAuthExam";
+import { RequireAdmin }    from "../auth/RequireAdmin";
+import { ExamLockGate }    from "../auth/ExamLockGate";
 import PublicLayout      from "./PublicLayout";
 
 // ── Páginas públicas ──────────────────────────────────────────────────────────
@@ -24,6 +26,7 @@ import PlaygroundList     from "../pages/public/Playground/PlaygroundList";
 import PlaygroundIDE      from "../pages/public/Playground/PlaygroundIDE";
 import PlaygroundExamGroupRedirect from "../pages/public/Playground/PlaygroundExamGroupRedirect";
 import SebQuit from "../pages/public/Playground/SebQuit";
+import ExamLogin from "../pages/public/Playground/ExamLogin";
 
 // ── Páginas admin ─────────────────────────────────────────────────────────────
 import AdminLayout       from "../layout/AdminLayout";
@@ -45,84 +48,94 @@ import AdminPlaygroundTemplates from "../pages/admin/AdminPlaygroundTemplates";
 import AdminExamTemplates from "../pages/admin/AdminExamTemplates";
 
 export const router = createBrowserRouter([
-  // ── Público ───────────────────────────────────────────────────────────────
+  // ── Bloqueo de navegación durante examen SEB activo (envuelve todo) ────────
   {
-    path: "/",
-    element: <PublicLayout />,
+    element: <ExamLockGate />,
     children: [
-      { index: true,  element: <Home /> },
-      { path: "login",           element: <Login /> },
-      { path: "register",        element: <Register /> },
-      { path: "forgot-password", element: <ForgotPassword /> },
-      { path: "reset-password",  element: <ResetPassword /> },
-
-      { path: "tutorials",             element: <TutorialsList /> },
-      { path: "tutorials/:courseSlug", element: <TutorialViewer /> },
-
-      { path: "courses",               element: <VideosCoursesList /> },
-      { path: "courses/:courseSlug",   element: <CourseViewer /> },
-
-      { path: "projects",              element: <ProjectsList /> },
-      { path: "projects/:slug",        element: <ProjectDetail /> },
-
-      { path: "about",     element: <About /> },
-      { path: "resources", element: <Resources /> },
-      { path: "contact",   element: <Contact /> },
-
-      // Rutas protegidas de cuenta (dentro de PublicLayout)
+      // ── Público ───────────────────────────────────────────────────────────
       {
-        element: <RequireAuth />,
+        path: "/",
+        element: <PublicLayout />,
         children: [
-          { path: "profile",  element: <UserProfile /> },
-          { path: "settings", element: <UserSettings /> },
-          { path: "playground", element: <PlaygroundList /> },
-        ]
-      }
-    ],
-  },
+          { index: true,  element: <Home /> },
+          { path: "login",           element: <Login /> },
+          { path: "register",        element: <Register /> },
+          { path: "forgot-password", element: <ForgotPassword /> },
+          { path: "reset-password",  element: <ResetPassword /> },
 
-  // ── Playground IDE (full-screen, sin navbar) ─────────────────────────────
-  {
-    element: <RequireAuth />,
-    children: [
-      { path: "/playground/exam/:groupId", element: <PlaygroundExamGroupRedirect /> },
-      { path: "/playground/:id", element: <PlaygroundIDE /> },
-    ],
-  },
+          { path: "tutorials",             element: <TutorialsList /> },
+          { path: "tutorials/:courseSlug", element: <TutorialViewer /> },
 
-  { path: "/admin/login", element: <Login /> },
+          { path: "courses",               element: <VideosCoursesList /> },
+          { path: "courses/:courseSlug",   element: <CourseViewer /> },
 
-  // Target of the SEB `quitURL` — SEB intercepts navigation here and closes itself.
-  { path: "/seb-quit", element: <SebQuit /> },
+          { path: "projects",              element: <ProjectsList /> },
+          { path: "projects/:slug",        element: <ProjectDetail /> },
 
-  // ── Admin protegido (solo rol admin) ───────────────────────────────────────
-  {
-    path: "/admin",
-    element: <RequireAdmin />,
-    children: [
+          { path: "about",     element: <About /> },
+          { path: "resources", element: <Resources /> },
+          { path: "contact",   element: <Contact /> },
+
+          // Rutas protegidas de cuenta (dentro de PublicLayout)
+          {
+            element: <RequireAuth />,
+            children: [
+              { path: "profile",  element: <UserProfile /> },
+              { path: "settings", element: <UserSettings /> },
+              { path: "playground", element: <PlaygroundList /> },
+            ]
+          }
+        ],
+      },
+
+      // ── Playground IDE (full-screen, sin navbar) ─────────────────────────
       {
-        path: "",
-        element: <AdminLayout />,
+        element: <RequireAuthExam />,
         children: [
-          { index: true, element: <AdminDashboard /> },
+          { path: "/playground/exam/:groupId", element: <PlaygroundExamGroupRedirect /> },
+          { path: "/playground/:id", element: <PlaygroundIDE /> },
+        ],
+      },
 
-          { path: "tutorials",                    element: <AdminTutorials /> },
-          { path: "tutorials/:courseId/edit",     element: <TutorialEditor /> },
+      // Login minimalista exclusivo para el flujo de examen vía SEB (sin
+      // enlaces a ninguna otra sección de la plataforma).
+      { path: "/exam-login", element: <ExamLogin /> },
 
-          { path: "video-courses",                element: <AdminVideoCourses /> },
-          { path: "video-courses/:courseId/edit", element: <CourseEditor /> },
+      { path: "/admin/login", element: <Login /> },
 
-          { path: "projects",  element: <AdminProjects /> },
-          { path: "profile",   element: <AdminProfile /> },
-          { path: "resources", element: <AdminResources /> },
-          { path: "contact",   element: <AdminContact /> },
-          { path: "assignments", element: <AdminAssignments /> },
-          { path: "playgrounds", element: <AdminPlaygrounds /> },
-          { path: "playground-templates", element: <AdminPlaygroundTemplates /> },
-          { path: "exam-templates", element: <AdminExamTemplates /> },
-          { path: "institutions", element: <AdminInstitutions /> },
-          { path: "study-courses", element: <AdminStudyCourses /> },
-          { path: "users",     element: <AdminUsers /> },
+      // Target of the SEB `quitURL` — SEB intercepts navigation here and closes itself.
+      { path: "/seb-quit", element: <SebQuit /> },
+
+      // ── Admin protegido (solo rol admin) ─────────────────────────────────
+      {
+        path: "/admin",
+        element: <RequireAdmin />,
+        children: [
+          {
+            path: "",
+            element: <AdminLayout />,
+            children: [
+              { index: true, element: <AdminDashboard /> },
+
+              { path: "tutorials",                    element: <AdminTutorials /> },
+              { path: "tutorials/:courseId/edit",     element: <TutorialEditor /> },
+
+              { path: "video-courses",                element: <AdminVideoCourses /> },
+              { path: "video-courses/:courseId/edit", element: <CourseEditor /> },
+
+              { path: "projects",  element: <AdminProjects /> },
+              { path: "profile",   element: <AdminProfile /> },
+              { path: "resources", element: <AdminResources /> },
+              { path: "contact",   element: <AdminContact /> },
+              { path: "assignments", element: <AdminAssignments /> },
+              { path: "playgrounds", element: <AdminPlaygrounds /> },
+              { path: "playground-templates", element: <AdminPlaygroundTemplates /> },
+              { path: "exam-templates", element: <AdminExamTemplates /> },
+              { path: "institutions", element: <AdminInstitutions /> },
+              { path: "study-courses", element: <AdminStudyCourses /> },
+              { path: "users",     element: <AdminUsers /> },
+            ],
+          },
         ],
       },
     ],

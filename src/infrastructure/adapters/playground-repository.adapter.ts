@@ -79,4 +79,13 @@ export class AxiosPlaygroundRepositoryAdapter implements PlaygroundRepositoryPor
   async unlockProject(projectId: string): Promise<void> {
     await axiosClient.post(`/playground/admin/projects/${projectId}/unlock`);
   }
+
+  async getMyActiveExam(): Promise<{ id: string; require_seb: boolean; start_time: string | null; end_time: string | null } | null> {
+    try {
+      const { data } = await axiosClient.get("/playground/my-active-exam");
+      return data ?? null;
+    } catch {
+      return null;
+    }
+  }
 }

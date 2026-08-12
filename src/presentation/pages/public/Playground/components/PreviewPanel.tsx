@@ -42,13 +42,10 @@ export default function PreviewPanel({ refreshKey = 0 }: PreviewPanelProps) {
   const srcdoc = buildIframeSrcdoc(files, language);
   const combinedKey = `${refreshKey}-${localKey}`;
 
-  useEffect(() => {
-    // Auto-refresh when files change (debounced)
-    const timer = setTimeout(() => {
-      setLocalKey((k) => k + 1);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [files]);
+  // NOTE: intentionally NOT auto-refreshing when `files` changes — the preview
+  // must only rebuild when the user explicitly presses Play (refreshKey) or the
+  // "Recargar preview" button (setLocalKey below). Auto-refreshing on every
+  // keystroke/file click was disruptive during editing.
 
   // Reset console logs on every new preview build (new iframe document)
   useEffect(() => {

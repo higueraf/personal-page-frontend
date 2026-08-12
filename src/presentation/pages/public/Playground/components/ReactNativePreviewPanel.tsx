@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { usePlaygroundStore } from "../store/playgroundStore";
 import { buildReactNativeWebPreview } from "../runners/reactNativeWebRunner";
@@ -15,13 +15,8 @@ export default function ReactNativePreviewPanel({ refreshKey = 0 }: ReactNativeP
   const srcDoc = buildReactNativeWebPreview(files);
   const combinedKey = `${refreshKey}-${localKey}`;
 
-  useEffect(() => {
-    // Auto-refresh when files change (debounced), same convention as PreviewPanel.tsx
-    const timer = setTimeout(() => {
-      setLocalKey((k) => k + 1);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [files]);
+  // NOTE: intentionally NOT auto-refreshing when `files` changes — only Play
+  // (refreshKey) or the manual "Recargar preview" button should rebuild this.
 
   return (
     <div className="flex flex-col h-full bg-[#0d1117]">

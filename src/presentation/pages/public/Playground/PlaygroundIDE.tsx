@@ -20,6 +20,8 @@ import ReactNativePreviewPanel from "./components/ReactNativePreviewPanel";
 
 import { playgroundUseCases } from "../../../../infrastructure/factories/playground-module.factory";
 import { examUseCases } from "../../../../infrastructure/factories/exam-module.factory";
+import { DEFAULT_TIMEZONE_OFFSET_MINUTES, formatInOffset } from "../../../lib/timezone";
+import { useAuth } from "../../../store/auth.store";
 import type * as MonacoEditor from "monaco-editor";
 
 // ─── ANSI helpers ──────────────────────────────────────────────────────────────
@@ -106,6 +108,10 @@ export default function PlaygroundIDE() {
   const [endTime, setEndTime] = useState<Date | null>(null);
   const endTimeRef = useRef<Date | null>(null);
 
+  // Exam's own configured timezone (never the browser's local timezone) — used to
+  // display snapshot history timestamps and any other exam-related dates.
+  const [examTimezoneOffset, setExamTimezoneOffset] = useState<number>(DEFAULT_TIMEZONE_OFFSET_MINUTES);
+
   // Admin-review only: change history (snapshots) viewer
   const [showHistory, setShowHistory] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -140,17 +146,20 @@ export default function PlaygroundIDE() {
         setStudentUser(data.user ?? null);
         setGrade(data.grade ?? "");
         setFeedback(data.feedback ?? "");
+        setExamTimezoneOffset(data.timezone_offset_minutes ?? DEFAULT_TIMEZONE_OFFSET_MINUTES);
 
         let readOnlyNow = isAdminReview;
 
         if (data.is_exam && !isAdminReview) {
           if (data.status === 'submitted' || data.status === 'graded' || data.security_locked) {
+            if (data.status === 'submitted' || data.status === 'graded') useAuth.getState().clearActiveExam();
             readOnlyNow = true;
           } else {
             // Use server-corrected time for the expiry check
             const correctedNow = Date.now() + clockOffsetRef.current;
             if (data.end_time && correctedNow > new Date(data.end_time).getTime()) {
               playgroundUseCases.submit(id).catch(() => {});
+              useAuth.getState().clearActiveExam();
               readOnlyNow = true;
             } else {
               // Store end_time for the live timer
@@ -207,6 +216,20 @@ export default function PlaygroundIDE() {
       setReadOnly(true);
     }
   }, [setSecurityLocked, setReadOnly]);
+
+  // ── Block browser back/forward during exam ──────────────────────────────────
+  // Traps the student on this route: any attempt to navigate away via the
+  // browser's back/forward buttons just re-pushes the same URL.
+  useEffect(() => {
+    if (!isExam || isReadOnly) return;
+    window.history.pushState(null, "", window.location.href);
+    const handlePopState = () => {
+      if (examFinishedRef.current) return;
+      window.history.pushState(null, "", window.location.href);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [isExam, isReadOnly]);
 
   // ── Exam Restrictions ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -440,6 +463,8 @@ export default function PlaygroundIDE() {
           }).catch(() => {
             // Save failed — still submit so the exam is recorded
             playgroundUseCases.submit(id).catch(() => {});
+          }).finally(() => {
+            useAuth.getState().clearActiveExam();
           });
         }
         setReadOnly(true);
@@ -457,6 +482,7 @@ export default function PlaygroundIDE() {
   const handleExamSubmitted = useCallback(() => {
     examFinishedRef.current = true;
     setReadOnly(true);
+    useAuth.getState().clearActiveExam();
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
@@ -660,11 +686,14 @@ export default function PlaygroundIDE() {
   }, [id, setSecurityLocked]);
 
   // ── Exam auto-save every 5 minutes ──────────────────────────────────────────
+  // Uses handleSaveRef (not handleSave directly) so the interval isn't torn down
+  // and recreated on every keystroke (handleSave changes whenever `files` does,
+  // which was resetting this timer constantly and made it effectively never fire).
   useEffect(() => {
     if (!isExam || isReadOnly) return;
-    const interval = setInterval(() => { handleSave(); }, 5 * 60_000);
+    const interval = setInterval(() => { handleSaveRef.current(); }, 5 * 60_000);
     return () => clearInterval(interval);
-  }, [isExam, isReadOnly, handleSave]);
+  }, [isExam, isReadOnly]);
 
   // ── Keyboard shortcut: Ctrl+S ────────────────────────────────────────────────
   useEffect(() => {
@@ -1106,7 +1135,7 @@ export default function PlaygroundIDE() {
                             selectedSnapshot?.id === snap.id ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-slate-300"
                           }`}
                         >
-                          <div className="font-medium">{new Date(snap.created_at).toLocaleString()}</div>
+                          <div className="font-medium">{formatInOffset(snap.created_at, examTimezoneOffset)}</div>
                           <div className="text-[11px] opacity-70">{snap.file_count} archivo(s)</div>
                         </button>
                       </li>

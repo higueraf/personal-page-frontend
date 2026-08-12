@@ -23,4 +23,6 @@ export interface PlaygroundRepositoryPort {
   getProjectHistory(projectId: string): Promise<PlaygroundSnapshotSummary[]>;
   getProjectSnapshot(projectId: string, snapshotId: string): Promise<PlaygroundSnapshotDetail>;
   unlockProject(projectId: string): Promise<void>;
+  /** Returns the current user's active (not-yet-submitted) exam project, if any. */
+  getMyActiveExam(): Promise<{ id: string; require_seb: boolean; start_time: string | null; end_time: string | null } | null>;
 }

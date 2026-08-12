@@ -15,6 +15,14 @@ import { adminUserUseCases } from "../../../infrastructure/factories/admin-user-
 import { institutionUseCases, studyCourseUseCases } from "../../../infrastructure/factories/tutorial-module.factory";
 import { ExamGroup, ExamProject, AssignExamPayload } from "../../../domain/entities/exam.entity";
 import { groupCheatingIncidents } from "../../lib/utils";
+import {
+  DEFAULT_TIMEZONE_OFFSET_MINUTES,
+  TIMEZONE_OPTIONS,
+  formatInOffset,
+  toOffsetInputValue,
+  fromOffsetInputValue,
+} from "../../lib/timezone";
+import { useBackendClock } from "../../hooks/useBackendClock";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
@@ -35,7 +43,7 @@ async function fetchStudents() {
   return page.data as unknown as AdminUser[];
 }
 async function assignExam(payload: AssignExamPayload) { return examUseCases.assign(payload); }
-async function updateGroup(payload: { groupId: string; name?: string; start_time?: string; end_time?: string; allow_copy_paste?: boolean; require_seb?: boolean }) {
+async function updateGroup(payload: { groupId: string; name?: string; start_time?: string; end_time?: string; allow_copy_paste?: boolean; require_seb?: boolean; timezone_offset_minutes?: number }) {
   return examUseCases.updateGroup(payload);
 }
 async function deleteGroup(groupId: string) {
@@ -59,8 +67,10 @@ async function downloadSeb(groupId: string, examName: string) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function statusInfo(project: ExamProject) {
-  const now = new Date();
+// NOTE: "now" here is always the BACKEND-corrected timestamp (ms), never the raw
+// client/machine clock — see `useBackendClock()` in the component below.
+function statusInfo(project: ExamProject, nowMs: number) {
+  const now = new Date(nowMs);
   const start = project.start_time ? new Date(project.start_time) : null;
   const end = project.end_time ? new Date(project.end_time) : null;
 
@@ -71,28 +81,14 @@ function statusInfo(project: ExamProject) {
   return                                     { color: "bg-green-100 text-green-700",   text: "En progreso" };
 }
 
-function fmtDate(iso: string | null) {
+/** Formats a date in the exam's own configured timezone (never the browser's local timezone). */
+function fmtDate(iso: string | null, offsetMinutes?: number) {
   if (!iso) return "Sin límite";
-  return new Date(iso).toLocaleString("es-EC", { dateStyle: "short", timeStyle: "short" });
+  return formatInOffset(iso, offsetMinutes ?? DEFAULT_TIMEZONE_OFFSET_MINUTES);
 }
 
-/** Converts a UTC ISO string to the local "YYYY-MM-DDTHH:mm" format for datetime-local inputs */
-function toLocalInput(iso: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-/** Converts a datetime-local string ("YYYY-MM-DDTHH:mm") to a full ISO string with timezone offset.
- *  This is critical: without this conversion the backend receives a naive timestamp and
- *  stores it as UTC regardless of the user's local timezone. */
-function toISO(localStr: string): string {
-  return new Date(localStr).toISOString();
-}
-
-function groupStatus(g: ExamGroup) {
-  const now = new Date();
+function groupStatus(g: ExamGroup, nowMs: number) {
+  const now = new Date(nowMs);
   const start = g.start_time ? new Date(g.start_time) : null;
   const end   = g.end_time   ? new Date(g.end_time)   : null;
   if (g.submitted_count === g.total_count && g.total_count > 0)
@@ -113,6 +109,9 @@ export default function AdminAssignments() {
 
   const activeGroup = searchParams.get("group");
 
+  // Backend-corrected "now" — never trust the browser/machine clock for exam status.
+  const { now: backendNow } = useBackendClock();
+
   const [search, setSearch] = useState("");
 
   // ── Assign modal ──
@@ -128,6 +127,7 @@ export default function AdminAssignments() {
   const [examEnd,          setExamEnd]          = useState("");
   const [examCopyPaste,    setExamCopyPaste]    = useState(false);
   const [examRequireSeb,   setExamRequireSeb]   = useState(false);
+  const [examTimezoneOffset, setExamTimezoneOffset] = useState(DEFAULT_TIMEZONE_OFFSET_MINUTES);
   const [assignKind,       setAssignKind]       = useState<"exam"|"practice">("exam");
   const [assignMode,       setAssignMode]       = useState<"course"|"student">("course");
   const [targetInstFilter, setTargetInstFilter] = useState("");
@@ -152,6 +152,7 @@ export default function AdminAssignments() {
   const [editEnd,       setEditEnd]       = useState("");
   const [editCopyPaste, setEditCopyPaste] = useState(false);
   const [editRequireSeb, setEditRequireSeb] = useState(false);
+  const [editTimezoneOffset, setEditTimezoneOffset] = useState(DEFAULT_TIMEZONE_OFFSET_MINUTES);
 
   // ── Delete confirm modal ──
   const [confirmDelete, setConfirmDelete] = useState<ExamGroup | null>(null);
@@ -265,10 +266,11 @@ export default function AdminAssignments() {
       : {
           name: examName.trim(), language: examLang,
           materia: examMateria || undefined,
-          start_time: examStart ? toISO(examStart) : undefined,
-          end_time:   examEnd   ? toISO(examEnd)   : undefined,
+          start_time: examStart ? fromOffsetInputValue(examStart, examTimezoneOffset) : undefined,
+          end_time:   examEnd   ? fromOffsetInputValue(examEnd, examTimezoneOffset)   : undefined,
           allow_copy_paste: examCopyPaste,
           require_seb: examRequireSeb,
+          timezone_offset_minutes: examTimezoneOffset,
         };
     if (initMode === "examTemplate") {
       if (!examExamTemplateId) { alert("Seleccione un examen con variantes."); return; }
@@ -295,8 +297,10 @@ export default function AdminAssignments() {
     setEditName(g.name);
     setEditCopyPaste(g.allow_copy_paste);
     setEditRequireSeb(g.require_seb ?? false);
-    setEditStart(toLocalInput(g.start_time));
-    setEditEnd(toLocalInput(g.end_time));
+    const offset = g.timezone_offset_minutes ?? DEFAULT_TIMEZONE_OFFSET_MINUTES;
+    setEditTimezoneOffset(offset);
+    setEditStart(toOffsetInputValue(g.start_time, offset));
+    setEditEnd(toOffsetInputValue(g.end_time, offset));
   }
 
   function handleEditSubmit(e: React.FormEvent) {
@@ -305,10 +309,11 @@ export default function AdminAssignments() {
     editMutation.mutate({
       groupId: editGroup.group_id,
       name: editName || undefined,
-      start_time: editStart ? toISO(editStart) : undefined,
-      end_time:   editEnd   ? toISO(editEnd)   : undefined,
+      start_time: editStart ? fromOffsetInputValue(editStart, editTimezoneOffset) : undefined,
+      end_time:   editEnd   ? fromOffsetInputValue(editEnd, editTimezoneOffset)   : undefined,
       allow_copy_paste: editCopyPaste,
       require_seb: editRequireSeb,
+      timezone_offset_minutes: editTimezoneOffset,
     });
   }
 
@@ -410,7 +415,7 @@ export default function AdminAssignments() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {projects.map(p => {
-                  const st = statusInfo(p);
+                  const st = statusInfo(p, backendNow());
                   const cheatIncidents = groupCheatingIncidents(p.cheating_logs);
                   const hasCheated = cheatIncidents.length > 0;
                   const isChanging = changeStatusMutation.isPending && changeStatusMutation.variables?.id === p.id;
@@ -539,7 +544,7 @@ export default function AdminAssignments() {
                     <div key={i} className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 p-3 rounded-lg text-sm">
                       <div className="flex justify-between items-start mb-1">
                         <strong className="text-red-700 dark:text-red-400 flex items-center gap-2">
-                          <Clock size={12} /> {new Date(first.timestamp).toLocaleString("es-EC")}
+                          <Clock size={12} /> {formatInOffset(first.timestamp, viewLogsOf.timezone_offset_minutes)}
                         </strong>
                         <div className="flex flex-wrap gap-1 justify-end">
                           {actions.map(a => (
@@ -678,7 +683,7 @@ export default function AdminAssignments() {
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredGroups.map(g => {
-                const st = groupStatus(g);
+                const st = groupStatus(g, backendNow());
                 return (
                   <tr
                     key={g.group_id}
@@ -721,8 +726,8 @@ export default function AdminAssignments() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col text-[11px] text-gray-500 font-medium">
-                        <span className="flex items-center gap-1"><Clock size={11} className="text-gray-400" /> Inicia: {fmtDate(g.start_time)}</span>
-                        <span className="flex items-center gap-1"><Calendar size={11} className="text-gray-400" /> Vence: {fmtDate(g.end_time)}</span>
+                        <span className="flex items-center gap-1"><Clock size={11} className="text-gray-400" /> Inicia: {fmtDate(g.start_time, g.timezone_offset_minutes)}</span>
+                        <span className="flex items-center gap-1"><Calendar size={11} className="text-gray-400" /> Vence: {fmtDate(g.end_time, g.timezone_offset_minutes)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -796,6 +801,15 @@ export default function AdminAssignments() {
                   <input type="datetime-local" value={editEnd} onChange={e => setEditEnd(e.target.value)}
                     className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Zona horaria del examen</label>
+                <select value={editTimezoneOffset} onChange={e => setEditTimezoneOffset(Number(e.target.value))}
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
+                  {TIMEZONE_OPTIONS.map(tz => (
+                    <option key={tz.offsetMinutes} value={tz.offsetMinutes}>{tz.label}</option>
+                  ))}
+                </select>
               </div>
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 p-3 rounded-lg space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-800 dark:text-gray-200">
@@ -1024,6 +1038,15 @@ export default function AdminAssignments() {
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cierre</label>
                     <input type="datetime-local" value={examEnd} onChange={e => setExamEnd(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Zona horaria del examen</label>
+                    <select value={examTimezoneOffset} onChange={e => setExamTimezoneOffset(Number(e.target.value))}
+                      className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
+                      {TIMEZONE_OPTIONS.map(tz => (
+                        <option key={tz.offsetMinutes} value={tz.offsetMinutes}>{tz.label}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               )}

@@ -67,4 +67,8 @@ export class PlaygroundUseCases {
   unlockProject(projectId: string): Promise<void> {
     return this.repository.unlockProject(projectId);
   }
+
+  getMyActiveExam(): Promise<{ id: string; require_seb: boolean; start_time: string | null; end_time: string | null } | null> {
+    return this.repository.getMyActiveExam();
+  }
 }

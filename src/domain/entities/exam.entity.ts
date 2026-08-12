@@ -8,6 +8,7 @@ export interface ExamGroup {
   end_time: string | null;
   allow_copy_paste: boolean;
   require_seb: boolean;
+  timezone_offset_minutes?: number;
   created_at: string;
   total_count: number;
   submitted_count: number;
@@ -22,6 +23,7 @@ export interface ExamProject {
   start_time: string | null;
   end_time: string | null;
   allow_copy_paste: boolean;
+  timezone_offset_minutes?: number;
   cheating_logs: Array<{ timestamp: string; action: string; details?: string }>;
   security_locked?: boolean;
   user?: { id: string; first_name: string; last_name: string; email: string };
@@ -40,6 +42,7 @@ export interface AssignExamPayload {
   end_time?: string;
   allow_copy_paste?: boolean;
   require_seb?: boolean;
+  timezone_offset_minutes?: number;
   files?: Array<{ id?: string; name: string; content?: string; path?: string }>;
   templateId?: string;
   examTemplateId?: string;

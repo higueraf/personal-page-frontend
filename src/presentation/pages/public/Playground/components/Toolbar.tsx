@@ -79,15 +79,19 @@ export default function Toolbar({
 
   return (
     <header className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-[#161b22] border-b border-black/10 dark:border-white/10 flex-shrink-0 z-10 shadow-sm dark:shadow-none">
-      {/* Back */}
-      <button
-        onClick={() => navigate("/playground")}
-        className="flex items-center gap-1 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors text-sm px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/10"
-      >
-        <ChevronLeft size={16} />
-      </button>
+      {/* Back (hidden during exams: students must stay on the exam route) */}
+      {!isExam && (
+        <>
+          <button
+            onClick={() => navigate("/playground")}
+            className="flex items-center gap-1 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors text-sm px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            <ChevronLeft size={16} />
+          </button>
 
-      <div className="w-px h-5 bg-black/10 dark:bg-white/10" />
+          <div className="w-px h-5 bg-black/10 dark:bg-white/10" />
+        </>
+      )}
 
       {/* Language badge */}
       <div

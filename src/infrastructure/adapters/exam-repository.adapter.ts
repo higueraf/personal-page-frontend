@@ -24,7 +24,7 @@ export class AxiosExamRepositoryAdapter implements ExamRepositoryPort {
 
   async updateGroup(
     groupId: string,
-    body: { name?: string; start_time?: string; end_time?: string; allow_copy_paste?: boolean; require_seb?: boolean }
+    body: { name?: string; start_time?: string; end_time?: string; allow_copy_paste?: boolean; require_seb?: boolean; timezone_offset_minutes?: number }
   ): Promise<ExamProject[]> {
     const { data } = await axiosClient.patch(`/playground/admin/exam-groups/${groupId}`, body);
     return data;

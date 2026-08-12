@@ -6,7 +6,7 @@ export interface ExamRepositoryPort {
   assign(payload: AssignExamPayload): Promise<{ data: ExamProject[]; count: number; exam_group_id: string }>;
   updateGroup(
     groupId: string,
-    body: { name?: string; start_time?: string; end_time?: string; allow_copy_paste?: boolean; require_seb?: boolean }
+    body: { name?: string; start_time?: string; end_time?: string; allow_copy_paste?: boolean; require_seb?: boolean; timezone_offset_minutes?: number }
   ): Promise<ExamProject[]>;
   deleteGroup(groupId: string): Promise<ExamProject[]>;
   changeProjectStatus(id: string, status: string): Promise<ExamProject>;

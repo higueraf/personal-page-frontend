@@ -27,6 +27,7 @@ export interface PlaygroundDetail {
   security_locked?: boolean;
   start_time?: string;
   end_time?: string;
+  timezone_offset_minutes?: number;
   files?: PlaygroundFile[];
   user?: { first_name: string; last_name: string; email: string };
   grade?: number | null;

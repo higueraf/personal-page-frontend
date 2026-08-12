@@ -23,6 +23,7 @@ export class ExamUseCases {
     end_time?: string;
     allow_copy_paste?: boolean;
     require_seb?: boolean;
+    timezone_offset_minutes?: number;
   }): Promise<ExamProject[]> {
     const { groupId, ...body } = payload;
     return this.repository.updateGroup(groupId, body);
