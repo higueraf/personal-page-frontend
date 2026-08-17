@@ -1,9 +1,11 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { RequireAuth }     from "../auth/RequireAuth";
 import { RequireAuthExam } from "../auth/RequireAuthExam";
 import { RequireAdmin }    from "../auth/RequireAdmin";
+import { RequireTeacher }  from "../auth/RequireTeacher";
 import { ExamLockGate }    from "../auth/ExamLockGate";
 import PublicLayout      from "./PublicLayout";
+import TeacherLayout     from "../layout/TeacherLayout";
 
 // ── Páginas públicas ──────────────────────────────────────────────────────────
 import Home              from "../pages/public/Home";
@@ -27,6 +29,14 @@ import PlaygroundIDE      from "../pages/public/Playground/PlaygroundIDE";
 import PlaygroundExamGroupRedirect from "../pages/public/Playground/PlaygroundExamGroupRedirect";
 import SebQuit from "../pages/public/Playground/SebQuit";
 import ExamLogin from "../pages/public/Playground/ExamLogin";
+import LmsCatalog        from "../pages/public/LmsCatalog";
+import LmsCourseDetail   from "../pages/public/LmsCourseDetail";
+import LmsMyCourses      from "../pages/public/LmsMyCourses";
+import LmsActivityViewer from "../pages/public/LmsActivityViewer";
+
+// ── Páginas del profesor (LMS académico) ─────────────────────────────────────
+import TeacherLmsCourses       from "../pages/teacher/TeacherLmsCourses";
+import TeacherLmsCourseEditor  from "../pages/teacher/TeacherLmsCourseEditor";
 
 // ── Páginas admin ─────────────────────────────────────────────────────────────
 import AdminLayout       from "../layout/AdminLayout";
@@ -69,6 +79,9 @@ export const router = createBrowserRouter([
           { path: "courses",               element: <VideosCoursesList /> },
           { path: "courses/:courseSlug",   element: <CourseViewer /> },
 
+          { path: "lms",        element: <LmsCatalog /> },
+          { path: "lms/:slug",  element: <LmsCourseDetail /> },
+
           { path: "projects",              element: <ProjectsList /> },
           { path: "projects/:slug",        element: <ProjectDetail /> },
 
@@ -83,6 +96,9 @@ export const router = createBrowserRouter([
               { path: "profile",  element: <UserProfile /> },
               { path: "settings", element: <UserSettings /> },
               { path: "playground", element: <PlaygroundList /> },
+
+              { path: "lms/mis-cursos",             element: <LmsMyCourses /> },
+              { path: "lms/actividades/:activityId", element: <LmsActivityViewer /> },
             ]
           }
         ],
@@ -105,6 +121,23 @@ export const router = createBrowserRouter([
 
       // Target of the SEB `quitURL` — SEB intercepts navigation here and closes itself.
       { path: "/seb-quit", element: <SebQuit /> },
+
+      // ── Panel de profesor (LMS académico: admin o teacher) ───────────────
+      {
+        path: "/teacher",
+        element: <RequireTeacher />,
+        children: [
+          {
+            path: "",
+            element: <TeacherLayout />,
+            children: [
+              { index: true, element: <Navigate to="/teacher/cursos" replace /> },
+              { path: "cursos", element: <TeacherLmsCourses /> },
+              { path: "cursos/:courseId", element: <TeacherLmsCourseEditor /> },
+            ],
+          },
+        ],
+      },
 
       // ── Admin protegido (solo rol admin) ─────────────────────────────────
       {

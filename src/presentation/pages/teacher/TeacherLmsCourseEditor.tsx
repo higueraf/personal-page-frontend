@@ -1,0 +1,622 @@
+/**
+ * TeacherLmsCourseEditor.tsx
+ * Editor de un curso académico: metadatos, unidades y actividades (por tipo),
+ * más la nómina de alumnos con su progreso. Análogo a TutorialEditor/CourseEditor
+ * pero para el módulo LMS (matrícula, entregas, quizzes, foro).
+ */
+
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useParams } from "react-router-dom";
+import {
+  ArrowLeft, ClipboardList, FileText, GraduationCap, HelpCircle, MessageSquare,
+  Pin, PinOff, Plus, Presentation as PresentationIcon, Save, Lock, Unlock,
+  Trash2, Pencil, Users, ListChecks,
+} from "lucide-react";
+import { lmsUseCases } from "../../../infrastructure/factories/lms-module.factory";
+import type {
+  LmsActivity, LmsCourseUnit, LmsForumThread, LmsQuizQuestion, LmsSubmission,
+} from "../../../domain/entities/lms.entity";
+import PageHeader from "@/presentation/components/patterns/PageHeader";
+import EmptyState from "@/presentation/components/patterns/EmptyState";
+import DataTable, { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/presentation/components/patterns/DataTable";
+import { Button } from "@/presentation/components/ui/button";
+import { Input } from "@/presentation/components/ui/input";
+import { Textarea } from "@/presentation/components/ui/textarea";
+import { Badge } from "@/presentation/components/ui/badge";
+import { Card, CardContent } from "@/presentation/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/presentation/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/presentation/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/presentation/components/ui/dialog";
+
+const ACTIVITY_TYPES = ["presentation", "forum", "assignment", "quiz", "exam"] as const;
+
+const TYPE_META: Record<string, { label: string; icon: any }> = {
+  presentation: { label: "Presentación", icon: PresentationIcon },
+  forum: { label: "Foro", icon: MessageSquare },
+  assignment: { label: "Tarea", icon: ClipboardList },
+  quiz: { label: "Cuestionario", icon: HelpCircle },
+  exam: { label: "Examen", icon: GraduationCap },
+};
+
+function typeMeta(type: string) {
+  return TYPE_META[type] ?? { label: type, icon: FileText };
+}
+
+const EMPTY_ACTIVITY_FORM = {
+  type: "presentation",
+  title: "",
+  instructions: "",
+  status: "DRAFT",
+  due_at: "",
+  max_score: "",
+  configText: "",
+};
+
+export default function TeacherLmsCourseEditor() {
+  const { courseId } = useParams<{ courseId: string }>();
+  const qc = useQueryClient();
+  const [tab, setTab] = useState("contenido");
+  const [newUnitTitle, setNewUnitTitle] = useState("");
+  const [activityDialog, setActivityDialog] = useState<{ unitId: string; activity?: LmsActivity } | null>(null);
+  const [activityForm, setActivityForm] = useState(EMPTY_ACTIVITY_FORM);
+  const [activityFormError, setActivityFormError] = useState<string | null>(null);
+  const [submissionsFor, setSubmissionsFor] = useState<LmsActivity | null>(null);
+  const [questionsFor, setQuestionsFor] = useState<LmsActivity | null>(null);
+  const [threadsFor, setThreadsFor] = useState<LmsActivity | null>(null);
+
+  const courseQ = useQuery({
+    queryKey: ["lms-course", courseId],
+    queryFn: () => lmsUseCases.getCourseForManage(courseId!),
+    enabled: !!courseId,
+  });
+  const unitsQ = useQuery({
+    queryKey: ["lms-units", courseId],
+    queryFn: () => lmsUseCases.listUnits(courseId!),
+    enabled: !!courseId,
+  });
+  const rosterQ = useQuery({
+    queryKey: ["lms-roster", courseId],
+    queryFn: () => lmsUseCases.roster(courseId!),
+    enabled: !!courseId && tab === "alumnos",
+  });
+
+  const course = courseQ.data;
+  const units = useMemo(() => [...(unitsQ.data ?? [])].sort((a, b) => a.order - b.order), [unitsQ.data]);
+
+  const invalidateUnits = () => qc.invalidateQueries({ queryKey: ["lms-units", courseId] });
+
+  const updateCourseM = useMutation({
+    mutationFn: (body: { title: string; description: string; status: string }) => lmsUseCases.updateCourse(courseId!, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-course", courseId] }),
+  });
+
+  const createUnitM = useMutation({
+    mutationFn: () => lmsUseCases.createUnit({ course: courseId!, title: newUnitTitle, order: units.length + 1 }),
+    onSuccess: () => { setNewUnitTitle(""); invalidateUnits(); },
+  });
+  const updateUnitM = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Partial<{ title: string; status: string; order: number }> }) =>
+      lmsUseCases.updateUnit(id, body),
+    onSuccess: invalidateUnits,
+  });
+  const deleteUnitM = useMutation({
+    mutationFn: (id: string) => lmsUseCases.deleteUnit(id),
+    onSuccess: invalidateUnits,
+  });
+
+  const saveActivityM = useMutation({
+    mutationFn: async () => {
+      let config: Record<string, any> = {};
+      if (activityForm.configText.trim()) {
+        try {
+          config = JSON.parse(activityForm.configText);
+        } catch {
+          throw new Error("La configuración debe ser JSON válido");
+        }
+      }
+      const body = {
+        type: activityForm.type,
+        title: activityForm.title,
+        instructions: activityForm.instructions || null,
+        status: activityForm.status,
+        due_at: activityForm.due_at ? new Date(activityForm.due_at).toISOString() : null,
+        max_score: activityForm.max_score ? Number(activityForm.max_score) : null,
+        config,
+      };
+      if (activityDialog?.activity) {
+        return lmsUseCases.updateActivity(activityDialog.activity.id, body);
+      }
+      return lmsUseCases.createActivity({ ...body, unit: activityDialog!.unitId });
+    },
+    onSuccess: () => { setActivityDialog(null); setActivityFormError(null); invalidateUnits(); },
+    onError: (err: any) => setActivityFormError(err?.message || "No se pudo guardar la actividad"),
+  });
+  const deleteActivityM = useMutation({
+    mutationFn: (id: string) => lmsUseCases.deleteActivity(id),
+    onSuccess: invalidateUnits,
+  });
+
+  function openCreateActivity(unitId: string) {
+    setActivityForm(EMPTY_ACTIVITY_FORM);
+    setActivityFormError(null);
+    setActivityDialog({ unitId });
+  }
+  function openEditActivity(unit: LmsCourseUnit, activity: LmsActivity) {
+    setActivityForm({
+      type: activity.type,
+      title: activity.title,
+      instructions: activity.instructions ?? "",
+      status: activity.status,
+      due_at: activity.due_at ? activity.due_at.slice(0, 10) : "",
+      max_score: activity.max_score != null ? String(activity.max_score) : "",
+      configText: activity.config && Object.keys(activity.config).length ? JSON.stringify(activity.config, null, 2) : "",
+    });
+    setActivityFormError(null);
+    setActivityDialog({ unitId: unit.id, activity });
+  }
+
+  if (!courseId) return null;
+
+  return (
+    <div>
+      <Link to="/teacher/cursos" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft size={14} /> Volver a mis cursos
+      </Link>
+
+      <PageHeader icon={GraduationCap} title={course?.title || "Curso"} subtitle="Gestiona unidades, actividades y alumnos." />
+
+      {course && (
+        <Card className="mb-6">
+          <CardContent className="grid gap-4 p-5 sm:grid-cols-[1fr_1fr_auto]">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Título</label>
+              <Input defaultValue={course.title} key={`title-${course.id}`} id="course-title-input" />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Estado</label>
+              <Select defaultValue={course.status} onValueChange={(v) => updateCourseM.mutate({ title: course.title, description: course.description ?? "", status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DRAFT">Borrador</SelectItem>
+                  <SelectItem value="PUBLISHED">Publicado</SelectItem>
+                  <SelectItem value="ARCHIVED">Archivado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const titleEl = document.getElementById("course-title-input") as HTMLInputElement | null;
+                  updateCourseM.mutate({ title: titleEl?.value || course.title, description: course.description ?? "", status: course.status });
+                }}
+                disabled={updateCourseM.isPending}
+              >
+                <Save size={14} /> Guardar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="mb-5">
+          <TabsTrigger value="contenido">Contenido</TabsTrigger>
+          <TabsTrigger value="alumnos">Alumnos</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="contenido">
+          <form
+            className="mb-5 flex gap-2"
+            onSubmit={(e) => { e.preventDefault(); if (newUnitTitle.trim()) createUnitM.mutate(); }}
+          >
+            <Input placeholder="Título de la nueva unidad…" value={newUnitTitle} onChange={(e) => setNewUnitTitle(e.target.value)} className="max-w-sm" />
+            <Button type="submit" disabled={createUnitM.isPending || !newUnitTitle.trim()}>
+              <Plus size={15} /> Agregar unidad
+            </Button>
+          </form>
+
+          {units.length === 0 && (
+            <EmptyState icon={ListChecks} title="Sin unidades aún" description="Agrega la primera unidad para empezar a publicar actividades." />
+          )}
+
+          <div className="flex flex-col gap-4">
+            {units.map((unit) => (
+              <Card key={unit.id}>
+                <CardContent className="p-5">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="font-display font-semibold text-foreground">{unit.title}</h3>
+                    <div className="flex items-center gap-2">
+                      <Select defaultValue={unit.status} onValueChange={(v) => updateUnitM.mutate({ id: unit.id, body: { status: v } })}>
+                        <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DRAFT">Borrador</SelectItem>
+                          <SelectItem value="PUBLISHED">Publicado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" variant="outline" onClick={() => openCreateActivity(unit.id)}>
+                        <Plus size={14} /> Actividad
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => deleteUnitM.mutate(unit.id)}>
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {(!unit.activities || unit.activities.length === 0) && (
+                    <p className="text-sm text-muted-foreground">Sin actividades en esta unidad.</p>
+                  )}
+
+                  <div className="flex flex-col gap-2">
+                    {[...(unit.activities ?? [])].sort((a, b) => a.order - b.order).map((activity) => {
+                      const meta = typeMeta(activity.type);
+                      const Icon = meta.icon;
+                      return (
+                        <div key={activity.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <Icon size={16} className="text-primary" />
+                            <div>
+                              <div className="text-sm font-medium text-foreground">{activity.title}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {meta.label}
+                                {activity.due_at && ` · vence ${new Date(activity.due_at).toLocaleDateString()}`}
+                              </div>
+                            </div>
+                            <Badge variant={activity.status === "PUBLISHED" ? "default" : "secondary"}>
+                              {activity.status === "PUBLISHED" ? "Publicado" : "Borrador"}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {(activity.type === "assignment" || activity.type === "exam") && (
+                              <Button size="sm" variant="outline" onClick={() => setSubmissionsFor(activity)}>
+                                <ClipboardList size={13} /> Entregas
+                              </Button>
+                            )}
+                            {(activity.type === "quiz" || activity.type === "exam") && (
+                              <Button size="sm" variant="outline" onClick={() => setQuestionsFor(activity)}>
+                                <HelpCircle size={13} /> Preguntas
+                              </Button>
+                            )}
+                            {activity.type === "forum" && (
+                              <Button size="sm" variant="outline" onClick={() => setThreadsFor(activity)}>
+                                <MessageSquare size={13} /> Hilos
+                              </Button>
+                            )}
+                            <Button size="sm" variant="ghost" onClick={() => openEditActivity(unit, activity)}>
+                              <Pencil size={13} />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => deleteActivityM.mutate(activity.id)}>
+                              <Trash2 size={13} />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="alumnos">
+          {(rosterQ.data ?? []).length === 0 ? (
+            <EmptyState icon={Users} title="Aún no hay alumnos inscritos" description="Los alumnos aparecerán aquí cuando se matriculen desde el catálogo." />
+          ) : (
+            <DataTable>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Alumno</TableHead>
+                  <TableHead>Progreso</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Última actividad</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(rosterQ.data ?? []).map((r) => (
+                  <TableRow key={r.enrollment_id}>
+                    <TableCell>
+                      <div className="font-medium text-foreground">{r.student.first_name} {r.student.last_name}</div>
+                      <div className="text-xs text-muted-foreground">{r.student.email}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-24 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${r.progress_percent}%` }} />
+                        </div>
+                        <span className="text-xs text-muted-foreground">{r.progress_percent}%</span>
+                      </div>
+                    </TableCell>
+                    <TableCell><Badge variant="outline">{r.status}</Badge></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.last_activity_at ? new Date(r.last_activity_at).toLocaleDateString() : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </DataTable>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Crear/editar actividad ─────────────────────────────────────────── */}
+      <Dialog open={!!activityDialog} onOpenChange={(open) => !open && setActivityDialog(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{activityDialog?.activity ? "Editar actividad" : "Nueva actividad"}</DialogTitle>
+          </DialogHeader>
+          <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); saveActivityM.mutate(); }}>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Tipo</label>
+                <Input
+                  list="lms-activity-types"
+                  value={activityForm.type}
+                  onChange={(e) => setActivityForm((f) => ({ ...f, type: e.target.value }))}
+                  required
+                />
+                <datalist id="lms-activity-types">
+                  {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{typeMeta(t).label}</option>)}
+                </datalist>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Estado</label>
+                <Select value={activityForm.status} onValueChange={(v) => setActivityForm((f) => ({ ...f, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DRAFT">Borrador</SelectItem>
+                    <SelectItem value="PUBLISHED">Publicado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Título *</label>
+              <Input required value={activityForm.title} onChange={(e) => setActivityForm((f) => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Instrucciones</label>
+              <Textarea rows={3} value={activityForm.instructions} onChange={(e) => setActivityForm((f) => ({ ...f, instructions: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Fecha límite</label>
+                <Input type="date" value={activityForm.due_at} onChange={(e) => setActivityForm((f) => ({ ...f, due_at: e.target.value }))} />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Puntaje máximo</label>
+                <Input type="number" value={activityForm.max_score} onChange={(e) => setActivityForm((f) => ({ ...f, max_score: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Configuración (JSON, opcional)</label>
+              <Textarea
+                rows={4}
+                className="font-mono text-xs"
+                placeholder={'presentación: {"file_url":"https://..."}\nexamen externo: {"mode":"external","external_url":"https://..."}'}
+                value={activityForm.configText}
+                onChange={(e) => setActivityForm((f) => ({ ...f, configText: e.target.value }))}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Presentación: <code>file_url</code> o <code>embed_url</code>. Examen: <code>mode</code> (<code>quiz</code>/<code>manual</code>/<code>external</code>) y <code>external_url</code> si aplica.
+              </p>
+            </div>
+            {activityFormError && <p className="text-sm text-destructive">{activityFormError}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setActivityDialog(null)}>Cancelar</Button>
+              <Button type="submit" disabled={saveActivityM.isPending}>{saveActivityM.isPending ? "Guardando…" : "Guardar"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <SubmissionsDialog activity={submissionsFor} onClose={() => setSubmissionsFor(null)} />
+      <QuestionsDialog activity={questionsFor} onClose={() => setQuestionsFor(null)} />
+      <ThreadsDialog activity={threadsFor} onClose={() => setThreadsFor(null)} />
+    </div>
+  );
+}
+
+// ── Entregas (tareas / exámenes manuales) ───────────────────────────────────
+
+function SubmissionsDialog({ activity, onClose }: { activity: LmsActivity | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [gradingId, setGradingId] = useState<string | null>(null);
+  const [gradeForm, setGradeForm] = useState({ grade: "", feedback: "" });
+
+  const q = useQuery({
+    queryKey: ["lms-submissions", activity?.id],
+    queryFn: () => lmsUseCases.listSubmissions(activity!.id),
+    enabled: !!activity,
+  });
+
+  const gradeM = useMutation({
+    mutationFn: (id: string) => lmsUseCases.gradeSubmission(id, { grade: Number(gradeForm.grade), feedback: gradeForm.feedback || undefined }),
+    onSuccess: () => { setGradingId(null); qc.invalidateQueries({ queryKey: ["lms-submissions", activity?.id] }); },
+  });
+
+  return (
+    <Dialog open={!!activity} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogHeader><DialogTitle>Entregas — {activity?.title}</DialogTitle></DialogHeader>
+        {(q.data ?? []).length === 0 ? (
+          <EmptyState icon={ClipboardList} title="Sin entregas todavía" />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {(q.data ?? []).map((s: LmsSubmission) => (
+              <Card key={s.id}>
+                <CardContent className="p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">{s.student?.first_name} {s.student?.last_name}</div>
+                      <div className="text-xs text-muted-foreground">{s.student?.email}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={s.status === "GRADED" ? "default" : s.status === "LATE" ? "destructive" : "secondary"}>{s.status}</Badge>
+                      {s.grade != null && <Badge variant="outline">{s.grade} pts</Badge>}
+                      <Button size="sm" variant="outline" onClick={() => { setGradingId(s.id); setGradeForm({ grade: s.grade != null ? String(s.grade) : "", feedback: s.feedback ?? "" }); }}>
+                        Calificar
+                      </Button>
+                    </div>
+                  </div>
+                  {s.content_text && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{s.content_text}</p>}
+                  {s.file_url && <a href={s.file_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-primary underline">Ver archivo entregado</a>}
+
+                  {gradingId === s.id && (
+                    <form className="mt-3 flex flex-col gap-2 border-t border-border pt-3" onSubmit={(e) => { e.preventDefault(); gradeM.mutate(s.id); }}>
+                      <div className="flex gap-2">
+                        <Input type="number" placeholder="Nota" value={gradeForm.grade} onChange={(e) => setGradeForm((f) => ({ ...f, grade: e.target.value }))} className="w-28" required />
+                        <Button type="submit" size="sm" disabled={gradeM.isPending}>{gradeM.isPending ? "Guardando…" : "Guardar nota"}</Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => setGradingId(null)}>Cancelar</Button>
+                      </div>
+                      <Textarea rows={2} placeholder="Retroalimentación (opcional)" value={gradeForm.feedback} onChange={(e) => setGradeForm((f) => ({ ...f, feedback: e.target.value }))} />
+                    </form>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Banco de preguntas (quiz / examen autoevaluable) ────────────────────────
+
+const EMPTY_QUESTION_FORM = { text: "", type: "MULTIPLE_CHOICE", feedback: "", options: [{ text: "", is_correct: false }, { text: "", is_correct: false }] };
+
+function QuestionsDialog({ activity, onClose }: { activity: LmsActivity | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState(EMPTY_QUESTION_FORM);
+
+  const q = useQuery({
+    queryKey: ["lms-questions", activity?.id],
+    queryFn: () => lmsUseCases.listQuestionsForManage(activity!.id),
+    enabled: !!activity,
+  });
+
+  const createM = useMutation({
+    mutationFn: () => lmsUseCases.upsertQuestion({
+      activity: activity!.id,
+      text: form.text,
+      type: form.type as any,
+      feedback: form.feedback || null,
+      options: form.type === "MULTIPLE_CHOICE" ? form.options.filter((o) => o.text.trim()) : undefined,
+    }),
+    onSuccess: () => { setForm(EMPTY_QUESTION_FORM); qc.invalidateQueries({ queryKey: ["lms-questions", activity?.id] }); },
+  });
+  const deleteM = useMutation({
+    mutationFn: (id: string) => lmsUseCases.deleteQuestion(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-questions", activity?.id] }),
+  });
+
+  function updateOption(idx: number, patch: Partial<{ text: string; is_correct: boolean }>) {
+    setForm((f) => ({ ...f, options: f.options.map((o, i) => (i === idx ? { ...o, ...patch } : o)) }));
+  }
+
+  return (
+    <Dialog open={!!activity} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogHeader><DialogTitle>Banco de preguntas — {activity?.title}</DialogTitle></DialogHeader>
+
+        <div className="flex flex-col gap-3">
+          {(q.data ?? []).map((question: LmsQuizQuestion) => (
+            <Card key={question.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium text-foreground">{question.text}</p>
+                  <Button size="sm" variant="ghost" onClick={() => deleteM.mutate(question.id)}><Trash2 size={14} /></Button>
+                </div>
+                {question.type === "MULTIPLE_CHOICE" && (
+                  <ul className="mt-2 flex flex-col gap-1">
+                    {question.options.map((o) => (
+                      <li key={o.id} className={`text-sm ${o.is_correct ? "font-medium text-emerald-600" : "text-muted-foreground"}`}>
+                        {o.is_correct ? "✓ " : "· "}{o.text}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <form className="mt-2 flex flex-col gap-3 border-t border-border pt-4" onSubmit={(e) => { e.preventDefault(); createM.mutate(); }}>
+          <p className="text-sm font-medium text-foreground">Agregar pregunta</p>
+          <Textarea rows={2} placeholder="Enunciado de la pregunta" required value={form.text} onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))} />
+          <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}>
+            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MULTIPLE_CHOICE">Opción múltiple</SelectItem>
+              <SelectItem value="OPEN">Respuesta abierta</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {form.type === "MULTIPLE_CHOICE" && (
+            <div className="flex flex-col gap-2">
+              {form.options.map((o, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input type="checkbox" checked={o.is_correct} onChange={(e) => updateOption(idx, { is_correct: e.target.checked })} className="h-4 w-4 accent-primary" />
+                  <Input placeholder={`Opción ${idx + 1}`} value={o.text} onChange={(e) => updateOption(idx, { text: e.target.value })} />
+                </div>
+              ))}
+              <Button type="button" size="sm" variant="outline" className="self-start" onClick={() => setForm((f) => ({ ...f, options: [...f.options, { text: "", is_correct: false }] }))}>
+                <Plus size={13} /> Opción
+              </Button>
+            </div>
+          )}
+
+          <Textarea rows={2} placeholder="Retroalimentación al responder (opcional)" value={form.feedback} onChange={(e) => setForm((f) => ({ ...f, feedback: e.target.value }))} />
+          <Button type="submit" disabled={createM.isPending} className="self-start">{createM.isPending ? "Guardando…" : "Agregar pregunta"}</Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Hilos de foro (moderación) ───────────────────────────────────────────────
+
+function ThreadsDialog({ activity, onClose }: { activity: LmsActivity | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: ["lms-threads-manage", activity?.id],
+    queryFn: () => lmsUseCases.listThreadsForManage(activity!.id),
+    enabled: !!activity,
+  });
+  const moderateM = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: { is_pinned?: boolean; is_locked?: boolean } }) => lmsUseCases.moderateThread(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-threads-manage", activity?.id] }),
+  });
+
+  return (
+    <Dialog open={!!activity} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogHeader><DialogTitle>Hilos de foro — {activity?.title}</DialogTitle></DialogHeader>
+        {(q.data ?? []).length === 0 ? (
+          <EmptyState icon={MessageSquare} title="Sin hilos todavía" description="Los alumnos crean hilos desde la vista del curso." />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {(q.data ?? []).map((t: LmsForumThread) => (
+              <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5">
+                <div>
+                  <div className="text-sm font-medium text-foreground">{t.title}</div>
+                  <div className="text-xs text-muted-foreground">{t.author?.first_name} {t.author?.last_name}</div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button size="sm" variant="outline" onClick={() => moderateM.mutate({ id: t.id, patch: { is_pinned: !t.is_pinned } })}>
+                    {t.is_pinned ? <PinOff size={13} /> : <Pin size={13} />} {t.is_pinned ? "Desfijar" : "Fijar"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => moderateM.mutate({ id: t.id, patch: { is_locked: !t.is_locked } })}>
+                    {t.is_locked ? <Unlock size={13} /> : <Lock size={13} />} {t.is_locked ? "Abrir" : "Cerrar"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
