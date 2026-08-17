@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useAuth, avatarUrl } from "../../store/auth.store";
+import { isAdmin as checkIsAdmin, isAdminOrTeacher } from "../../../domain/services/auth-authorization.service";
 import ScrollNavLink from "./ScrollNavLink";
 import { cn } from "@/presentation/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/presentation/components/ui/avatar";
@@ -30,6 +31,7 @@ const SOCIAL_LINKS = [
 
 const NAV_ITEMS = [
   { to: "/", label: "INICIO+", icon: Home, end: true },
+  { to: "/lms", label: "ACADEMIA+", icon: GraduationCap },
   { to: "/courses", label: "CURSOS+", icon: BookOpen },
   { to: "/tutorials", label: "TUTORIALES+", icon: FileText },
   { to: "/projects", label: "PROYECTOS+", icon: FolderGit2 },
@@ -46,11 +48,8 @@ export default function TopNav() {
 
   const authed = status === "authenticated";
 
-  const isAdmin = authed && (
-    user?.role?.name === 'admin' ||
-    user?.permissions?.includes('admin') ||
-    user?.permissions?.includes('admin_access')
-  );
+  const isAdmin = authed && checkIsAdmin(user);
+  const canManageLms = authed && isAdminOrTeacher(user);
 
   const getUserInitials = () => {
     if (user?.first_name && user?.last_name) {
@@ -145,6 +144,14 @@ export default function TopNav() {
                         <Link to="/admin"><Shield size={14} className="mr-2" />Admin Panel</Link>
                       </DropdownMenuItem>
                     )}
+                    {canManageLms && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/teacher/cursos"><GraduationCap size={14} className="mr-2" />Panel de profesor</Link>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem asChild>
+                      <Link to="/lms/mis-cursos"><BookOpen size={14} className="mr-2" />Mis cursos</Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link to="/profile"><User size={14} className="mr-2" />Mi Perfil</Link>
                     </DropdownMenuItem>
@@ -273,6 +280,14 @@ export default function TopNav() {
                           <Shield size={18} /><span>Panel de Admin</span>
                         </ScrollNavLink>
                       )}
+                      {canManageLms && (
+                        <ScrollNavLink to="/teacher/cursos" onClick={() => setOpen(false)} className={mobileNavLinkClass}>
+                          <GraduationCap size={18} /><span>Panel de profesor</span>
+                        </ScrollNavLink>
+                      )}
+                      <ScrollNavLink to="/lms/mis-cursos" onClick={() => setOpen(false)} className={mobileNavLinkClass}>
+                        <BookOpen size={18} /><span>Mis cursos</span>
+                      </ScrollNavLink>
                       <ScrollNavLink to="/profile" onClick={() => setOpen(false)} className={mobileNavLinkClass}>
                         <User size={18} /><span>Mi Perfil</span>
                       </ScrollNavLink>

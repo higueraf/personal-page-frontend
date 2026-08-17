@@ -1,0 +1,62 @@
+import { Paginated } from "../shared/pagination";
+import {
+  LmsActivity,
+  LmsActivityProgress,
+  LmsCourse,
+  LmsCourseUnit,
+  LmsEnrollment,
+  LmsForumPost,
+  LmsForumThread,
+  LmsQuizAttempt,
+  LmsQuizQuestion,
+  LmsRosterEntry,
+  LmsSubmission,
+} from "../entities/lms.entity";
+
+export interface LmsRepositoryPort {
+  // ── Profesor/admin: cursos y unidades ─────────────────────────────────────
+  listForTeacher(params?: { search?: string; page?: number; page_size?: number }): Promise<Paginated<LmsCourse>>;
+  getCourseForManage(id: string): Promise<LmsCourse>;
+  createCourse(body: Partial<LmsCourse>): Promise<LmsCourse>;
+  updateCourse(id: string, body: Partial<LmsCourse>): Promise<LmsCourse>;
+  archiveCourse(id: string): Promise<LmsCourse>;
+  listUnits(courseId: string): Promise<LmsCourseUnit[]>;
+  createUnit(body: { course: string; title: string; order?: number; status?: string }): Promise<LmsCourseUnit>;
+  updateUnit(id: string, body: Partial<{ title: string; order: number; status: string }>): Promise<LmsCourseUnit>;
+  deleteUnit(id: string): Promise<void>;
+  roster(courseId: string): Promise<LmsRosterEntry[]>;
+
+  // ── Profesor/admin: actividades ───────────────────────────────────────────
+  listActivities(unitId: string): Promise<LmsActivity[]>;
+  createActivity(body: Partial<LmsActivity> & { unit: string }): Promise<LmsActivity>;
+  updateActivity(id: string, body: Partial<LmsActivity>): Promise<LmsActivity>;
+  deleteActivity(id: string): Promise<void>;
+
+  // ── Profesor/admin: foro, entregas y quizzes ─────────────────────────────
+  listThreadsForManage(activityId: string): Promise<LmsForumThread[]>;
+  moderateThread(id: string, patch: { is_pinned?: boolean; is_locked?: boolean }): Promise<LmsForumThread>;
+  listSubmissions(activityId: string): Promise<LmsSubmission[]>;
+  gradeSubmission(id: string, body: { grade: number; feedback?: string }): Promise<LmsSubmission>;
+  listQuestionsForManage(activityId: string): Promise<LmsQuizQuestion[]>;
+  upsertQuestion(body: Partial<LmsQuizQuestion> & { activity: string }): Promise<LmsQuizQuestion>;
+  deleteQuestion(id: string): Promise<void>;
+
+  // ── Catálogo público ──────────────────────────────────────────────────────
+  catalog(params?: { search?: string; study_course_id?: string; page?: number; page_size?: number }): Promise<Paginated<LmsCourse>>;
+  detail(slug: string): Promise<LmsCourse>;
+
+  // ── Alumno ─────────────────────────────────────────────────────────────────
+  enroll(courseId: string): Promise<LmsEnrollment>;
+  myCourses(): Promise<LmsEnrollment[]>;
+  getActivity(id: string): Promise<{ activity: LmsActivity; progress: LmsActivityProgress; course_id: string }>;
+  markActivityComplete(id: string): Promise<LmsActivityProgress>;
+  listThreads(activityId: string): Promise<LmsForumThread[]>;
+  getThread(id: string): Promise<LmsForumThread>;
+  createThread(body: { activity: string; title: string; body: string }): Promise<LmsForumThread>;
+  createPost(body: { thread: string; body: string; parent_post?: string }): Promise<LmsForumPost>;
+  mySubmission(activityId: string): Promise<LmsSubmission | null>;
+  submitAssignment(activityId: string, body: { content_text?: string; file_url?: string }): Promise<LmsSubmission>;
+  listQuestionsForStudent(activityId: string): Promise<LmsQuizQuestion[]>;
+  submitQuizAttempt(activityId: string, body: { answers: { question_id: string; selected_option_id?: string; text_answer?: string }[] }): Promise<LmsQuizAttempt>;
+  myQuizAttempts(activityId: string): Promise<LmsQuizAttempt[]>;
+}

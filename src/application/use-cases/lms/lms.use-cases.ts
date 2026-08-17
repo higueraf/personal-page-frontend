@@ -1,0 +1,47 @@
+import { LmsRepositoryPort } from "../../../domain/ports/lms-repository.port";
+
+/** Passthrough sobre el puerto, igual que el resto de *.use-cases.ts del proyecto. */
+export class LmsUseCases implements LmsRepositoryPort {
+  constructor(private readonly repository: LmsRepositoryPort) {}
+
+  listForTeacher(params?: any) { return this.repository.listForTeacher(params); }
+  getCourseForManage(id: string) { return this.repository.getCourseForManage(id); }
+  createCourse(body: any) { return this.repository.createCourse(body); }
+  updateCourse(id: string, body: any) { return this.repository.updateCourse(id, body); }
+  archiveCourse(id: string) { return this.repository.archiveCourse(id); }
+  listUnits(courseId: string) { return this.repository.listUnits(courseId); }
+  createUnit(body: any) { return this.repository.createUnit(body); }
+  updateUnit(id: string, body: any) { return this.repository.updateUnit(id, body); }
+  deleteUnit(id: string) { return this.repository.deleteUnit(id); }
+  roster(courseId: string) { return this.repository.roster(courseId); }
+
+  listActivities(unitId: string) { return this.repository.listActivities(unitId); }
+  createActivity(body: any) { return this.repository.createActivity(body); }
+  updateActivity(id: string, body: any) { return this.repository.updateActivity(id, body); }
+  deleteActivity(id: string) { return this.repository.deleteActivity(id); }
+
+  listThreadsForManage(activityId: string) { return this.repository.listThreadsForManage(activityId); }
+  moderateThread(id: string, patch: any) { return this.repository.moderateThread(id, patch); }
+  listSubmissions(activityId: string) { return this.repository.listSubmissions(activityId); }
+  gradeSubmission(id: string, body: any) { return this.repository.gradeSubmission(id, body); }
+  listQuestionsForManage(activityId: string) { return this.repository.listQuestionsForManage(activityId); }
+  upsertQuestion(body: any) { return this.repository.upsertQuestion(body); }
+  deleteQuestion(id: string) { return this.repository.deleteQuestion(id); }
+
+  catalog(params?: any) { return this.repository.catalog(params); }
+  detail(slug: string) { return this.repository.detail(slug); }
+
+  enroll(courseId: string) { return this.repository.enroll(courseId); }
+  myCourses() { return this.repository.myCourses(); }
+  getActivity(id: string) { return this.repository.getActivity(id); }
+  markActivityComplete(id: string) { return this.repository.markActivityComplete(id); }
+  listThreads(activityId: string) { return this.repository.listThreads(activityId); }
+  getThread(id: string) { return this.repository.getThread(id); }
+  createThread(body: any) { return this.repository.createThread(body); }
+  createPost(body: any) { return this.repository.createPost(body); }
+  mySubmission(activityId: string) { return this.repository.mySubmission(activityId); }
+  submitAssignment(activityId: string, body: any) { return this.repository.submitAssignment(activityId, body); }
+  listQuestionsForStudent(activityId: string) { return this.repository.listQuestionsForStudent(activityId); }
+  submitQuizAttempt(activityId: string, body: any) { return this.repository.submitQuizAttempt(activityId, body); }
+  myQuizAttempts(activityId: string) { return this.repository.myQuizAttempts(activityId); }
+}
