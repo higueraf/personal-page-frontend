@@ -43,6 +43,7 @@ import AdminLayout       from "../layout/AdminLayout";
 import AdminDashboard    from "../pages/admin/AdminDashboard";
 import AdminTutorials    from "../pages/admin/AdminTutorials";
 import TutorialEditor    from "../pages/admin/TutorialEditor";
+import ImportTutorial    from "../pages/admin/ImportTutorial";
 import AdminVideoCourses from "../pages/admin/AdminVideoCourses";
 import CourseEditor      from "../pages/admin/CourseEditor";
 import AdminUsers        from "../pages/admin/AdminUsers";
@@ -151,6 +152,7 @@ export const router = createBrowserRouter([
               { index: true, element: <AdminDashboard /> },
 
               { path: "tutorials",                    element: <AdminTutorials /> },
+              { path: "tutorials/import",             element: <ImportTutorial /> },
               { path: "tutorials/:courseId/edit",     element: <TutorialEditor /> },
 
               { path: "video-courses",                element: <AdminVideoCourses /> },

@@ -5,6 +5,7 @@ import { AxiosPageRepositoryAdapter } from "../adapters/page-repository.adapter"
 import { AxiosContentBlockRepositoryAdapter } from "../adapters/content-block-repository.adapter";
 import { AxiosStudyCourseRepositoryAdapter } from "../adapters/study-course-repository.adapter";
 import { AxiosInstitutionRepositoryAdapter } from "../adapters/institution-repository.adapter";
+import { AxiosTutorialImportRepositoryAdapter } from "../adapters/tutorial-import-repository.adapter";
 
 import { TutorialUseCases } from "../../application/use-cases/tutorial/tutorial.use-cases";
 import { TutorialSectionUseCases } from "../../application/use-cases/tutorial-section/tutorial-section.use-cases";
@@ -13,6 +14,7 @@ import { PageUseCases } from "../../application/use-cases/page/page.use-cases";
 import { ContentBlockUseCases } from "../../application/use-cases/content-block/content-block.use-cases";
 import { StudyCourseUseCases } from "../../application/use-cases/study-course/study-course.use-cases";
 import { InstitutionUseCases } from "../../application/use-cases/institution/institution.use-cases";
+import { TutorialImportUseCases } from "../../application/use-cases/tutorial-import/import-tutorial.use-case";
 
 export const tutorialUseCases = new TutorialUseCases(
   new AxiosTutorialRepositoryAdapter()
@@ -32,4 +34,7 @@ export const studyCourseUseCases = new StudyCourseUseCases(
 );
 export const institutionUseCases = new InstitutionUseCases(
   new AxiosInstitutionRepositoryAdapter()
+);
+export const tutorialImportUseCases = new TutorialImportUseCases(
+  new AxiosTutorialImportRepositoryAdapter()
 );

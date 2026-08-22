@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Plus, Edit3, Trash2, BookOpen, Search, AlertCircle,
-  RefreshCw, ChevronRight, X
+  RefreshCw, ChevronRight, X, UploadCloud
 } from "lucide-react";
 import {
   tutorialUseCases,
@@ -95,9 +95,14 @@ export default function AdminTutorials() {
             Tutoriales
           </h1>
         </div>
-        <button className="btn btn--primary" onClick={openCreate}>
-          <Plus size={15} /> Nuevo tutorial
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Link to="/admin/tutorials/import" className="btn btn--outline">
+            <UploadCloud size={15} /> Importar desde Markdown
+          </Link>
+          <button className="btn btn--primary" onClick={openCreate}>
+            <Plus size={15} /> Nuevo tutorial
+          </button>
+        </div>
       </div>
 
       {/* Buscador */}
