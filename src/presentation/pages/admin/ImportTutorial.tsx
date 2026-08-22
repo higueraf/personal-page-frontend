@@ -26,7 +26,7 @@ import {
 } from "../../../infrastructure/factories/tutorial-module.factory";
 import type { TutorialStatus } from "../../../domain/entities/tutorial.entity";
 import type { ImportTutorialPayload, ImportTutorialResult } from "../../../domain/ports/tutorial-import-repository.port";
-import { parseTutorialFiles, suggestCourseTitle, type ParsedSection, type RawFile } from "./import-tutorial-parser";
+import { parseTutorialFiles, suggestCourseTitle, readFilesAsText, type ParsedSection, type RawFile } from "./import-tutorial-parser";
 
 const LEVELS = ["Principiante", "Intermedio", "Avanzado"];
 type Step = "course" | "files" | "preview" | "done";
@@ -35,21 +35,6 @@ const NEW_COURSE_EMPTY = {
   title: "", description: "", level: "Principiante",
   status: "DRAFT" as TutorialStatus, is_public: false,
 };
-
-function readFilesAsText(fileList: FileList): Promise<RawFile[]> {
-  const files = Array.from(fileList);
-  return Promise.all(
-    files.map(
-      (file) =>
-        new Promise<RawFile>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve({ filename: file.name, content: String(reader.result || "") });
-          reader.onerror = () => reject(reader.error);
-          reader.readAsText(file, "UTF-8");
-        })
-    )
-  );
-}
 
 export default function ImportTutorial() {
   const qc = useQueryClient();
@@ -287,7 +272,7 @@ export default function ImportTutorial() {
             <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--color-text)" }}>Importación completada</h2>
           </div>
           <p style={{ fontSize: ".9rem", color: "var(--color-text-muted)", marginBottom: 20 }}>
-            Secciones: {result.sections.created} creadas, {result.sections.updated} actualizadas. Lecciones: {result.lessons.created} creadas, {result.lessons.updated} actualizadas.
+            Páginas: {result.lessons.created} creadas, {result.lessons.updated} actualizadas. Todas viven en una sola sección del curso — la agrupación por módulo de la vista previa es solo para revisar antes de importar.
           </p>
           <div style={{ display: "flex", gap: 10 }}>
             <Link to={`/admin/tutorials/${result.courseId}/edit`} className="btn btn--primary">Abrir editor <ChevronRight size={15} /></Link>

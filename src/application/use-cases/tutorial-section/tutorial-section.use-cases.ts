@@ -1,4 +1,4 @@
-import { TutorialSectionRepositoryPort } from "../../../domain/ports/tutorial-section-repository.port";
+import { TutorialSectionRepositoryPort, ConsolidateSectionsResult } from "../../../domain/ports/tutorial-section-repository.port";
 import { TutorialSection } from "../../../domain/entities/tutorial-section.entity";
 
 export class TutorialSectionUseCases {
@@ -18,5 +18,8 @@ export class TutorialSectionUseCases {
   }
   delete(id: string): Promise<void> {
     return this.repository.delete(id);
+  }
+  consolidate(tutorialId: string): Promise<ConsolidateSectionsResult> {
+    return this.repository.consolidate(tutorialId);
   }
 }

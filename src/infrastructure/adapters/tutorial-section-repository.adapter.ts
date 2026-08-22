@@ -1,5 +1,5 @@
 import axiosClient from "../http/axios-client";
-import { TutorialSectionRepositoryPort } from "../../domain/ports/tutorial-section-repository.port";
+import { TutorialSectionRepositoryPort, ConsolidateSectionsResult } from "../../domain/ports/tutorial-section-repository.port";
 import { TutorialSection } from "../../domain/entities/tutorial-section.entity";
 import { Paginated } from "../../domain/shared/pagination";
 
@@ -63,5 +63,12 @@ export class AxiosTutorialSectionRepositoryAdapter
 
   async delete(id: string): Promise<void> {
     await axiosClient.delete(`/course-sections/${id}`);
+  }
+
+  async consolidate(tutorialId: string): Promise<ConsolidateSectionsResult> {
+    const { data } = await axiosClient.post<{ data: ConsolidateSectionsResult }>(
+      `/courses/${tutorialId}/consolidate-sections`
+    );
+    return data.data;
   }
 }

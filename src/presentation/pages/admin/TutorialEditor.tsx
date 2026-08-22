@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Plus, Trash2, Eye, Edit3, Save, AlertCircle,
   GripVertical, BookOpen, RefreshCw, ChevronRight, FileText,
+  Upload, Merge,
 } from "lucide-react";
 import {
   tutorialUseCases,
@@ -21,6 +22,7 @@ import type { TutorialSection } from "../../../domain/entities/tutorial-section.
 import type { Lesson } from "../../../domain/entities/lesson.entity";
 import type { Page as TutorialLessonPage } from "../../../domain/entities/page.entity";
 import type { ContentBlock } from "../../../domain/entities/content-block.entity";
+import { parseSingleLesson, readFilesAsText, type SingleLesson } from "./import-tutorial-parser";
 import hljs from "highlight.js";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -30,6 +32,13 @@ interface TutorialPage {
   page: TutorialLessonPage | null;
   block: ContentBlock | null;
   markdown: string;
+}
+
+interface ImportItem extends SingleLesson {
+  filename: string;
+  matchId: string | null;
+  matchTitle: string | null;
+  action: "replace" | "add";
 }
 
 // ── Parser Markdown → HTML (usa variables CSS del tema activo) ────────────────
@@ -255,6 +264,12 @@ export default function TutorialEditor() {
   const [titleDraft, setTitleDraft] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Importar/reemplazar páginas desde .md locales
+  const importFileInputRef = useRef<HTMLInputElement>(null);
+  const [importItems, setImportItems] = useState<ImportItem[]>([]);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
   // ── Queries ───────────────────────────────────────────────────────────────
 
   const courseQ = useQuery({
@@ -285,6 +300,17 @@ export default function TutorialEditor() {
   useEffect(() => {
     if (secQ.isSuccess && secQ.data?.length === 0) createSectionM.mutate();
   }, [secQ.isSuccess, secQ.data]);
+
+  // Cursos importados antes de aplanar todo a una sola sección pueden tener
+  // páginas "atrapadas" en secciones adicionales que este editor no muestra.
+  const hiddenSections = (secQ.data?.length ?? 0) > 1 ? secQ.data!.slice(1) : [];
+  const consolidateM = useMutation({
+    mutationFn: () => tutorialSectionUseCases.consolidate(courseId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tutorial-section", courseId] });
+      qc.invalidateQueries({ queryKey: ["tutorial-lessons", section?.id] });
+    },
+  });
 
   useEffect(() => {
     if (lessons.length > 0 && !activeLessonId) setActiveLessonId(lessons[0].id);
@@ -485,6 +511,73 @@ export default function TutorialEditor() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["tutorial-lessons", section?.id] }); setEditingTitle(null); },
   });
 
+  // ── Importar / reemplazar páginas desde .md locales ─────────────────────
+
+  async function handleImportFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const fileList = e.target.files;
+    e.target.value = ""; // permite re-seleccionar el mismo archivo después
+    if (!fileList || fileList.length === 0) return;
+    setImportError(null);
+    try {
+      const raw = await readFilesAsText(fileList);
+      const items: ImportItem[] = raw.map((file) => {
+        const parsed = parseSingleLesson(file);
+        const match = lessons.find((l) => l.slug === parsed.slug);
+        return {
+          ...parsed,
+          filename: file.filename,
+          matchId: match?.id ?? null,
+          matchTitle: match?.title ?? null,
+          action: match ? "replace" : "add",
+        };
+      });
+      setImportItems(items);
+      setImportOpen(true);
+    } catch {
+      setImportError("No se pudieron leer los archivos seleccionados.");
+    }
+  }
+
+  function setImportAction(idx: number, action: ImportItem["action"]) {
+    setImportItems((items) => items.map((it, i) => (i === idx ? { ...it, action } : it)));
+  }
+  function removeImportItem(idx: number) {
+    setImportItems((items) => items.filter((_, i) => i !== idx));
+  }
+
+  async function applyMarkdownToLesson(lessonId: string, markdown: string) {
+    const pages = await pageUseCases.list(lessonId);
+    let page = pages[0];
+    if (!page) page = await pageUseCases.create({ lesson: lessonId, order: 1, estimated_minutes: 5, status: "PUBLISHED" });
+    const blocks = await contentBlockUseCases.list(page.id);
+    const block = blocks[0];
+    if (block) await contentBlockUseCases.update(block.id, { type: "markdown", data: { markdown } });
+    else await contentBlockUseCases.create({ page: page.id, type: "markdown", order: 1, data: { markdown } });
+  }
+
+  const importFilesM = useMutation({
+    mutationFn: async () => {
+      if (!section) throw new Error("Sin sección");
+      let nextOrder = lessons.reduce((max, l) => Math.max(max, l.order), 0);
+      for (const item of importItems) {
+        if (item.action === "replace" && item.matchId) {
+          await applyMarkdownToLesson(item.matchId, item.markdown);
+          continue;
+        }
+        nextOrder += 1;
+        const slug = item.matchId ? `${item.slug}-copia` : item.slug;
+        const lesson = await lessonUseCases.create({ section: section.id, title: item.title, slug, order: nextOrder, status: "PUBLISHED" });
+        await applyMarkdownToLesson(lesson.id, item.markdown);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tutorial-lessons", section?.id] });
+      qc.invalidateQueries({ queryKey: ["tutorial-page"] });
+      setImportOpen(false);
+      setImportItems([]);
+    },
+  });
+
   // ── Estilos ───────────────────────────────────────────────────────────────
 
   const S = {
@@ -567,6 +660,23 @@ export default function TutorialEditor() {
         </div>
       </div>
 
+      {/* Aviso: páginas atrapadas en secciones que este editor no muestra */}
+      {hiddenSections.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 20px", background: "rgba(245,158,11,.1)", borderBottom: "1px solid var(--color-border)", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".85rem", color: "var(--color-text)" }}>
+            <AlertCircle size={15} style={{ color: "#f59e0b", flexShrink: 0 }} />
+            Este curso tiene {hiddenSections.length} sección(es) adicionales con páginas que no aparecen aquí.
+          </div>
+          <button
+            onClick={() => consolidateM.mutate()}
+            disabled={consolidateM.isPending}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: "#f59e0b", border: "none", color: "#fff", borderRadius: "var(--radius-md)", padding: "6px 12px", fontSize: ".8rem", fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
+          >
+            <Merge size={13} /> {consolidateM.isPending ? "Consolidando…" : "Consolidar estructura"}
+          </button>
+        </div>
+      )}
+
       {/* Body */}
       <div style={S.body}>
 
@@ -576,10 +686,22 @@ export default function TutorialEditor() {
             <span style={{ fontSize:".75rem", fontWeight:700, color:"var(--color-text-muted)", letterSpacing:".05em", textTransform:"uppercase" }}>
               Páginas (arrastra para reordenar)
             </span>
-            <button onClick={() => setAddingPage(true)} title="Nueva página" style={{ background:"var(--color-primary)", border:"none", color:"#fff", borderRadius:"50%", width:22, height:22, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
-              <Plus size={13}/>
-            </button>
+            <div style={{ display: "flex", gap: 6 }}>
+              <input ref={importFileInputRef} type="file" multiple accept=".md,.markdown,text/markdown" onChange={handleImportFilesSelected} style={{ display: "none" }} />
+              <button onClick={() => importFileInputRef.current?.click()} title="Importar .md (agregar o reemplazar páginas)" style={{ background:"var(--color-bg)", border:"1px solid var(--color-border)", color:"var(--color-primary)", borderRadius:"50%", width:22, height:22, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+                <Upload size={12}/>
+              </button>
+              <button onClick={() => setAddingPage(true)} title="Nueva página" style={{ background:"var(--color-primary)", border:"none", color:"#fff", borderRadius:"50%", width:22, height:22, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+                <Plus size={13}/>
+              </button>
+            </div>
           </div>
+
+          {importError && (
+            <div style={{ padding:"8px 14px", display:"flex", alignItems:"center", gap:6, color:"#DC2626", fontSize:".78rem", borderBottom:"1px solid var(--color-border)" }}>
+              <AlertCircle size={13} /> {importError}
+            </div>
+          )}
 
           {addingPage && (
             <div style={{ padding:"8px 10px", borderBottom:"1px solid var(--color-border)", display:"flex", flexDirection:"column", gap:6 }}>
@@ -773,6 +895,61 @@ export default function TutorialEditor() {
               <button onClick={() => setDeleteId(null)} style={{ flex:1, background:"var(--color-bg-muted)", border:"1px solid var(--color-border)", borderRadius:"var(--radius-md)", padding:"9px", color:"var(--color-text)", cursor:"pointer", fontFamily:"var(--font-body)" }}>Cancelar</button>
               <button onClick={() => deletePageM.mutate(deleteId)} disabled={deletePageM.isPending} style={{ flex:1, background:"#DC2626", color:"#fff", border:"none", borderRadius:"var(--radius-md)", padding:"9px", fontWeight:600, cursor:"pointer", fontFamily:"var(--font-body)" }}>
                 {deletePageM.isPending ? "Eliminando…" : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal importar/reemplazar desde .md */}
+      {importOpen && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, padding:16 }}>
+          <div style={{ background:"var(--color-surface)", border:"1px solid var(--color-border)", borderRadius:"var(--radius-xl)", padding:"24px 28px", maxWidth:560, width:"100%", boxShadow:"var(--shadow-lg)" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+              <Upload size={18} style={{ color:"var(--color-primary)" }}/>
+              <h3 style={{ fontFamily:"var(--font-display)", fontWeight:700, fontSize:"1rem", color:"var(--color-text)" }}>Importar {importItems.length} archivo(s)</h3>
+            </div>
+            <p style={{ color:"var(--color-text-muted)", fontSize:".82rem", marginBottom:16 }}>
+              Los archivos cuyo nombre coincide con una página existente pueden reemplazar su contenido o agregarse como página nueva.
+            </p>
+
+            <div style={{ display:"flex", flexDirection:"column", gap:8, maxHeight:320, overflowY:"auto", marginBottom:16 }}>
+              {importItems.map((item, idx) => (
+                <div key={item.filename} style={{ border:"1px solid var(--color-border)", borderRadius:"var(--radius-md)", padding:"10px 12px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                  <div style={{ flex:1, minWidth:160 }}>
+                    <div style={{ fontSize:".85rem", fontWeight:600, color:"var(--color-text)" }}>{item.title}</div>
+                    <div style={{ fontSize:".72rem", color:"var(--color-text-muted)" }}>
+                      {item.filename}{item.matchId ? ` — coincide con "${item.matchTitle}"` : " — página nueva"}
+                    </div>
+                  </div>
+                  {item.matchId ? (
+                    <select value={item.action} onChange={e => setImportAction(idx, e.target.value as ImportItem["action"])} style={{ padding:"5px 8px", background:"var(--color-bg-muted)", border:"1px solid var(--color-border)", borderRadius:"var(--radius-sm)", color:"var(--color-text)", fontSize:".78rem" }}>
+                      <option value="replace">Reemplazar contenido</option>
+                      <option value="add">Agregar como nueva</option>
+                    </select>
+                  ) : (
+                    <span style={{ fontSize:".72rem", color:"var(--color-text-muted)", flexShrink:0 }}>Se agrega al final</span>
+                  )}
+                  <button type="button" title="Quitar del import" onClick={() => removeImportItem(idx)} style={{ background:"none", border:"none", color:"var(--color-text-muted)", cursor:"pointer", padding:2, display:"flex", flexShrink:0 }}>
+                    <Trash2 size={13}/>
+                  </button>
+                </div>
+              ))}
+              {importItems.length === 0 && (
+                <p style={{ fontSize:".82rem", color:"var(--color-text-muted)", textAlign:"center", padding:"12px 0" }}>No quedan archivos por importar.</p>
+              )}
+            </div>
+
+            {importFilesM.isError && (
+              <div style={{ marginBottom:14, background:"rgba(239,68,68,.08)", border:"1px solid rgba(239,68,68,.2)", borderRadius:"var(--radius-md)", padding:"8px 12px", fontSize:".82rem", color:"#DC2626" }}>
+                Error al importar. Intenta de nuevo.
+              </div>
+            )}
+
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => { setImportOpen(false); setImportItems([]); }} style={{ flex:1, background:"var(--color-bg-muted)", border:"1px solid var(--color-border)", borderRadius:"var(--radius-md)", padding:"9px", color:"var(--color-text)", cursor:"pointer", fontFamily:"var(--font-body)" }}>Cancelar</button>
+              <button onClick={() => importFilesM.mutate()} disabled={importFilesM.isPending || importItems.length === 0} style={{ flex:1, background:"var(--color-primary)", color:"#fff", border:"none", borderRadius:"var(--radius-md)", padding:"9px", fontWeight:600, cursor:"pointer", fontFamily:"var(--font-body)" }}>
+                {importFilesM.isPending ? "Importando…" : "Confirmar import"}
               </button>
             </div>
           </div>

@@ -100,3 +100,33 @@ export function suggestCourseTitle(files: RawFile[]): string {
   }
   return "";
 }
+
+export interface SingleLesson {
+  slug: string;
+  title: string;
+  markdown: string;
+}
+
+/** Igual que parseOne() pero sin detección de módulo — para agregar/reemplazar
+ *  páginas sueltas en un curso que ya tiene una sola sección (TutorialEditor.tsx). */
+export function parseSingleLesson(file: RawFile): SingleLesson {
+  const h3Match = file.content.match(H3_RE);
+  const h1Match = file.content.match(H1_RE);
+  const title = (h3Match?.[1] || h1Match?.[1] || file.filename).trim();
+  return { slug: slugifyFilename(file.filename), title, markdown: file.content };
+}
+
+export function readFilesAsText(fileList: FileList): Promise<RawFile[]> {
+  const files = Array.from(fileList);
+  return Promise.all(
+    files.map(
+      (file) =>
+        new Promise<RawFile>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve({ filename: file.name, content: String(reader.result || "") });
+          reader.onerror = () => reject(reader.error);
+          reader.readAsText(file, "UTF-8");
+        })
+    )
+  );
+}
