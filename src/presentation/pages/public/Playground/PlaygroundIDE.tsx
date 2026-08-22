@@ -64,6 +64,7 @@ export default function PlaygroundIDE() {
     updateFileContent,
     setRunning,
     setSaving,
+    setSaveError,
     setReadOnly,
     setSecurityLocked,
   } = usePlaygroundStore();
@@ -428,23 +429,32 @@ export default function PlaygroundIDE() {
   // ── Save ────────────────────────────────────────────────────────────────────
   // Uses a single batch request to avoid URL-encoding issues with underscores,
   // hyphens, or dots in file names, and to guarantee atomicity on time expiry.
-  const handleSave = useCallback(async () => {
-    if (!id) return;
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    if (!id) return false;
     setSaving(true);
+    setSaveError(null);
     try {
       const filesToSave = files
         .map(f => ({ id: f.id, name: f.name, content: f.content, path: f.path, is_folder: f.is_folder }));
       await playgroundUseCases.saveAll(id, filesToSave);
-    } catch (err) {
+      return true;
+    } catch (err: any) {
       console.error("Save error:", err);
+      const msg =
+        err?.response?.data?.message ??
+        (err?.response?.status === 413
+          ? "El proyecto es demasiado grande para guardarse en un solo request."
+          : "No se pudo guardar el proyecto. Revisa tu conexión e intenta de nuevo.");
+      setSaveError(msg);
+      return false;
     } finally {
       setSaving(false);
     }
-  }, [id, files, setSaving]);
+  }, [id, files, setSaving, setSaveError]);
 
   // ── Stable save ref — always points to the latest handleSave so the timer
   //    effect never captures a stale closure over an old `files` snapshot.
-  const handleSaveRef = useRef<() => Promise<void>>(async () => {});
+  const handleSaveRef = useRef<() => Promise<boolean>>(async () => false);
   useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
 
   // ── Exam Timer: auto-submit when end_time is reached ───────────────────────
@@ -458,10 +468,9 @@ export default function PlaygroundIDE() {
         // Time's up — save current state then submit
         examFinishedRef.current = true;
         if (id) {
-          handleSaveRef.current().then(() => {
-            playgroundUseCases.submit(id).catch(() => {});
-          }).catch(() => {
-            // Save failed — still submit so the exam is recorded
+          // handleSave() never rejects (returns false on failure) — submit
+          // regardless so the exam is recorded even if the last save failed.
+          handleSaveRef.current().finally(() => {
             playgroundUseCases.submit(id).catch(() => {});
           }).finally(() => {
             useAuth.getState().clearActiveExam();

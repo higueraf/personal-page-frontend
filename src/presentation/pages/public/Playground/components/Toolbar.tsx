@@ -10,7 +10,7 @@ import { playgroundUseCases } from "../../../../../infrastructure/factories/play
 interface ToolbarProps {
   onRun: () => void;
   onStop: () => void;
-  onSave: () => void;
+  onSave: () => Promise<boolean> | void;
   onDownload: () => void;
   onRunTests?: () => void;
   showTerminal: boolean;
@@ -39,7 +39,7 @@ export default function Toolbar({
   clockOffset = 0,
 }: ToolbarProps) {
   const navigate = useNavigate();
-  const { projectId, projectName, language, isRunning, isSaving, isExam, isReadOnly } = usePlaygroundStore();
+  const { projectId, projectName, language, isRunning, isSaving, saveError, isExam, isReadOnly } = usePlaygroundStore();
   const { theme, toggle } = useTheme();
 
   // ── Countdown timer ─────────────────────────────────────────────────────────
@@ -66,8 +66,16 @@ export default function Toolbar({
   const handleSubmitExam = async () => {
     if (!projectId) return;
     setConfirmingSubmit(false);
+    const saved = await onSave();
+    if (saved === false) {
+      alert(
+        `No se pudo guardar tu trabajo antes de entregar: ${
+          usePlaygroundStore.getState().saveError ?? "error desconocido"
+        }. Intenta guardar de nuevo antes de entregar.`
+      );
+      return;
+    }
     try {
-      await onSave();
       await playgroundUseCases.submit(projectId);
       onExamSubmitted?.();
     } catch (err) {
@@ -161,18 +169,33 @@ export default function Toolbar({
 
       {/* Save */}
       {!isReadOnly && (
-        <button
-          onClick={onSave}
-          disabled={isSaving}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white transition-colors disabled:opacity-50"
-        >
-          {isSaving ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Save size={14} />
+        <>
+          {saveError && (
+            <span
+              title={saveError}
+              className="hidden md:inline text-xs text-red-600 dark:text-red-400 font-medium max-w-[220px] truncate"
+            >
+              ⚠ {saveError}
+            </span>
           )}
-          <span className="hidden sm:inline">Guardar</span>
-        </button>
+          <button
+            onClick={onSave}
+            disabled={isSaving}
+            title={saveError ?? undefined}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors disabled:opacity-50 ${
+              saveError
+                ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+                : "bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white"
+            }`}
+          >
+            {isSaving ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Save size={14} />
+            )}
+            <span className="hidden sm:inline">{saveError ? "Reintentar" : "Guardar"}</span>
+          </button>
+        </>
       )}
 
       {/* Submit Exam + Timer */}

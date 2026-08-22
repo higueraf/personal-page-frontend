@@ -41,6 +41,7 @@ interface PlaygroundStore {
   openFileIds: string[];
   isRunning: boolean;
   isSaving: boolean;
+  saveError: string | null;
   terminalLines: string[];
 
   initProject: (
@@ -63,6 +64,7 @@ interface PlaygroundStore {
   renameFile: (id: string, newName: string, newPath: string) => void;
   setRunning: (v: boolean) => void;
   setSaving: (v: boolean) => void;
+  setSaveError: (v: string | null) => void;
   setReadOnly: (v: boolean) => void;
   setSecurityLocked: (v: boolean) => void;
   appendTerminalLine: (line: string) => void;
@@ -83,6 +85,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
   openFileIds: [],
   isRunning: false,
   isSaving: false,
+  saveError: null,
   terminalLines: [],
 
   initProject: (id, name, language, isExam, allowCopyPaste, requireSeb, files, isReadOnly = false, securityLocked = false) => {
@@ -184,6 +187,7 @@ export const usePlaygroundStore = create<PlaygroundStore>((set) => ({
 
   setRunning: (v) => set({ isRunning: v }),
   setSaving: (v) => set({ isSaving: v }),
+  setSaveError: (v) => set({ saveError: v }),
   setReadOnly: (v) => set({ isReadOnly: v }),
   setSecurityLocked: (v) => set({ securityLocked: v }),
 
