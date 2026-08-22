@@ -66,9 +66,13 @@ export default function ImportTutorial() {
   });
 
   async function handleFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const fileList = e.target.files;
-    if (!fileList || fileList.length === 0) return;
+    const input = e.target;
+    const fileList = input.files;
     setReadError(null);
+    if (!fileList || fileList.length === 0) {
+      setReadError("No se detectó ningún archivo seleccionado. Intenta de nuevo.");
+      return;
+    }
     try {
       const raw = await readFilesAsText(fileList);
       setRawFiles(raw);
@@ -80,6 +84,8 @@ export default function ImportTutorial() {
       setStep("preview");
     } catch {
       setReadError("No se pudieron leer los archivos seleccionados.");
+    } finally {
+      input.value = "";
     }
   }
 
@@ -201,7 +207,7 @@ export default function ImportTutorial() {
           >
             <FileText size={28} />
             <span style={{ fontSize: ".9rem" }}>Haz clic para elegir uno o varios archivos .md</span>
-            <input id="md-files-input" type="file" multiple accept=".md,.markdown,text/markdown" onChange={handleFilesSelected} style={{ display: "none" }} />
+            <input id="md-files-input" type="file" multiple accept=".md,.markdown" onChange={handleFilesSelected} style={{ display: "none" }} />
           </label>
           {readError && (
             <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center", color: "#DC2626", fontSize: ".85rem" }}>

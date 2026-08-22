@@ -514,10 +514,13 @@ export default function TutorialEditor() {
   // ── Importar / reemplazar páginas desde .md locales ─────────────────────
 
   async function handleImportFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const fileList = e.target.files;
-    e.target.value = ""; // permite re-seleccionar el mismo archivo después
-    if (!fileList || fileList.length === 0) return;
+    const input = e.target;
+    const fileList = input.files;
     setImportError(null);
+    if (!fileList || fileList.length === 0) {
+      setImportError("No se detectó ningún archivo seleccionado. Intenta de nuevo.");
+      return;
+    }
     try {
       const raw = await readFilesAsText(fileList);
       const items: ImportItem[] = raw.map((file) => {
@@ -535,6 +538,8 @@ export default function TutorialEditor() {
       setImportOpen(true);
     } catch {
       setImportError("No se pudieron leer los archivos seleccionados.");
+    } finally {
+      input.value = ""; // permite re-seleccionar el mismo archivo después
     }
   }
 
@@ -687,7 +692,7 @@ export default function TutorialEditor() {
               Páginas (arrastra para reordenar)
             </span>
             <div style={{ display: "flex", gap: 6 }}>
-              <input ref={importFileInputRef} type="file" multiple accept=".md,.markdown,text/markdown" onChange={handleImportFilesSelected} style={{ display: "none" }} />
+              <input ref={importFileInputRef} type="file" multiple accept=".md,.markdown" onChange={handleImportFilesSelected} style={{ display: "none" }} />
               <button onClick={() => importFileInputRef.current?.click()} title="Importar .md (agregar o reemplazar páginas)" style={{ background:"var(--color-bg)", border:"1px solid var(--color-border)", color:"var(--color-primary)", borderRadius:"50%", width:22, height:22, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
                 <Upload size={12}/>
               </button>
