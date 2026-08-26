@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Briefcase, GraduationCap, Award, Globe, Star, RefreshCw, CalendarDays, MapPin, ExternalLink } from "lucide-react";
+import { Briefcase, GraduationCap, Award, Globe, Star, RefreshCw, CalendarDays, MapPin, ExternalLink, Presentation } from "lucide-react";
 import { profileItemUseCases } from "../../../infrastructure/factories/profile-item-module.factory";
 import { ProfileItem as ProfileItemModel, ProfileItemType } from "../../../domain/entities/profile-item.entity";
 import ProfilePhoto from "../../components/ProfilePhoto";
@@ -18,9 +18,10 @@ const TYPE_META: Record<ItemType, { label: string; icon: React.ReactNode; color:
   AWARD: { label: "Reconocimientos", icon: <Award size={18} />, color: "#ef4444" },
   PUBLICATION: { label: "Publicaciones", icon: <ExternalLink size={18} />, color: "#f97316" },
   VOLUNTEER: { label: "Voluntariado", icon: <Briefcase size={18} />, color: "#10b981" },
+  TALK: { label: "Ponencias", icon: <Presentation size={18} />, color: "#d946ef" },
 };
 
-const SECTIONS: ItemType[] = ["EXPERIENCE", "EDUCATION", "CERTIFICATION", "SKILL", "LANGUAGE", "AWARD", "PUBLICATION", "VOLUNTEER"];
+const SECTIONS: ItemType[] = ["EXPERIENCE", "EDUCATION", "CERTIFICATION", "SKILL", "LANGUAGE", "AWARD", "PUBLICATION", "VOLUNTEER", "TALK"];
 
 function dateRange(start?: string | null, end?: string | null) {
   if (!start) return null;

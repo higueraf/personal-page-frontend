@@ -16,6 +16,7 @@ const TYPES: { value: ItemType; label: string }[] = [
   { value: "AWARD",         label: "Reconocimiento" },
   { value: "PUBLICATION",   label: "Publicación" },
   { value: "VOLUNTEER",     label: "Voluntariado" },
+  { value: "TALK",          label: "Ponencia" },
 ];
 
 const EMPTY: Partial<ProfileItem> = { type: "EXPERIENCE", title: "", subtitle: "", location: "", start_date: "", end_date: "", description: "", tags: [], url: "", logo: "", order: 0, is_visible: true };

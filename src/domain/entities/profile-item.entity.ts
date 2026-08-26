@@ -6,7 +6,8 @@ export type ProfileItemType =
   | "LANGUAGE"
   | "AWARD"
   | "PUBLICATION"
-  | "VOLUNTEER";
+  | "VOLUNTEER"
+  | "TALK";
 
 export interface ProfileItem {
   id: string;
