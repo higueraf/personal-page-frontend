@@ -8,9 +8,15 @@ import {
   LmsForumPost,
   LmsForumThread,
   LmsQuizAttempt,
+  LmsQuizFileFormat,
+  LmsQuizImportMode,
+  LmsQuizImportResult,
   LmsQuizQuestion,
   LmsRosterEntry,
   LmsSubmission,
+  LmsSurveyQuestion,
+  LmsSurveyResponse,
+  LmsSurveyResults,
 } from "../entities/lms.entity";
 
 export interface LmsRepositoryPort {
@@ -40,6 +46,16 @@ export interface LmsRepositoryPort {
   listQuestionsForManage(activityId: string): Promise<LmsQuizQuestion[]>;
   upsertQuestion(body: Partial<LmsQuizQuestion> & { activity: string }): Promise<LmsQuizQuestion>;
   deleteQuestion(id: string): Promise<void>;
+  importQuizQuestions(activityId: string, body: { format: LmsQuizFileFormat; content: string; mode: LmsQuizImportMode }): Promise<LmsQuizImportResult>;
+  exportQuizQuestions(activityId: string, format: LmsQuizFileFormat): Promise<{ filename: string; blob: Blob }>;
+  createQuizFromFile(unitId: string, body: { title?: string; format: LmsQuizFileFormat; content: string }): Promise<{ activity: LmsActivity; warnings: string[] }>;
+
+  // ── Profesor/admin: encuestas ─────────────────────────────────────────────
+  listSurveyQuestionsForManage(activityId: string): Promise<LmsSurveyQuestion[]>;
+  upsertSurveyQuestion(body: Partial<LmsSurveyQuestion> & { activity: string }): Promise<LmsSurveyQuestion>;
+  deleteSurveyQuestion(id: string): Promise<void>;
+  importSurveyQuestions(activityId: string, markdown: string): Promise<LmsSurveyQuestion[]>;
+  getSurveyResults(activityId: string): Promise<LmsSurveyResults>;
 
   // ── Catálogo público ──────────────────────────────────────────────────────
   catalog(params?: { search?: string; study_course_id?: string; page?: number; page_size?: number }): Promise<Paginated<LmsCourse>>;
@@ -56,7 +72,13 @@ export interface LmsRepositoryPort {
   createPost(body: { thread: string; body: string; parent_post?: string }): Promise<LmsForumPost>;
   mySubmission(activityId: string): Promise<LmsSubmission | null>;
   submitAssignment(activityId: string, body: { content_text?: string; file_url?: string }): Promise<LmsSubmission>;
+  submitAssignmentFiles(activityId: string, body: { content_text?: string; files: File[] }): Promise<LmsSubmission>;
   listQuestionsForStudent(activityId: string): Promise<LmsQuizQuestion[]>;
-  submitQuizAttempt(activityId: string, body: { answers: { question_id: string; selected_option_id?: string; text_answer?: string }[] }): Promise<LmsQuizAttempt>;
+  submitQuizAttempt(activityId: string, body: { answers: { question_id: string; selected_option_id?: string; selected_option_ids?: string[]; text_answer?: string }[] }): Promise<LmsQuizAttempt>;
   myQuizAttempts(activityId: string): Promise<LmsQuizAttempt[]>;
+
+  // ── Alumno: encuestas ──────────────────────────────────────────────────────
+  listSurveyQuestionsForStudent(activityId: string): Promise<LmsSurveyQuestion[]>;
+  mySurveyResponse(activityId: string): Promise<LmsSurveyResponse | null>;
+  submitSurveyResponse(activityId: string, body: { answers: { question_id: string; selected_option_ids?: string[]; scale_value?: number; text_answer?: string }[] }): Promise<LmsSurveyResponse>;
 }

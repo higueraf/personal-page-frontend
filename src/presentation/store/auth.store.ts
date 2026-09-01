@@ -11,9 +11,12 @@ import { playgroundUseCases } from "../../infrastructure/factories/playground-mo
 
 export type AuthUser = User;
 
-/** Convierte un path de avatar guardado (/uploads/avatars/file.jpg) en URL absoluta. */
-export const avatarUrl = (path?: string | null): string | undefined =>
+/** Convierte un path relativo servido por el backend (/uploads/...) en URL absoluta. */
+export const uploadUrl = (path?: string | null): string | undefined =>
   path ? `${API_BASE_URL.replace(/\/api$/, "")}${path}` : undefined;
+
+/** Convierte un path de avatar guardado (/uploads/avatars/file.jpg) en URL absoluta. */
+export const avatarUrl = uploadUrl;
 
 export interface ActiveExam {
   id: string;

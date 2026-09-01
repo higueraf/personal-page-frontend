@@ -10,9 +10,15 @@ import {
   LmsForumPost,
   LmsForumThread,
   LmsQuizAttempt,
+  LmsQuizFileFormat,
+  LmsQuizImportMode,
+  LmsQuizImportResult,
   LmsQuizQuestion,
   LmsRosterEntry,
   LmsSubmission,
+  LmsSurveyQuestion,
+  LmsSurveyResponse,
+  LmsSurveyResults,
 } from "../../domain/entities/lms.entity";
 
 export class AxiosLmsRepositoryAdapter implements LmsRepositoryPort {
@@ -102,6 +108,50 @@ export class AxiosLmsRepositoryAdapter implements LmsRepositoryPort {
   async deleteQuestion(id: string): Promise<void> {
     await axiosClient.delete(`/lms/quiz-questions/${id}`);
   }
+  async importQuizQuestions(
+    activityId: string,
+    body: { format: LmsQuizFileFormat; content: string; mode: LmsQuizImportMode },
+  ): Promise<LmsQuizImportResult> {
+    const { data } = await axiosClient.post<LmsQuizImportResult>(`/lms/activities/${activityId}/quiz-questions/import`, body);
+    return data;
+  }
+  async exportQuizQuestions(activityId: string, format: LmsQuizFileFormat): Promise<{ filename: string; blob: Blob }> {
+    const response = await axiosClient.get(`/lms/activities/${activityId}/quiz-questions/export`, {
+      params: { format },
+      responseType: "blob",
+    });
+    const disposition = response.headers["content-disposition"] as string | undefined;
+    const match = disposition?.match(/filename="?([^"]+)"?/);
+    return { filename: match?.[1] ?? `quiz.${format}`, blob: response.data };
+  }
+  async createQuizFromFile(
+    unitId: string,
+    body: { title?: string; format: LmsQuizFileFormat; content: string },
+  ): Promise<{ activity: LmsActivity; warnings: string[] }> {
+    const { data } = await axiosClient.post(`/lms/units/${unitId}/quiz-import`, body);
+    return data;
+  }
+
+  // ── Profesor/admin: encuestas ─────────────────────────────────────────────
+  async listSurveyQuestionsForManage(activityId: string): Promise<LmsSurveyQuestion[]> {
+    const { data } = await axiosClient.get<LmsSurveyQuestion[]>(`/lms/activities/${activityId}/survey-questions`);
+    return data;
+  }
+  async upsertSurveyQuestion(body: Partial<LmsSurveyQuestion> & { activity: string }): Promise<LmsSurveyQuestion> {
+    const { data } = await axiosClient.post<LmsSurveyQuestion>("/lms/survey-questions", body);
+    return data;
+  }
+  async deleteSurveyQuestion(id: string): Promise<void> {
+    await axiosClient.delete(`/lms/survey-questions/${id}`);
+  }
+  async importSurveyQuestions(activityId: string, markdown: string): Promise<LmsSurveyQuestion[]> {
+    const { data } = await axiosClient.post<LmsSurveyQuestion[]>(`/lms/activities/${activityId}/survey-questions/import`, { markdown });
+    return data;
+  }
+  async getSurveyResults(activityId: string): Promise<LmsSurveyResults> {
+    const { data } = await axiosClient.get<LmsSurveyResults>(`/lms/activities/${activityId}/survey-results`);
+    return data;
+  }
 
   // ── Catálogo público ──────────────────────────────────────────────────────
   async catalog(params?: { search?: string; study_course_id?: string; page?: number; page_size?: number }): Promise<Paginated<LmsCourse>> {
@@ -154,19 +204,47 @@ export class AxiosLmsRepositoryAdapter implements LmsRepositoryPort {
     const { data } = await axiosClient.post<LmsSubmission>(`/public/lms/activities/${activityId}/submit`, body);
     return data;
   }
+  async submitAssignmentFiles(activityId: string, body: { content_text?: string; files: File[] }): Promise<LmsSubmission> {
+    const formData = new FormData();
+    if (body.content_text) formData.append("content_text", body.content_text);
+    body.files.forEach((file) => formData.append("files", file));
+    const { data } = await axiosClient.post<LmsSubmission>(
+      `/public/lms/activities/${activityId}/submit-files`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
+    return data;
+  }
   async listQuestionsForStudent(activityId: string): Promise<LmsQuizQuestion[]> {
     const { data } = await axiosClient.get<LmsQuizQuestion[]>(`/public/lms/activities/${activityId}/quiz-questions`);
     return data;
   }
   async submitQuizAttempt(
     activityId: string,
-    body: { answers: { question_id: string; selected_option_id?: string; text_answer?: string }[] },
+    body: { answers: { question_id: string; selected_option_id?: string; selected_option_ids?: string[]; text_answer?: string }[] },
   ): Promise<LmsQuizAttempt> {
     const { data } = await axiosClient.post<LmsQuizAttempt>(`/public/lms/activities/${activityId}/quiz-attempts`, body);
     return data;
   }
   async myQuizAttempts(activityId: string): Promise<LmsQuizAttempt[]> {
     const { data } = await axiosClient.get<LmsQuizAttempt[]>(`/public/lms/activities/${activityId}/quiz-attempts`);
+    return data;
+  }
+
+  // ── Alumno: encuestas ──────────────────────────────────────────────────────
+  async listSurveyQuestionsForStudent(activityId: string): Promise<LmsSurveyQuestion[]> {
+    const { data } = await axiosClient.get<LmsSurveyQuestion[]>(`/public/lms/activities/${activityId}/survey-questions`);
+    return data;
+  }
+  async mySurveyResponse(activityId: string): Promise<LmsSurveyResponse | null> {
+    const { data } = await axiosClient.get<LmsSurveyResponse | null>(`/public/lms/activities/${activityId}/survey-responses/me`);
+    return data;
+  }
+  async submitSurveyResponse(
+    activityId: string,
+    body: { answers: { question_id: string; selected_option_ids?: string[]; scale_value?: number; text_answer?: string }[] },
+  ): Promise<LmsSurveyResponse> {
+    const { data } = await axiosClient.post<LmsSurveyResponse>(`/public/lms/activities/${activityId}/survey-responses`, body);
     return data;
   }
 }

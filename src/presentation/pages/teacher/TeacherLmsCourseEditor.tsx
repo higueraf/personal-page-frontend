@@ -9,14 +9,16 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import {
-  ArrowLeft, ClipboardList, FileText, GraduationCap, HelpCircle, MessageSquare,
-  Pin, PinOff, Plus, Presentation as PresentationIcon, Save, Lock, Unlock,
-  Trash2, Pencil, Users, ListChecks,
+  ArrowLeft, BarChart3, ClipboardList, Download, FileText, FileUp, GraduationCap, HelpCircle,
+  MessageSquare, Paperclip, Pin, PinOff, Plus, Presentation as PresentationIcon, Save, Lock,
+  Unlock, Trash2, Pencil, Upload, Users, ListChecks, ListTodo,
 } from "lucide-react";
 import { lmsUseCases } from "../../../infrastructure/factories/lms-module.factory";
 import type {
-  LmsActivity, LmsCourseUnit, LmsForumThread, LmsQuizQuestion, LmsSubmission,
+  LmsActivity, LmsCourseUnit, LmsForumThread, LmsQuizFileFormat, LmsQuizQuestion, LmsSubmission,
+  LmsSurveyQuestion,
 } from "../../../domain/entities/lms.entity";
+import { uploadUrl } from "@/presentation/store/auth.store";
 import PageHeader from "@/presentation/components/patterns/PageHeader";
 import EmptyState from "@/presentation/components/patterns/EmptyState";
 import DataTable, { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/presentation/components/patterns/DataTable";
@@ -29,7 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/presentation/compone
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/presentation/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/presentation/components/ui/dialog";
 
-const ACTIVITY_TYPES = ["presentation", "forum", "assignment", "quiz", "exam"] as const;
+const ACTIVITY_TYPES = ["presentation", "forum", "assignment", "quiz", "exam", "survey"] as const;
 
 const TYPE_META: Record<string, { label: string; icon: any }> = {
   presentation: { label: "Presentación", icon: PresentationIcon },
@@ -37,6 +39,7 @@ const TYPE_META: Record<string, { label: string; icon: any }> = {
   assignment: { label: "Tarea", icon: ClipboardList },
   quiz: { label: "Cuestionario", icon: HelpCircle },
   exam: { label: "Examen", icon: GraduationCap },
+  survey: { label: "Encuesta", icon: ListTodo },
 };
 
 function typeMeta(type: string) {
@@ -64,6 +67,8 @@ export default function TeacherLmsCourseEditor() {
   const [submissionsFor, setSubmissionsFor] = useState<LmsActivity | null>(null);
   const [questionsFor, setQuestionsFor] = useState<LmsActivity | null>(null);
   const [threadsFor, setThreadsFor] = useState<LmsActivity | null>(null);
+  const [surveyFor, setSurveyFor] = useState<LmsActivity | null>(null);
+  const [quizFromFileUnit, setQuizFromFileUnit] = useState<string | null>(null);
 
   const courseQ = useQuery({
     queryKey: ["lms-course", courseId],
@@ -238,6 +243,9 @@ export default function TeacherLmsCourseEditor() {
                       <Button size="sm" variant="outline" onClick={() => openCreateActivity(unit.id)}>
                         <Plus size={14} /> Actividad
                       </Button>
+                      <Button size="sm" variant="outline" onClick={() => setQuizFromFileUnit(unit.id)}>
+                        <FileUp size={14} /> Cuestionario desde archivo
+                      </Button>
                       <Button size="sm" variant="ghost" onClick={() => deleteUnitM.mutate(unit.id)}>
                         <Trash2 size={14} />
                       </Button>
@@ -281,6 +289,11 @@ export default function TeacherLmsCourseEditor() {
                             {activity.type === "forum" && (
                               <Button size="sm" variant="outline" onClick={() => setThreadsFor(activity)}>
                                 <MessageSquare size={13} /> Hilos
+                              </Button>
+                            )}
+                            {activity.type === "survey" && (
+                              <Button size="sm" variant="outline" onClick={() => setSurveyFor(activity)}>
+                                <ListTodo size={13} /> Preguntas
                               </Button>
                             )}
                             <Button size="sm" variant="ghost" onClick={() => openEditActivity(unit, activity)}>
@@ -399,7 +412,7 @@ export default function TeacherLmsCourseEditor() {
                 onChange={(e) => setActivityForm((f) => ({ ...f, configText: e.target.value }))}
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                Presentación: <code>file_url</code> o <code>embed_url</code>. Examen: <code>mode</code> (<code>quiz</code>/<code>manual</code>/<code>external</code>) y <code>external_url</code> si aplica.
+                Presentación: <code>file_url</code> o <code>embed_url</code>. Examen: <code>mode</code> (<code>quiz</code>/<code>manual</code>/<code>external</code>) y <code>external_url</code> si aplica. Encuesta: <code>anonymous</code> (<code>true</code>/<code>false</code>), también configurable al importar el Markdown.
               </p>
             </div>
             {activityFormError && <p className="text-sm text-destructive">{activityFormError}</p>}
@@ -414,6 +427,8 @@ export default function TeacherLmsCourseEditor() {
       <SubmissionsDialog activity={submissionsFor} onClose={() => setSubmissionsFor(null)} />
       <QuestionsDialog activity={questionsFor} onClose={() => setQuestionsFor(null)} />
       <ThreadsDialog activity={threadsFor} onClose={() => setThreadsFor(null)} />
+      <SurveyQuestionsDialog activity={surveyFor} onClose={() => setSurveyFor(null)} />
+      <CreateQuizFromFileDialog unitId={quizFromFileUnit} onClose={() => setQuizFromFileUnit(null)} onCreated={invalidateUnits} />
     </div>
   );
 }
@@ -461,7 +476,18 @@ function SubmissionsDialog({ activity, onClose }: { activity: LmsActivity | null
                     </div>
                   </div>
                   {s.content_text && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{s.content_text}</p>}
-                  {s.file_url && <a href={s.file_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-primary underline">Ver archivo entregado</a>}
+                  {s.files && s.files.length > 0 && (
+                    <ul className="mt-2 flex flex-col gap-1">
+                      {s.files.map((f) => (
+                        <li key={f.id}>
+                          <a href={uploadUrl(f.file_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-primary underline">
+                            <Paperclip size={13} /> {f.original_name}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {s.file_url && <a href={s.file_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-primary underline">Ver archivo entregado (legado)</a>}
 
                   {gradingId === s.id && (
                     <form className="mt-3 flex flex-col gap-2 border-t border-border pt-3" onSubmit={(e) => { e.preventDefault(); gradeM.mutate(s.id); }}>
@@ -487,9 +513,44 @@ function SubmissionsDialog({ activity, onClose }: { activity: LmsActivity | null
 
 const EMPTY_QUESTION_FORM = { text: "", type: "MULTIPLE_CHOICE", feedback: "", options: [{ text: "", is_correct: false }, { text: "", is_correct: false }] };
 
+const QUIZ_TYPE_LABEL: Record<string, string> = {
+  MULTIPLE_CHOICE: "Opción única",
+  MULTI_ANSWER: "Opción múltiple (varias correctas)",
+  OPEN: "Respuesta abierta",
+};
+
+const QUIZ_FORMAT_LABEL: Record<LmsQuizFileFormat, string> = {
+  own: "Propio (Markdown)",
+  gift: "GIFT",
+  aiken: "Aiken",
+  moodle_xml: "Moodle XML",
+};
+
+const QUIZ_FORMAT_EXAMPLE: Record<LmsQuizFileFormat, string> = {
+  own: `## ¿Capital de Francia? [single]\n- Madrid\n* París\n- Roma\n\n## ¿Lenguajes tipados? [multi]\n* TypeScript\n* Java\n- Python\n\n## Comentarios [open]`,
+  gift: `¿Capital de Francia? {\n=París\n~Madrid\n~Roma\n}\n\n¿Es la Tierra redonda? {TRUE}`,
+  aiken: `¿Capital de Francia?\nA. Madrid\nB. París\nC. Roma\nANSWER: B`,
+  moodle_xml: `<quiz>\n  <question type="multichoice">\n    <name><text>Q1</text></name>\n    <questiontext format="html"><text>¿Capital de Francia?</text></questiontext>\n    <single>true</single>\n    <answer fraction="100"><text>París</text></answer>\n    <answer fraction="0"><text>Madrid</text></answer>\n  </question>\n</quiz>`,
+};
+
+function triggerBrowserDownload(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function QuestionsDialog({ activity, onClose }: { activity: LmsActivity | null; onClose: () => void }) {
   const qc = useQueryClient();
   const [form, setForm] = useState(EMPTY_QUESTION_FORM);
+  const [importFormat, setImportFormat] = useState<LmsQuizFileFormat>("own");
+  const [importMode, setImportMode] = useState<"append" | "replace">("append");
+  const [importWarnings, setImportWarnings] = useState<string[] | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const invalidateQuestions = () => qc.invalidateQueries({ queryKey: ["lms-questions", activity?.id] });
 
   const q = useQuery({
     queryKey: ["lms-questions", activity?.id],
@@ -503,17 +564,44 @@ function QuestionsDialog({ activity, onClose }: { activity: LmsActivity | null; 
       text: form.text,
       type: form.type as any,
       feedback: form.feedback || null,
-      options: form.type === "MULTIPLE_CHOICE" ? form.options.filter((o) => o.text.trim()) : undefined,
+      options: form.type !== "OPEN" ? form.options.filter((o) => o.text.trim()) : undefined,
     }),
-    onSuccess: () => { setForm(EMPTY_QUESTION_FORM); qc.invalidateQueries({ queryKey: ["lms-questions", activity?.id] }); },
+    onSuccess: () => { setForm(EMPTY_QUESTION_FORM); invalidateQuestions(); },
   });
   const deleteM = useMutation({
     mutationFn: (id: string) => lmsUseCases.deleteQuestion(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-questions", activity?.id] }),
+    onSuccess: invalidateQuestions,
+  });
+  const importM = useMutation({
+    mutationFn: (content: string) => lmsUseCases.importQuizQuestions(activity!.id, { format: importFormat, content, mode: importMode }),
+    onSuccess: (res: any) => { setImportError(null); setImportWarnings(res.warnings ?? []); invalidateQuestions(); },
+    onError: (err: any) => { setImportWarnings(null); setImportError(err?.response?.data?.message || "No se pudo importar el archivo"); },
+  });
+  const exportM = useMutation({
+    mutationFn: (format: LmsQuizFileFormat) => lmsUseCases.exportQuizQuestions(activity!.id, format),
+    onSuccess: ({ filename, blob }: any) => triggerBrowserDownload(filename, blob),
   });
 
   function updateOption(idx: number, patch: Partial<{ text: string; is_correct: boolean }>) {
     setForm((f) => ({ ...f, options: f.options.map((o, i) => (i === idx ? { ...o, ...patch } : o)) }));
+  }
+
+  function handleTypeChange(type: string) {
+    setForm((f) => {
+      if (type !== "MULTIPLE_CHOICE") return { ...f, type };
+      // Opción única solo admite una correcta: si venía de "varias correctas", nos quedamos con la primera.
+      const firstCorrect = f.options.findIndex((o) => o.is_correct);
+      return { ...f, type, options: f.options.map((o, i) => ({ ...o, is_correct: i === firstCorrect })) };
+    });
+  }
+
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => importM.mutate(String(reader.result ?? ""));
+    reader.readAsText(file);
+    e.target.value = "";
   }
 
   return (
@@ -521,15 +609,64 @@ function QuestionsDialog({ activity, onClose }: { activity: LmsActivity | null; 
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader><DialogTitle>Banco de preguntas — {activity?.title}</DialogTitle></DialogHeader>
 
+        {/* Importar */}
+        <div className="flex flex-col gap-2 border-b border-border pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={importFormat} onValueChange={(v) => setImportFormat(v as LmsQuizFileFormat)}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(QUIZ_FORMAT_LABEL) as LmsQuizFileFormat[]).map((f) => (
+                  <SelectItem key={f} value={f}>{QUIZ_FORMAT_LABEL[f]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={importMode} onValueChange={(v) => setImportMode(v as "append" | "replace")}>
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="append">Agregar</SelectItem>
+                <SelectItem value="replace">Reemplazar todo</SelectItem>
+              </SelectContent>
+            </Select>
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground">
+              <Upload size={13} /> Importar archivo
+              <input type="file" accept=".md,.markdown,.txt,.xml,.gift,text/*" className="hidden" onChange={handleImportFile} />
+            </label>
+          </div>
+          {importM.isPending && <p className="text-xs text-muted-foreground">Importando…</p>}
+          {importError && <p className="text-xs text-destructive whitespace-pre-wrap">{importError}</p>}
+          {importWarnings && importWarnings.length > 0 && (
+            <ul className="text-xs text-amber-600">
+              {importWarnings.map((w, i) => <li key={i}>⚠ {w}</li>)}
+            </ul>
+          )}
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer select-none">Ver formato de ejemplo ({QUIZ_FORMAT_LABEL[importFormat]})</summary>
+            <pre className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-3 font-mono">{QUIZ_FORMAT_EXAMPLE[importFormat]}</pre>
+          </details>
+        </div>
+
+        {/* Exportar */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
+          <span className="text-xs font-medium text-muted-foreground">Exportar como:</span>
+          {(Object.keys(QUIZ_FORMAT_LABEL) as LmsQuizFileFormat[]).map((f) => (
+            <Button key={f} type="button" size="sm" variant="outline" disabled={exportM.isPending} onClick={() => exportM.mutate(f)}>
+              <Download size={13} /> {QUIZ_FORMAT_LABEL[f]}
+            </Button>
+          ))}
+        </div>
+
         <div className="flex flex-col gap-3">
           {(q.data ?? []).map((question: LmsQuizQuestion) => (
             <Card key={question.id}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium text-foreground">{question.text}</p>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{question.text}</p>
+                    <Badge variant="outline" className="mt-1">{QUIZ_TYPE_LABEL[question.type] ?? question.type}</Badge>
+                  </div>
                   <Button size="sm" variant="ghost" onClick={() => deleteM.mutate(question.id)}><Trash2 size={14} /></Button>
                 </div>
-                {question.type === "MULTIPLE_CHOICE" && (
+                {question.type !== "OPEN" && (
                   <ul className="mt-2 flex flex-col gap-1">
                     {question.options.map((o) => (
                       <li key={o.id} className={`text-sm ${o.is_correct ? "font-medium text-emerald-600" : "text-muted-foreground"}`}>
@@ -541,24 +678,38 @@ function QuestionsDialog({ activity, onClose }: { activity: LmsActivity | null; 
               </CardContent>
             </Card>
           ))}
+          {(q.data ?? []).length === 0 && (
+            <EmptyState icon={HelpCircle} title="Sin preguntas todavía" description="Agrega preguntas manualmente o importa un archivo." />
+          )}
         </div>
 
         <form className="mt-2 flex flex-col gap-3 border-t border-border pt-4" onSubmit={(e) => { e.preventDefault(); createM.mutate(); }}>
           <p className="text-sm font-medium text-foreground">Agregar pregunta</p>
           <Textarea rows={2} placeholder="Enunciado de la pregunta" required value={form.text} onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))} />
-          <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}>
-            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+          <Select value={form.type} onValueChange={handleTypeChange}>
+            <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="MULTIPLE_CHOICE">Opción múltiple</SelectItem>
+              <SelectItem value="MULTIPLE_CHOICE">Opción única</SelectItem>
+              <SelectItem value="MULTI_ANSWER">Opción múltiple (varias correctas)</SelectItem>
               <SelectItem value="OPEN">Respuesta abierta</SelectItem>
             </SelectContent>
           </Select>
 
-          {form.type === "MULTIPLE_CHOICE" && (
+          {form.type !== "OPEN" && (
             <div className="flex flex-col gap-2">
               {form.options.map((o, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <input type="checkbox" checked={o.is_correct} onChange={(e) => updateOption(idx, { is_correct: e.target.checked })} className="h-4 w-4 accent-primary" />
+                  <input
+                    type={form.type === "MULTIPLE_CHOICE" ? "radio" : "checkbox"}
+                    name="correct-option"
+                    checked={o.is_correct}
+                    onChange={(e) =>
+                      form.type === "MULTIPLE_CHOICE"
+                        ? setForm((f) => ({ ...f, options: f.options.map((opt, i) => ({ ...opt, is_correct: i === idx })) }))
+                        : updateOption(idx, { is_correct: e.target.checked })
+                    }
+                    className="h-4 w-4 accent-primary"
+                  />
                   <Input placeholder={`Opción ${idx + 1}`} value={o.text} onChange={(e) => updateOption(idx, { text: e.target.value })} />
                 </div>
               ))}
@@ -570,6 +721,78 @@ function QuestionsDialog({ activity, onClose }: { activity: LmsActivity | null; 
 
           <Textarea rows={2} placeholder="Retroalimentación al responder (opcional)" value={form.feedback} onChange={(e) => setForm((f) => ({ ...f, feedback: e.target.value }))} />
           <Button type="submit" disabled={createM.isPending} className="self-start">{createM.isPending ? "Guardando…" : "Agregar pregunta"}</Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Crear cuestionario directamente desde un archivo ────────────────────────
+
+function CreateQuizFromFileDialog({ unitId, onClose, onCreated }: { unitId: string | null; onClose: () => void; onCreated: () => void }) {
+  const [title, setTitle] = useState("");
+  const [format, setFormat] = useState<LmsQuizFileFormat>("own");
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[] | null>(null);
+
+  const createM = useMutation({
+    mutationFn: async () => {
+      if (!file) throw new Error("Selecciona un archivo");
+      const content = await file.text();
+      return lmsUseCases.createQuizFromFile(unitId!, { title: title.trim() || undefined, format, content });
+    },
+    onSuccess: (res: any) => {
+      if (res.warnings?.length) { setWarnings(res.warnings); return; }
+      handleClose();
+      onCreated();
+    },
+    onError: (err: any) => setError(err?.response?.data?.message || err?.message || "No se pudo crear el cuestionario"),
+  });
+
+  function handleClose() {
+    setTitle(""); setFile(null); setError(null); setWarnings(null);
+    onClose();
+  }
+
+  return (
+    <Dialog open={!!unitId} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Cuestionario desde archivo</DialogTitle></DialogHeader>
+        <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); createM.mutate(); }}>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Título (opcional)</label>
+            <Input placeholder="Si lo dejas vacío, se usa un título genérico" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Formato</label>
+            <Select value={format} onValueChange={(v) => setFormat(v as LmsQuizFileFormat)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(QUIZ_FORMAT_LABEL) as LmsQuizFileFormat[]).map((f) => (
+                  <SelectItem key={f} value={f}>{QUIZ_FORMAT_LABEL[f]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Archivo *</label>
+            <Input type="file" accept=".md,.markdown,.txt,.xml,.gift,text/*" required onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          </div>
+          {error && <p className="text-sm text-destructive whitespace-pre-wrap">{error}</p>}
+          {warnings && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+              <p className="mb-1 font-medium">Se creó con advertencias — revísalas en "Preguntas":</p>
+              <ul className="list-inside list-disc">{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+              <Button type="button" size="sm" className="mt-2" onClick={() => { handleClose(); onCreated(); }}>Entendido</Button>
+            </div>
+          )}
+          {!warnings && (
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleClose}>Cancelar</Button>
+              <Button type="submit" disabled={createM.isPending}>{createM.isPending ? "Creando…" : "Crear"}</Button>
+            </DialogFooter>
+          )}
         </form>
       </DialogContent>
     </Dialog>
@@ -616,6 +839,237 @@ function ThreadsDialog({ activity, onClose }: { activity: LmsActivity | null; on
             ))}
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Encuestas: banco de preguntas, importación y resultados ────────────────
+
+const SURVEY_TYPE_LABEL: Record<string, string> = {
+  SINGLE_CHOICE: "Única opción",
+  MULTIPLE_CHOICE: "Opción múltiple",
+  SCALE: "Escala",
+  TEXT: "Texto libre",
+};
+
+const EMPTY_SURVEY_QUESTION_FORM = { text: "", type: "SINGLE_CHOICE", scale_min: "1", scale_max: "5", options: ["", ""] };
+
+const SURVEY_MARKDOWN_EXAMPLE = `anonymous: true
+
+## ¿Qué tan satisfecho estás con el curso? [single]
+- Muy insatisfecho
+- Neutral
+- Muy satisfecho
+
+## ¿Qué temas te gustaría profundizar? [multiple]
+- Bases de datos
+- Frontend
+- Backend
+
+## Califica la claridad del docente [scale 1-5]
+
+## Comentarios adicionales [text]`;
+
+function SurveyQuestionsDialog({ activity, onClose }: { activity: LmsActivity | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState(EMPTY_SURVEY_QUESTION_FORM);
+  const [showResults, setShowResults] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const q = useQuery({
+    queryKey: ["lms-survey-questions-manage", activity?.id],
+    queryFn: () => lmsUseCases.listSurveyQuestionsForManage(activity!.id),
+    enabled: !!activity,
+  });
+  const resultsQ = useQuery({
+    queryKey: ["lms-survey-results", activity?.id],
+    queryFn: () => lmsUseCases.getSurveyResults(activity!.id),
+    enabled: !!activity && showResults,
+  });
+
+  const createM = useMutation({
+    mutationFn: () => lmsUseCases.upsertSurveyQuestion({
+      activity: activity!.id,
+      text: form.text,
+      type: form.type as any,
+      scale_min: form.type === "SCALE" ? Number(form.scale_min) : undefined,
+      scale_max: form.type === "SCALE" ? Number(form.scale_max) : undefined,
+      options: (form.type === "SINGLE_CHOICE" || form.type === "MULTIPLE_CHOICE")
+        ? form.options.filter((o) => o.trim()).map((text) => ({ text }))
+        : undefined,
+    }),
+    onSuccess: () => { setForm(EMPTY_SURVEY_QUESTION_FORM); qc.invalidateQueries({ queryKey: ["lms-survey-questions-manage", activity?.id] }); },
+  });
+  const deleteM = useMutation({
+    mutationFn: (id: string) => lmsUseCases.deleteSurveyQuestion(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-survey-questions-manage", activity?.id] }),
+  });
+  const importM = useMutation({
+    mutationFn: (markdown: string) => lmsUseCases.importSurveyQuestions(activity!.id, markdown),
+    onSuccess: () => {
+      setImportError(null);
+      qc.invalidateQueries({ queryKey: ["lms-survey-questions-manage", activity?.id] });
+    },
+    onError: (err: any) => setImportError(err?.response?.data?.message || "No se pudo importar el archivo"),
+  });
+
+  function updateOption(idx: number, text: string) {
+    setForm((f) => ({ ...f, options: f.options.map((o, i) => (i === idx ? text : o)) }));
+  }
+
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => importM.mutate(String(reader.result ?? ""));
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  return (
+    <Dialog open={!!activity} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogHeader><DialogTitle>Encuesta — {activity?.title}</DialogTitle></DialogHeader>
+
+        <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
+          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground">
+            <Upload size={13} /> Importar desde Markdown (.md)
+            <input type="file" accept=".md,.markdown,text/markdown,text/plain" className="hidden" onChange={handleImportFile} />
+          </label>
+          <Button type="button" size="sm" variant="outline" onClick={() => setShowResults((v) => !v)}>
+            <BarChart3 size={13} /> {showResults ? "Ocultar resultados" : "Ver resultados"}
+          </Button>
+        </div>
+        {importM.isPending && <p className="text-xs text-muted-foreground">Importando…</p>}
+        {importError && <p className="text-xs text-destructive">{importError}</p>}
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none">Ver formato de ejemplo</summary>
+          <pre className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-3 font-mono">{SURVEY_MARKDOWN_EXAMPLE}</pre>
+        </details>
+
+        {showResults && (
+          <Card className="border-primary/30">
+            <CardContent className="p-4">
+              {!resultsQ.data ? (
+                <p className="text-sm text-muted-foreground">Cargando resultados…</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {resultsQ.data.total_responses} respuesta(s) {resultsQ.data.anonymous && "· encuesta anónima"}
+                  </p>
+                  {resultsQ.data.questions.map((rq) => (
+                    <div key={rq.question_id}>
+                      <p className="mb-1.5 text-sm font-medium text-foreground">{rq.text}</p>
+                      {(rq.type === "SINGLE_CHOICE" || rq.type === "MULTIPLE_CHOICE") && (
+                        <div className="flex flex-col gap-1">
+                          {(rq.options ?? []).map((o) => {
+                            const total = (rq.options ?? []).reduce((sum, x) => sum + x.count, 0) || 1;
+                            const pct = Math.round((o.count / total) * 100);
+                            return (
+                              <div key={o.id} className="flex items-center gap-2 text-xs">
+                                <span className="w-32 shrink-0 truncate text-muted-foreground">{o.text}</span>
+                                <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                                  <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="w-10 shrink-0 text-right text-muted-foreground">{o.count}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {rq.type === "SCALE" && (
+                        <p className="text-sm text-muted-foreground">
+                          Promedio: <span className="font-medium text-foreground">{rq.average != null ? rq.average.toFixed(1) : "—"}</span>
+                          {" "}({rq.scale_min}–{rq.scale_max}), {rq.count} respuesta(s)
+                        </p>
+                      )}
+                      {rq.type === "TEXT" && (
+                        <ul className="flex flex-col gap-1">
+                          {(rq.answers ?? []).map((a, i) => (
+                            <li key={i} className="rounded-md bg-muted px-2.5 py-1.5 text-xs text-foreground">
+                              {a.text}
+                              {a.student && <span className="ml-1.5 text-muted-foreground">— {a.student.first_name} {a.student.last_name}</span>}
+                            </li>
+                          ))}
+                          {(rq.answers ?? []).length === 0 && <li className="text-xs text-muted-foreground">Sin respuestas de texto.</li>}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="flex flex-col gap-3">
+          {(q.data ?? []).map((question: LmsSurveyQuestion) => (
+            <Card key={question.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{question.text}</p>
+                    <Badge variant="outline" className="mt-1">{SURVEY_TYPE_LABEL[question.type] ?? question.type}</Badge>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => deleteM.mutate(question.id)}><Trash2 size={14} /></Button>
+                </div>
+                {(question.type === "SINGLE_CHOICE" || question.type === "MULTIPLE_CHOICE") && (
+                  <ul className="mt-2 flex flex-col gap-1">
+                    {question.options.map((o) => (
+                      <li key={o.id} className="text-sm text-muted-foreground">· {o.text}</li>
+                    ))}
+                  </ul>
+                )}
+                {question.type === "SCALE" && (
+                  <p className="mt-2 text-sm text-muted-foreground">Escala {question.scale_min}–{question.scale_max}</p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+          {(q.data ?? []).length === 0 && (
+            <EmptyState icon={ListTodo} title="Sin preguntas todavía" description="Agrega preguntas manualmente o importa un archivo Markdown." />
+          )}
+        </div>
+
+        <form className="mt-2 flex flex-col gap-3 border-t border-border pt-4" onSubmit={(e) => { e.preventDefault(); createM.mutate(); }}>
+          <p className="text-sm font-medium text-foreground">Agregar pregunta</p>
+          <Textarea rows={2} placeholder="Enunciado de la pregunta" required value={form.text} onChange={(e) => setForm((f) => ({ ...f, text: e.target.value }))} />
+          <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}>
+            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="SINGLE_CHOICE">Única opción</SelectItem>
+              <SelectItem value="MULTIPLE_CHOICE">Opción múltiple</SelectItem>
+              <SelectItem value="SCALE">Escala</SelectItem>
+              <SelectItem value="TEXT">Texto libre</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {(form.type === "SINGLE_CHOICE" || form.type === "MULTIPLE_CHOICE") && (
+            <div className="flex flex-col gap-2">
+              {form.options.map((o, idx) => (
+                <Input key={idx} placeholder={`Opción ${idx + 1}`} value={o} onChange={(e) => updateOption(idx, e.target.value)} />
+              ))}
+              <Button type="button" size="sm" variant="outline" className="self-start" onClick={() => setForm((f) => ({ ...f, options: [...f.options, ""] }))}>
+                <Plus size={13} /> Opción
+              </Button>
+            </div>
+          )}
+          {form.type === "SCALE" && (
+            <div className="flex gap-3">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Mínimo</label>
+                <Input type="number" className="w-20" value={form.scale_min} onChange={(e) => setForm((f) => ({ ...f, scale_min: e.target.value }))} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Máximo</label>
+                <Input type="number" className="w-20" value={form.scale_max} onChange={(e) => setForm((f) => ({ ...f, scale_max: e.target.value }))} />
+              </div>
+            </div>
+          )}
+
+          <Button type="submit" disabled={createM.isPending} className="self-start">{createM.isPending ? "Guardando…" : "Agregar pregunta"}</Button>
+        </form>
       </DialogContent>
     </Dialog>
   );

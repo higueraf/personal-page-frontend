@@ -9,10 +9,11 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import {
-  ArrowLeft, CheckCircle2, ExternalLink, MessageSquare, Pin, Send,
+  ArrowLeft, CheckCircle2, ExternalLink, MessageSquare, Paperclip, Pin, Send, X,
 } from "lucide-react";
 import { lmsUseCases } from "../../../infrastructure/factories/lms-module.factory";
-import type { LmsActivity, LmsForumThread } from "../../../domain/entities/lms.entity";
+import type { LmsActivity, LmsForumThread, LmsSurveyAnswer } from "../../../domain/entities/lms.entity";
+import { uploadUrl } from "../../store/auth.store";
 import { Button } from "@/presentation/components/ui/button";
 import { Card, CardContent } from "@/presentation/components/ui/card";
 import { Badge } from "@/presentation/components/ui/badge";
@@ -67,6 +68,8 @@ function ActivityBody({ activity, completed }: { activity: LmsActivity; complete
       return <QuizBody activity={activity} />;
     case "exam":
       return <ExamBody activity={activity} />;
+    case "survey":
+      return <SurveyBody activity={activity} />;
     default:
       return <p className="text-sm text-muted-foreground">Este tipo de actividad ({activity.type}) no tiene una vista específica todavía.</p>;
   }
@@ -210,7 +213,8 @@ function ForumBody({ activity }: { activity: LmsActivity }) {
 
 function AssignmentBody({ activity }: { activity: LmsActivity }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ content_text: "", file_url: "" });
+  const [contentText, setContentText] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const subQ = useQuery({
     queryKey: ["lms-my-submission", activity.id],
@@ -218,14 +222,32 @@ function AssignmentBody({ activity }: { activity: LmsActivity }) {
   });
 
   const submitM = useMutation({
-    mutationFn: () => lmsUseCases.submitAssignment(activity.id, {
-      content_text: form.content_text || undefined,
-      file_url: form.file_url || undefined,
+    mutationFn: () => lmsUseCases.submitAssignmentFiles(activity.id, {
+      content_text: contentText || undefined,
+      files: selectedFiles,
     }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-my-submission", activity.id] }),
+    onSuccess: () => {
+      setSelectedFiles([]);
+      qc.invalidateQueries({ queryKey: ["lms-my-submission", activity.id] });
+    },
   });
 
   const submission = subQ.data;
+
+  function renderFiles(files: NonNullable<typeof submission>["files"]) {
+    if (!files?.length) return null;
+    return (
+      <ul className="mt-2 flex flex-col gap-1">
+        {files.map((f) => (
+          <li key={f.id}>
+            <a href={uploadUrl(f.file_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-primary underline">
+              <Paperclip size={13} /> {f.original_name}
+            </a>
+          </li>
+        ))}
+      </ul>
+    );
+  }
 
   if (submission?.status === "GRADED") {
     return (
@@ -236,6 +258,10 @@ function AssignmentBody({ activity }: { activity: LmsActivity }) {
             <span className="font-semibold text-foreground">{submission.grade} pts</span>
           </div>
           {submission.content_text && <p className="mb-2 whitespace-pre-wrap text-sm text-muted-foreground">{submission.content_text}</p>}
+          {renderFiles(submission.files)}
+          {submission.file_url && (
+            <a href={submission.file_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-primary underline">Ver archivo entregado</a>
+          )}
           {submission.feedback && (
             <div className="mt-3 rounded-lg bg-muted p-3 text-sm text-foreground">
               <p className="mb-1 text-xs font-semibold text-muted-foreground">Retroalimentación del profesor</p>
@@ -250,25 +276,50 @@ function AssignmentBody({ activity }: { activity: LmsActivity }) {
   return (
     <div className="flex flex-col gap-4">
       {submission && (
-        <div className="flex items-center gap-2">
-          <Badge variant={submission.status === "LATE" ? "destructive" : "secondary"}>{submission.status}</Badge>
-          <span className="text-xs text-muted-foreground">
-            {submission.submitted_at && `Entregado el ${new Date(submission.submitted_at).toLocaleString()}`}
-          </span>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Badge variant={submission.status === "LATE" ? "destructive" : "secondary"}>{submission.status}</Badge>
+            <span className="text-xs text-muted-foreground">
+              {submission.submitted_at && `Entregado el ${new Date(submission.submitted_at).toLocaleString()}`}
+            </span>
+          </div>
+          {renderFiles(submission.files)}
+          {submission.file_url && (
+            <a href={submission.file_url} target="_blank" rel="noopener noreferrer" className="inline-block text-sm text-primary underline">Ver archivo entregado</a>
+          )}
         </div>
       )}
       <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); submitM.mutate(); }}>
         <Textarea
           rows={5}
           placeholder="Escribe tu entrega…"
-          value={form.content_text}
-          onChange={(e) => setForm((f) => ({ ...f, content_text: e.target.value }))}
+          value={contentText}
+          onChange={(e) => setContentText(e.target.value)}
         />
-        <Input
-          placeholder="URL del archivo (opcional)"
-          value={form.file_url}
-          onChange={(e) => setForm((f) => ({ ...f, file_url: e.target.value }))}
-        />
+        <div className="flex flex-col gap-2">
+          <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground">
+            <Paperclip size={14} />
+            Adjuntar archivo(s)
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => setSelectedFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])])}
+            />
+          </label>
+          {selectedFiles.length > 0 && (
+            <ul className="flex flex-col gap-1">
+              {selectedFiles.map((f, i) => (
+                <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 rounded-md bg-muted px-2.5 py-1.5 text-xs text-foreground">
+                  <span className="truncate">{f.name}</span>
+                  <button type="button" onClick={() => setSelectedFiles((prev) => prev.filter((_, idx) => idx !== i))} className="shrink-0 text-muted-foreground hover:text-destructive">
+                    <X size={13} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <Button type="submit" className="self-start" disabled={submitM.isPending}>
           {submitM.isPending ? "Enviando…" : submission ? "Reenviar entrega" : "Entregar"}
         </Button>
@@ -281,7 +332,7 @@ function AssignmentBody({ activity }: { activity: LmsActivity }) {
 
 function QuizBody({ activity }: { activity: LmsActivity }) {
   const qc = useQueryClient();
-  const [answers, setAnswers] = useState<Record<string, { selected_option_id?: string; text_answer?: string }>>({});
+  const [answers, setAnswers] = useState<Record<string, { selected_option_id?: string; selected_option_ids?: string[]; text_answer?: string }>>({});
 
   const questionsQ = useQuery({
     queryKey: ["lms-quiz-questions", activity.id],
@@ -333,7 +384,7 @@ function QuizBody({ activity }: { activity: LmsActivity }) {
         <Card key={q.id}>
           <CardContent className="p-4">
             <p className="mb-3 text-sm font-medium text-foreground">{q.text}</p>
-            {q.type === "MULTIPLE_CHOICE" ? (
+            {q.type === "MULTIPLE_CHOICE" && (
               <div className="flex flex-col gap-2">
                 {q.options.map((o) => (
                   <label key={o.id} className="flex items-center gap-2 text-sm text-foreground">
@@ -348,7 +399,29 @@ function QuizBody({ activity }: { activity: LmsActivity }) {
                   </label>
                 ))}
               </div>
-            ) : (
+            )}
+            {q.type === "MULTI_ANSWER" && (
+              <div className="flex flex-col gap-2">
+                {q.options.map((o) => {
+                  const selected = answers[q.id]?.selected_option_ids ?? [];
+                  return (
+                    <label key={o.id} className="flex items-center gap-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-primary"
+                        checked={selected.includes(o.id)}
+                        onChange={(e) => setAnswers((a) => ({
+                          ...a,
+                          [q.id]: { selected_option_ids: e.target.checked ? [...selected, o.id] : selected.filter((id) => id !== o.id) },
+                        }))}
+                      />
+                      {o.text}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            {q.type === "OPEN" && (
               <Textarea
                 rows={3}
                 value={answers[q.id]?.text_answer ?? ""}
@@ -400,5 +473,123 @@ function ExternalExamBody({ activity }: { activity: LmsActivity }) {
         {completeM.isPending ? "Guardando…" : "Ya resolví el examen"}
       </Button>
     </div>
+  );
+}
+
+// ── Encuesta ─────────────────────────────────────────────────────────────────
+
+function SurveyBody({ activity }: { activity: LmsActivity }) {
+  const qc = useQueryClient();
+  const [answers, setAnswers] = useState<Record<string, LmsSurveyAnswer>>({});
+
+  const questionsQ = useQuery({
+    queryKey: ["lms-survey-questions", activity.id],
+    queryFn: () => lmsUseCases.listSurveyQuestionsForStudent(activity.id),
+  });
+  const responseQ = useQuery({
+    queryKey: ["lms-my-survey-response", activity.id],
+    queryFn: () => lmsUseCases.mySurveyResponse(activity.id),
+  });
+
+  const submitM = useMutation({
+    mutationFn: () => lmsUseCases.submitSurveyResponse(activity.id, {
+      answers: Object.entries(answers).map(([question_id, a]) => ({ ...a, question_id })),
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-my-survey-response", activity.id] }),
+  });
+
+  if (responseQ.data) {
+    return (
+      <Card>
+        <CardContent className="p-5 text-sm text-muted-foreground">
+          Ya respondiste esta encuesta
+          {responseQ.data.submitted_at && ` el ${new Date(responseQ.data.submitted_at).toLocaleString()}`}. ¡Gracias por tu opinión!
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const questions = questionsQ.data ?? [];
+  function updateAnswer(questionId: string, patch: Partial<LmsSurveyAnswer>) {
+    setAnswers((a) => ({ ...a, [questionId]: { ...a[questionId], ...patch, question_id: questionId } }));
+  }
+
+  return (
+    <form className="flex flex-col gap-5" onSubmit={(e) => { e.preventDefault(); submitM.mutate(); }}>
+      {questions.map((q) => (
+        <Card key={q.id}>
+          <CardContent className="p-4">
+            <p className="mb-3 text-sm font-medium text-foreground">{q.text}</p>
+            {q.type === "SINGLE_CHOICE" && (
+              <div className="flex flex-col gap-2">
+                {q.options.map((o) => (
+                  <label key={o.id} className="flex items-center gap-2 text-sm text-foreground">
+                    <input
+                      type="radio"
+                      name={q.id}
+                      className="h-4 w-4 accent-primary"
+                      checked={answers[q.id]?.selected_option_ids?.[0] === o.id}
+                      onChange={() => updateAnswer(q.id, { selected_option_ids: [o.id] })}
+                    />
+                    {o.text}
+                  </label>
+                ))}
+              </div>
+            )}
+            {q.type === "MULTIPLE_CHOICE" && (
+              <div className="flex flex-col gap-2">
+                {q.options.map((o) => {
+                  const selected = answers[q.id]?.selected_option_ids ?? [];
+                  return (
+                    <label key={o.id} className="flex items-center gap-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-primary"
+                        checked={selected.includes(o.id)}
+                        onChange={(e) => updateAnswer(q.id, {
+                          selected_option_ids: e.target.checked ? [...selected, o.id] : selected.filter((id) => id !== o.id),
+                        })}
+                      />
+                      {o.text}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            {q.type === "SCALE" && (
+              <div className="flex items-center gap-3">
+                {Array.from({ length: (q.scale_max ?? 5) - (q.scale_min ?? 1) + 1 }, (_, i) => (q.scale_min ?? 1) + i).map((v) => (
+                  <label key={v} className="flex flex-col items-center gap-1 text-xs text-muted-foreground">
+                    <input
+                      type="radio"
+                      name={q.id}
+                      className="h-4 w-4 accent-primary"
+                      checked={answers[q.id]?.scale_value === v}
+                      onChange={() => updateAnswer(q.id, { scale_value: v })}
+                    />
+                    {v}
+                  </label>
+                ))}
+              </div>
+            )}
+            {q.type === "TEXT" && (
+              <Textarea
+                rows={3}
+                value={answers[q.id]?.text_answer ?? ""}
+                onChange={(e) => updateAnswer(q.id, { text_answer: e.target.value })}
+              />
+            )}
+          </CardContent>
+        </Card>
+      ))}
+      {questions.length > 0 && (
+        <Button type="submit" className="self-start" disabled={submitM.isPending}>
+          {submitM.isPending ? "Enviando…" : "Enviar respuestas"}
+        </Button>
+      )}
+      {questions.length === 0 && !questionsQ.isLoading && (
+        <p className="text-sm text-muted-foreground">Esta encuesta todavía no tiene preguntas.</p>
+      )}
+    </form>
   );
 }

@@ -27,6 +27,15 @@ export class LmsUseCases implements LmsRepositoryPort {
   listQuestionsForManage(activityId: string) { return this.repository.listQuestionsForManage(activityId); }
   upsertQuestion(body: any) { return this.repository.upsertQuestion(body); }
   deleteQuestion(id: string) { return this.repository.deleteQuestion(id); }
+  importQuizQuestions(activityId: string, body: any) { return this.repository.importQuizQuestions(activityId, body); }
+  exportQuizQuestions(activityId: string, format: any) { return this.repository.exportQuizQuestions(activityId, format); }
+  createQuizFromFile(unitId: string, body: any) { return this.repository.createQuizFromFile(unitId, body); }
+
+  listSurveyQuestionsForManage(activityId: string) { return this.repository.listSurveyQuestionsForManage(activityId); }
+  upsertSurveyQuestion(body: any) { return this.repository.upsertSurveyQuestion(body); }
+  deleteSurveyQuestion(id: string) { return this.repository.deleteSurveyQuestion(id); }
+  importSurveyQuestions(activityId: string, markdown: string) { return this.repository.importSurveyQuestions(activityId, markdown); }
+  getSurveyResults(activityId: string) { return this.repository.getSurveyResults(activityId); }
 
   catalog(params?: any) { return this.repository.catalog(params); }
   detail(slug: string) { return this.repository.detail(slug); }
@@ -41,7 +50,12 @@ export class LmsUseCases implements LmsRepositoryPort {
   createPost(body: any) { return this.repository.createPost(body); }
   mySubmission(activityId: string) { return this.repository.mySubmission(activityId); }
   submitAssignment(activityId: string, body: any) { return this.repository.submitAssignment(activityId, body); }
+  submitAssignmentFiles(activityId: string, body: any) { return this.repository.submitAssignmentFiles(activityId, body); }
   listQuestionsForStudent(activityId: string) { return this.repository.listQuestionsForStudent(activityId); }
   submitQuizAttempt(activityId: string, body: any) { return this.repository.submitQuizAttempt(activityId, body); }
   myQuizAttempts(activityId: string) { return this.repository.myQuizAttempts(activityId); }
+
+  listSurveyQuestionsForStudent(activityId: string) { return this.repository.listSurveyQuestionsForStudent(activityId); }
+  mySurveyResponse(activityId: string) { return this.repository.mySurveyResponse(activityId); }
+  submitSurveyResponse(activityId: string, body: any) { return this.repository.submitSurveyResponse(activityId, body); }
 }
