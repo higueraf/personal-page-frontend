@@ -98,6 +98,11 @@ export default function PlaygroundIDE() {
   const [isTabSwitchLocked, setIsTabSwitchLocked] = useState(false);
   const [isKeyboardAlertLocked, setIsKeyboardAlertLocked] = useState(false);
   const examFinishedRef = useRef(false);
+  // Set inside `beforeunload` (fires before `visibilitychange`/`blur` in the
+  // unload sequence) so a refresh/close isn't misreported as a tab switch —
+  // `visibilitychange` always fires with `hidden` right before a page unloads,
+  // even on a plain refresh, not just on a genuine tab/window switch.
+  const unloadingRef = useRef(false);
 
   // Admin-review only: student identity + inline grading panel state
   const [studentUser, setStudentUser] = useState<{ first_name: string; last_name: string; email: string } | null>(null);
@@ -254,6 +259,12 @@ export default function PlaygroundIDE() {
 
     // 2. Prevent exiting/reloading (beforeunload)
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      unloadingRef.current = true;
+      // Safety net: if the browser's "leave site?" prompt gets cancelled (the
+      // student stays), the page never actually unloads, so nothing else would
+      // ever clear this flag — reset it after a beat so real tab/window
+      // switches keep being detected normally.
+      setTimeout(() => { unloadingRef.current = false; }, 1000);
       const msg = "Estás en un examen activo. ¿Seguro que deseas salir?";
       e.returnValue = msg;
       return msg;
@@ -321,7 +332,7 @@ export default function PlaygroundIDE() {
     // 5. Tab/window switch monitoring — applies to ALL exams
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        if (examFinishedRef.current) return;
+        if (examFinishedRef.current || unloadingRef.current) return;
         playgroundUseCases.logCheat(
           id as string,
           "tab_switch",
@@ -338,9 +349,9 @@ export default function PlaygroundIDE() {
     //    document.activeElement. If the new active element is an <iframe> that lives inside this
     //    page (i.e. the preview panel), we silently ignore the blur.
     const handleWindowBlur = () => {
-      if (examFinishedRef.current) return;
+      if (examFinishedRef.current || unloadingRef.current) return;
       setTimeout(() => {
-        if (examFinishedRef.current) return;
+        if (examFinishedRef.current || unloadingRef.current) return;
         // If focus moved to an iframe that belongs to this document it is the
         // preview panel — not a real tab/window switch.
         const active = document.activeElement;

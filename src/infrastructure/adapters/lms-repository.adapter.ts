@@ -79,6 +79,14 @@ export class AxiosLmsRepositoryAdapter implements LmsRepositoryPort {
   async deleteActivity(id: string): Promise<void> {
     await axiosClient.delete(`/lms/activities/${id}`);
   }
+  async downloadSebConfig(activityId: string): Promise<{ filename: string; blob: Blob }> {
+    const response = await axiosClient.get(`/lms/activities/${activityId}/seb-config`, {
+      responseType: "blob",
+    });
+    const disposition = response.headers["content-disposition"] as string | undefined;
+    const match = disposition?.match(/filename="?([^"]+)"?/);
+    return { filename: match?.[1] ?? "examen.seb", blob: response.data };
+  }
 
   // ── Profesor/admin: foro, entregas y quizzes ─────────────────────────────
   async listThreadsForManage(activityId: string): Promise<LmsForumThread[]> {

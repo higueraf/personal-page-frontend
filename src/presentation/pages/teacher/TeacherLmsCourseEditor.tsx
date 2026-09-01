@@ -54,6 +54,7 @@ const EMPTY_ACTIVITY_FORM = {
   due_at: "",
   max_score: "",
   configText: "",
+  requireSeb: false,
 };
 
 export default function TeacherLmsCourseEditor() {
@@ -120,6 +121,9 @@ export default function TeacherLmsCourseEditor() {
           throw new Error("La configuración debe ser JSON válido");
         }
       }
+      if (activityForm.type === "quiz" || activityForm.type === "exam") {
+        config = { ...config, requireSeb: activityForm.requireSeb };
+      }
       const body = {
         type: activityForm.type,
         title: activityForm.title,
@@ -142,12 +146,23 @@ export default function TeacherLmsCourseEditor() {
     onSuccess: invalidateUnits,
   });
 
+  async function downloadSeb(activity: LmsActivity) {
+    const { filename, blob } = await lmsUseCases.downloadSebConfig(activity.id);
+    const url = URL.createObjectURL(new Blob([blob], { type: "application/seb" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function openCreateActivity(unitId: string) {
     setActivityForm(EMPTY_ACTIVITY_FORM);
     setActivityFormError(null);
     setActivityDialog({ unitId });
   }
   function openEditActivity(unit: LmsCourseUnit, activity: LmsActivity) {
+    const { requireSeb, ...restConfig } = activity.config ?? {};
     setActivityForm({
       type: activity.type,
       title: activity.title,
@@ -155,7 +170,8 @@ export default function TeacherLmsCourseEditor() {
       status: activity.status,
       due_at: activity.due_at ? activity.due_at.slice(0, 10) : "",
       max_score: activity.max_score != null ? String(activity.max_score) : "",
-      configText: activity.config && Object.keys(activity.config).length ? JSON.stringify(activity.config, null, 2) : "",
+      configText: Object.keys(restConfig).length ? JSON.stringify(restConfig, null, 2) : "",
+      requireSeb: !!requireSeb,
     });
     setActivityFormError(null);
     setActivityDialog({ unitId: unit.id, activity });
@@ -286,6 +302,11 @@ export default function TeacherLmsCourseEditor() {
                                 <HelpCircle size={13} /> Preguntas
                               </Button>
                             )}
+                            {(activity.type === "quiz" || activity.type === "exam") && activity.config?.requireSeb && (
+                              <Button size="sm" variant="outline" onClick={() => downloadSeb(activity)} title="Descargar archivo .seb para Safe Exam Browser">
+                                <Download size={13} /> .seb
+                              </Button>
+                            )}
                             {activity.type === "forum" && (
                               <Button size="sm" variant="outline" onClick={() => setThreadsFor(activity)}>
                                 <MessageSquare size={13} /> Hilos
@@ -402,6 +423,17 @@ export default function TeacherLmsCourseEditor() {
                 <Input type="number" value={activityForm.max_score} onChange={(e) => setActivityForm((f) => ({ ...f, max_score: e.target.value }))} />
               </div>
             </div>
+            {(activityForm.type === "quiz" || activityForm.type === "exam") && (
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-primary"
+                  checked={activityForm.requireSeb}
+                  onChange={(e) => setActivityForm((f) => ({ ...f, requireSeb: e.target.checked }))}
+                />
+                Requiere Safe Exam Browser (pantalla completa)
+              </label>
+            )}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">Configuración (JSON, opcional)</label>
               <Textarea

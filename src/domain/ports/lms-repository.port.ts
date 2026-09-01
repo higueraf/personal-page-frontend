@@ -37,6 +37,7 @@ export interface LmsRepositoryPort {
   createActivity(body: Partial<LmsActivity> & { unit: string }): Promise<LmsActivity>;
   updateActivity(id: string, body: Partial<LmsActivity>): Promise<LmsActivity>;
   deleteActivity(id: string): Promise<void>;
+  downloadSebConfig(activityId: string): Promise<{ filename: string; blob: Blob }>;
 
   // ── Profesor/admin: foro, entregas y quizzes ─────────────────────────────
   listThreadsForManage(activityId: string): Promise<LmsForumThread[]>;

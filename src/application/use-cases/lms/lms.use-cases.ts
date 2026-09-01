@@ -19,6 +19,7 @@ export class LmsUseCases implements LmsRepositoryPort {
   createActivity(body: any) { return this.repository.createActivity(body); }
   updateActivity(id: string, body: any) { return this.repository.updateActivity(id, body); }
   deleteActivity(id: string) { return this.repository.deleteActivity(id); }
+  downloadSebConfig(activityId: string) { return this.repository.downloadSebConfig(activityId); }
 
   listThreadsForManage(activityId: string) { return this.repository.listThreadsForManage(activityId); }
   moderateThread(id: string, patch: any) { return this.repository.moderateThread(id, patch); }

@@ -33,6 +33,7 @@ import LmsCatalog        from "../pages/public/LmsCatalog";
 import LmsCourseDetail   from "../pages/public/LmsCourseDetail";
 import LmsMyCourses      from "../pages/public/LmsMyCourses";
 import LmsActivityViewer from "../pages/public/LmsActivityViewer";
+import LmsQuizExamViewer from "../pages/public/LmsQuizExamViewer";
 
 // ── Páginas del profesor (LMS académico) ─────────────────────────────────────
 import TeacherLmsCourses       from "../pages/teacher/TeacherLmsCourses";
@@ -111,6 +112,14 @@ export const router = createBrowserRouter([
         children: [
           { path: "/playground/exam/:groupId", element: <PlaygroundExamGroupRedirect /> },
           { path: "/playground/:id", element: <PlaygroundIDE /> },
+        ],
+      },
+
+      // ── Cuestionario LMS con SEB/pantalla completa (full-screen, sin navbar) ──
+      {
+        element: <RequireAuth />,
+        children: [
+          { path: "/lms/examen/:activityId", element: <LmsQuizExamViewer /> },
         ],
       },
 
