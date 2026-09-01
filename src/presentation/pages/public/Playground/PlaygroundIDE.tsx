@@ -124,6 +124,10 @@ export default function PlaygroundIDE() {
   const [historyList, setHistoryList] = useState<{ id: string; created_at: string; file_count: number }[]>([]);
   const [selectedSnapshot, setSelectedSnapshot] = useState<{ id: string; created_at: string; files: any[] } | null>(null);
   const [unlocking, setUnlocking] = useState(false);
+  // Student-facing (not admin): retry the security-lock check, and a way to bail out of a
+  // locked/stuck exam entirely (see handleRetryUnlock / handleExitExam below).
+  const [retryingUnlock, setRetryingUnlock] = useState(false);
+  const [exitingExam, setExitingExam] = useState(false);
 
   const config = LANGUAGE_CONFIGS[language];
 
@@ -315,7 +319,16 @@ export default function PlaygroundIDE() {
     };
 
     // 4. Fullscreen lock check
+    // NO aplica dentro de Safe Exam Browser: SEB ya mantiene su propio modo kiosco a nivel de
+    // sistema operativo (no se puede minimizar, alternar de ventana ni salir sin pasar por
+    // quitURL), así que este chequeo es redundante ahí — y en la práctica `document.fullscreenElement`
+    // se ha visto inconsistente dentro de SEB (se "sale" de fullscreen sola al interactuar con el
+    // iframe de vista previa, más notorio en exámenes con mucha interacción de UI como react-crud),
+    // generando bloqueos falsos que dejaban al alumno sin poder guardar ni entregar. Fuera de SEB
+    // este sigue siendo el único mecanismo real contra salir de pantalla completa, así que ahí se
+    // mantiene activo.
     const handleFullscreenChange = () => {
+      if (isInSEB) return;
       if (!document.fullscreenElement) {
         if (examFinishedRef.current) return; // exiting fullscreen as part of submit — ignore
         setIsLockedOut(true);
@@ -393,7 +406,7 @@ export default function PlaygroundIDE() {
         window.removeEventListener("dragover", handleDropOrDragOver, true);
       }
     };
-  }, [isExam, isReadOnly, allowCopyPaste]);
+  }, [isExam, isReadOnly, allowCopyPaste, isInSEB]);
 
   // ── Exam Keyboard Lock: block navigation shortcuts ───────────────────────────
   useEffect(() => {
@@ -705,6 +718,45 @@ export default function PlaygroundIDE() {
     }
   }, [id, setSecurityLocked]);
 
+  // ── Alumno: reintentar el bloqueo (por si el profesor ya lo reactivó) ──────
+  const handleRetryUnlock = useCallback(async () => {
+    if (!id) return;
+    setRetryingUnlock(true);
+    try {
+      const data = await playgroundUseCases.get(id);
+      const stillLocked = data.security_locked ?? false;
+      setSecurityLocked(stillLocked);
+      if (!stillLocked) setReadOnly(data.status === "submitted" || data.status === "graded");
+    } catch (err) {
+      console.error("Retry unlock check failed:", err);
+    } finally {
+      setRetryingUnlock(false);
+    }
+  }, [id, setSecurityLocked, setReadOnly]);
+
+  // ── Alumno: salir de un examen bloqueado (se entrega tal cual está y libera al alumno) ──
+  // Entrega lo que tenga guardado (igual que la entrega automática por tiempo agotado),
+  // limpia `activeExam` del store de auth para que ExamLockGate deje de forzarlo de vuelta
+  // acá en cualquier otra ruta, y sale de Safe Exam Browser si está dentro. Si vuelve a
+  // entrar a este mismo examen, ya está "submitted" y lo verá en modo solo lectura.
+  const handleExitExam = useCallback(async () => {
+    if (!id) return;
+    if (!window.confirm("¿Salir del examen? Se entregará con lo que tengas guardado hasta ahora y no podrás seguir editando.")) return;
+    setExitingExam(true);
+    try {
+      await playgroundUseCases.submit(id);
+    } catch (err) {
+      console.error("Exit exam submit failed:", err);
+    } finally {
+      useAuth.getState().clearActiveExam();
+      if (isInSEB) {
+        window.location.href = "/seb-quit";
+      } else {
+        navigate("/", { replace: true });
+      }
+    }
+  }, [id, isInSEB, navigate]);
+
   // ── Exam auto-save every 5 minutes ──────────────────────────────────────────
   // Uses handleSaveRef (not handleSave directly) so the interval isn't torn down
   // and recreated on every keystroke (handleSave changes whenever `files` does,
@@ -780,9 +832,26 @@ export default function PlaygroundIDE() {
           <p className="text-base max-w-lg text-slate-300 mb-2">
             Tu editor fue bloqueado por múltiples incidentes de seguridad detectados durante este examen.
           </p>
-          <p className="text-sm text-slate-400 max-w-lg">
-            Contacta a tu profesor para que revise tu caso y reactive el examen.
+          <p className="text-sm text-slate-400 max-w-lg mb-6">
+            Contacta a tu profesor para que revise tu caso y reactive el examen. Si ya te autorizó, presiona
+            "Reintentar". Si no puedes seguir esperando, puedes salir del examen: se entregará tal como está.
           </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={handleRetryUnlock}
+              disabled={retryingUnlock}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm font-semibold transition-colors"
+            >
+              {retryingUnlock ? "Verificando…" : "Reintentar"}
+            </button>
+            <button
+              onClick={handleExitExam}
+              disabled={exitingExam}
+              className="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 rounded-lg text-sm font-semibold transition-colors"
+            >
+              {exitingExam ? "Saliendo…" : "Salir del examen"}
+            </button>
+          </div>
         </div>
       )}
 
