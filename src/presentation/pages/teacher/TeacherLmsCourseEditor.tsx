@@ -21,6 +21,7 @@ import type {
 import { uploadUrl } from "@/presentation/store/auth.store";
 import PageHeader from "@/presentation/components/patterns/PageHeader";
 import EmptyState from "@/presentation/components/patterns/EmptyState";
+import { pickCardImage } from "@/presentation/components/patterns/cardImages";
 import DataTable, { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/presentation/components/patterns/DataTable";
 import { Button } from "@/presentation/components/ui/button";
 import { Input } from "@/presentation/components/ui/input";
@@ -94,6 +95,11 @@ export default function TeacherLmsCourseEditor() {
 
   const updateCourseM = useMutation({
     mutationFn: (body: { title: string; description: string; status: string }) => lmsUseCases.updateCourse(courseId!, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-course", courseId] }),
+  });
+
+  const uploadCoverM = useMutation({
+    mutationFn: (file: File) => lmsUseCases.uploadCourseCover(courseId!, file),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-course", courseId] }),
   });
 
@@ -189,7 +195,30 @@ export default function TeacherLmsCourseEditor() {
 
       {course && (
         <Card className="mb-6">
-          <CardContent className="grid gap-4 p-5 sm:grid-cols-[1fr_1fr_auto]">
+          <CardContent className="flex flex-col gap-4 p-5">
+            <div className="flex items-center gap-4">
+              <img
+                src={uploadUrl(course.cover_image) || pickCardImage(course.title || course.id)}
+                alt=""
+                className="h-16 w-24 shrink-0 rounded-md border border-border object-cover"
+              />
+              <div>
+                <label className="mb-1.5 block cursor-pointer text-xs font-medium text-primary hover:underline">
+                  {uploadCoverM.isPending ? "Subiendo…" : course.cover_image ? "Cambiar portada" : "Subir portada"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadCoverM.isPending}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadCoverM.mutate(f); e.target.value = ""; }}
+                  />
+                </label>
+                <p className="max-w-xs text-xs text-muted-foreground">
+                  Se muestra en "Mis cursos" y el catálogo. Si no subes una, se usa una foto genérica.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto]">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Título</label>
               <Input defaultValue={course.title} key={`title-${course.id}`} id="course-title-input" />
@@ -216,6 +245,7 @@ export default function TeacherLmsCourseEditor() {
               >
                 <Save size={14} /> Guardar
               </Button>
+            </div>
             </div>
           </CardContent>
         </Card>

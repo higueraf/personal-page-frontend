@@ -76,6 +76,7 @@ export default function LmsCatalog() {
               badge="Curso"
               accent="purple"
               icon={GraduationCap}
+              image={c.cover_image}
               meta={
                 <div className="flex w-full items-center justify-between">
                   <span className="text-xs text-muted-foreground">

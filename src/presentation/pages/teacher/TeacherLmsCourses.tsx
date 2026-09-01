@@ -7,6 +7,8 @@ import type { LmsCourse } from "../../../domain/entities/lms.entity";
 import PageHeader from "@/presentation/components/patterns/PageHeader";
 import EmptyState from "@/presentation/components/patterns/EmptyState";
 import DataTable, { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/presentation/components/patterns/DataTable";
+import CourseCard from "@/presentation/components/patterns/CourseCard";
+import ViewToggle, { usePersistedViewMode } from "@/presentation/components/patterns/ViewToggle";
 import { Button } from "@/presentation/components/ui/button";
 import { Input } from "@/presentation/components/ui/input";
 import { Textarea } from "@/presentation/components/ui/textarea";
@@ -19,6 +21,11 @@ const STATUS_VARIANT: Record<string, "secondary" | "default" | "outline"> = {
   PUBLISHED: "default",
   ARCHIVED: "outline",
 };
+const STATUS_ACCENT: Record<string, "blue" | "green" | "orange"> = {
+  DRAFT: "orange",
+  PUBLISHED: "blue",
+  ARCHIVED: "orange",
+};
 
 export default function TeacherLmsCourses() {
   const qc = useQueryClient();
@@ -26,6 +33,7 @@ export default function TeacherLmsCourses() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ title: "", description: "" });
+  const [viewMode, setViewMode] = usePersistedViewMode("teacher-lms-courses-view");
 
   const coursesQ = useQuery({
     queryKey: ["lms-teacher-courses", search],
@@ -55,9 +63,12 @@ export default function TeacherLmsCourses() {
         title="Mis cursos académicos"
         subtitle="Crea cursos, organízalos en unidades y publica actividades para tus alumnos."
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus size={15} /> Nuevo curso
-          </Button>
+          <div className="flex items-center gap-2">
+            {courses.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus size={15} /> Nuevo curso
+            </Button>
+          </div>
         }
       />
 
@@ -74,7 +85,41 @@ export default function TeacherLmsCourses() {
         />
       )}
 
-      {courses.length > 0 && (
+      {courses.length > 0 && viewMode === "grid" && (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {courses.map((c) => (
+            <CourseCard
+              key={c.id}
+              to={`/teacher/cursos/${c.id}`}
+              title={c.title}
+              description={c.description ?? undefined}
+              badge={STATUS_LABEL[c.status] ?? c.status}
+              accent={STATUS_ACCENT[c.status] ?? "blue"}
+              icon={GraduationCap}
+              image={c.cover_image}
+              meta={
+                <div className="flex w-full items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                    <Settings2 size={13} /> Gestionar
+                  </span>
+                  {c.status !== "ARCHIVED" && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); archiveM.mutate(c.id); }}
+                      disabled={archiveM.isPending}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
+                    >
+                      <Archive size={12} /> Archivar
+                    </button>
+                  )}
+                </div>
+              }
+            />
+          ))}
+        </div>
+      )}
+
+      {courses.length > 0 && viewMode === "list" && (
         <DataTable>
           <TableHeader>
             <TableRow>

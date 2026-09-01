@@ -26,6 +26,7 @@ export interface LmsRepositoryPort {
   createCourse(body: Partial<LmsCourse>): Promise<LmsCourse>;
   updateCourse(id: string, body: Partial<LmsCourse>): Promise<LmsCourse>;
   archiveCourse(id: string): Promise<LmsCourse>;
+  uploadCourseCover(id: string, file: File): Promise<LmsCourse>;
   listUnits(courseId: string): Promise<LmsCourseUnit[]>;
   createUnit(body: { course: string; title: string; order?: number; status?: string }): Promise<LmsCourseUnit>;
   updateUnit(id: string, body: Partial<{ title: string; order: number; status: string }>): Promise<LmsCourseUnit>;

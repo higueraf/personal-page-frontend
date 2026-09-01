@@ -9,6 +9,7 @@ export class LmsUseCases implements LmsRepositoryPort {
   createCourse(body: any) { return this.repository.createCourse(body); }
   updateCourse(id: string, body: any) { return this.repository.updateCourse(id, body); }
   archiveCourse(id: string) { return this.repository.archiveCourse(id); }
+  uploadCourseCover(id: string, file: File) { return this.repository.uploadCourseCover(id, file); }
   listUnits(courseId: string) { return this.repository.listUnits(courseId); }
   createUnit(body: any) { return this.repository.createUnit(body); }
   updateUnit(id: string, body: any) { return this.repository.updateUnit(id, body); }

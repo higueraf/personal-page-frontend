@@ -43,6 +43,14 @@ export class AxiosLmsRepositoryAdapter implements LmsRepositoryPort {
     const { data } = await axiosClient.put<LmsCourse>(`/lms/courses/${id}/archive`, {});
     return data;
   }
+  async uploadCourseCover(id: string, file: File): Promise<LmsCourse> {
+    const formData = new FormData();
+    formData.append("cover", file);
+    const { data } = await axiosClient.post<LmsCourse>(`/lms/courses/${id}/cover`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data;
+  }
   async listUnits(courseId: string): Promise<LmsCourseUnit[]> {
     const { data } = await axiosClient.get<LmsCourseUnit[]>(`/lms/courses/${courseId}/units`);
     return data;
