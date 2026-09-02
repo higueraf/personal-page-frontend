@@ -53,32 +53,41 @@ export function QuizAttemptForm({ activity }: { activity: LmsActivity }) {
   const attemptsLabel = attemptsAllowed <= 0 ? `Intento ${attemptsUsed + 1} (ilimitados)` : `Intento ${Math.min(attemptsUsed + 1, attemptsAllowed)} de ${attemptsAllowed}`;
 
   const lastAttempt = attempts[0];
-  if (lastAttempt?.answers && !retrying) {
+  if (lastAttempt && !retrying) {
+    const graded = lastAttempt.score != null;
     return (
       <Card>
         <CardContent className="p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <Badge>Resultado</Badge>
-            <span className="font-semibold text-foreground">{lastAttempt.score ?? "—"} pts</span>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Badge>{graded ? "Resultado" : "Entregado"}</Badge>
+            {graded ? (
+              <span className="font-semibold text-foreground">{lastAttempt.score} pts</span>
+            ) : (
+              <span className="text-sm text-muted-foreground">Pendiente de revisión</span>
+            )}
             {attemptsAllowed !== 1 && (
               <span className="text-xs text-muted-foreground">
                 {attemptsAllowed <= 0 ? `${attemptsUsed} intento(s)` : `${attemptsUsed} de ${attemptsAllowed} intento(s)`}
               </span>
             )}
           </div>
-          <div className="flex flex-col gap-3">
-            {lastAttempt.answers.map((a) => (
-              <div key={a.question_id} className="rounded-lg border border-border p-3">
-                <p className="text-sm font-medium text-foreground">{a.question_text}</p>
-                {a.is_correct !== undefined && (
-                  <p className={`mt-1 text-xs font-medium ${a.is_correct ? "text-emerald-600" : "text-destructive"}`}>
-                    {a.is_correct ? "Correcta" : "Incorrecta"}
-                  </p>
-                )}
-                {a.feedback && <p className="mt-1 text-xs text-muted-foreground">{a.feedback}</p>}
-              </div>
-            ))}
-          </div>
+          {lastAttempt.answers ? (
+            <div className="flex flex-col gap-3">
+              {lastAttempt.answers.map((a) => (
+                <div key={a.question_id} className="rounded-lg border border-border p-3">
+                  <p className="text-sm font-medium text-foreground">{a.question_text}</p>
+                  {a.is_correct !== undefined && (
+                    <p className={`mt-1 text-xs font-medium ${a.is_correct ? "text-emerald-600" : "text-destructive"}`}>
+                      {a.is_correct ? "Correcta" : "Incorrecta"}
+                    </p>
+                  )}
+                  {a.feedback && <p className="mt-1 text-xs text-muted-foreground">{a.feedback}</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">El profesor no habilitó ver el detalle de las respuestas para este cuestionario.</p>
+          )}
           {canRetry && (
             <Button variant="outline" className="mt-4" onClick={() => setRetrying(true)}>
               Intentar de nuevo

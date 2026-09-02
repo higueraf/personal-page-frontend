@@ -53,6 +53,13 @@ export default function LmsCourseDetail() {
   const course = courseQ.data;
   const enrollment = myCoursesQ.data?.find((e) => e.course.id === course?.id);
 
+  const progressQ = useQuery({
+    queryKey: ["lms-my-progress", course?.id],
+    queryFn: () => lmsUseCases.myProgressForCourse(course!.id),
+    enabled: !!enrollment && !!course?.id,
+  });
+  const progressByActivity = new Map((progressQ.data ?? []).map((p) => [p.activity_id, p]));
+
   const enrollM = useMutation({
     mutationFn: () => lmsUseCases.enroll(course!.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-my-courses"] }),
@@ -116,6 +123,7 @@ export default function LmsCourseDetail() {
                 {(unit.activities ?? []).map((activity) => {
                   const meta = typeMeta(activity.type);
                   const Icon = meta.icon;
+                  const progress = progressByActivity.get(activity.id);
                   const body = (
                     <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5 transition-colors hover:border-primary/40">
                       <div className="flex items-center gap-2.5">
@@ -128,7 +136,15 @@ export default function LmsCourseDetail() {
                           </div>
                         </div>
                       </div>
-                      {!enrollment && <Lock size={14} className="text-muted-foreground" />}
+                      <div className="flex items-center gap-2">
+                        {progress?.status === "COMPLETED" && (
+                          <Badge variant={progress.score != null ? "default" : "secondary"}>
+                            {progress.score != null ? `Nota: ${progress.score} pts` : "En revisión"}
+                          </Badge>
+                        )}
+                        {progress?.status === "IN_PROGRESS" && <Badge variant="outline">En progreso</Badge>}
+                        {!enrollment && <Lock size={14} className="text-muted-foreground" />}
+                      </div>
                     </div>
                   );
                   return enrollment ? (

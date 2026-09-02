@@ -68,6 +68,7 @@ export interface LmsRepositoryPort {
   // ── Alumno ─────────────────────────────────────────────────────────────────
   enroll(courseId: string): Promise<LmsEnrollment>;
   myCourses(): Promise<LmsEnrollment[]>;
+  myProgressForCourse(courseId: string): Promise<LmsActivityProgress[]>;
   getActivity(id: string): Promise<{ activity: LmsActivity; progress: LmsActivityProgress; course_id: string; course_slug: string }>;
   markActivityComplete(id: string): Promise<LmsActivityProgress>;
   listThreads(activityId: string): Promise<LmsForumThread[]>;

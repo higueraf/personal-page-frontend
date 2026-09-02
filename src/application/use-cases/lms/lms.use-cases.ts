@@ -46,6 +46,7 @@ export class LmsUseCases implements LmsRepositoryPort {
 
   enroll(courseId: string) { return this.repository.enroll(courseId); }
   myCourses() { return this.repository.myCourses(); }
+  myProgressForCourse(courseId: string) { return this.repository.myProgressForCourse(courseId); }
   getActivity(id: string) { return this.repository.getActivity(id); }
   markActivityComplete(id: string) { return this.repository.markActivityComplete(id); }
   listThreads(activityId: string) { return this.repository.listThreads(activityId); }

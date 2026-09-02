@@ -43,6 +43,7 @@ const EMPTY_FORM = {
   configText: "",
   requireSeb: false,
   attemptsAllowed: "1",
+  showResults: true,
 };
 
 function toDateInputValue(iso?: string | null) {
@@ -69,7 +70,7 @@ export default function TeacherLmsActivityEditor() {
   useEffect(() => {
     const activity = activityQ.data;
     if (!activity) return;
-    const { requireSeb, attempts_allowed, ...restConfig } = activity.config ?? {};
+    const { requireSeb, attempts_allowed, show_results, ...restConfig } = activity.config ?? {};
     setForm({
       type: activity.type,
       title: activity.title,
@@ -81,6 +82,7 @@ export default function TeacherLmsActivityEditor() {
       configText: Object.keys(restConfig).length ? JSON.stringify(restConfig, null, 2) : "",
       requireSeb: !!requireSeb,
       attemptsAllowed: attempts_allowed != null ? String(attempts_allowed) : "1",
+      showResults: show_results !== false,
     });
   }, [activityQ.data]);
 
@@ -95,7 +97,7 @@ export default function TeacherLmsActivityEditor() {
         }
       }
       if (form.type === "quiz" || form.type === "exam") {
-        config = { ...config, requireSeb: form.requireSeb, attempts_allowed: Number(form.attemptsAllowed) || 1 };
+        config = { ...config, requireSeb: form.requireSeb, attempts_allowed: Number(form.attemptsAllowed) || 1, show_results: form.showResults };
       }
       const body = {
         type: form.type,
@@ -210,6 +212,18 @@ export default function TeacherLmsActivityEditor() {
                 />
                 <p className="mt-1 text-xs text-muted-foreground">1 = un solo intento (por defecto). 0 = intentos ilimitados.</p>
               </div>
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-primary"
+                  checked={form.showResults}
+                  onChange={(e) => setForm((f) => ({ ...f, showResults: e.target.checked }))}
+                />
+                Mostrar al alumno el detalle de sus respuestas al entregar
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Si lo desactivas, el alumno ve su nota pero no cuáles preguntas acertó ni la retroalimentación — útil para no revelar las respuestas correctas si vas a reusar el mismo cuestionario.
+              </p>
             </div>
           )}
 
