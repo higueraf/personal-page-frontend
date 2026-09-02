@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { queryClient } from "./queryClient";
 import { useAuth } from "../store/auth.store";
 import { ThemeProvider } from "../providers/ThemeProvider";
+import { Toaster } from "@/presentation/components/ui/sonner";
 
 function AuthBootstrap({ children }: { children: React.ReactNode }) {
   const bootstrap = useAuth((s) => s.bootstrap);
@@ -20,6 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthBootstrap>{children}</AuthBootstrap>
+        <Toaster />
       </ThemeProvider>
     </QueryClientProvider>
   );

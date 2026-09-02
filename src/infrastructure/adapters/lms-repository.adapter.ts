@@ -196,7 +196,7 @@ export class AxiosLmsRepositoryAdapter implements LmsRepositoryPort {
     const { data } = await axiosClient.get<LmsEnrollment[]>("/public/lms/my-courses");
     return data;
   }
-  async getActivity(id: string): Promise<{ activity: LmsActivity; progress: LmsActivityProgress; course_id: string }> {
+  async getActivity(id: string): Promise<{ activity: LmsActivity; progress: LmsActivityProgress; course_id: string; course_slug: string }> {
     const { data } = await axiosClient.get(`/public/lms/activities/${id}`);
     return data;
   }

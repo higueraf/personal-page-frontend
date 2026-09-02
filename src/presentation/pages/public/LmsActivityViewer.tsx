@@ -36,12 +36,12 @@ export default function LmsActivityViewer() {
     return <div className="mx-auto max-w-3xl px-6 py-10 text-muted-foreground">{message}</div>;
   }
 
-  const { activity, progress } = q.data;
+  const { activity, progress, course_slug } = q.data;
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <Link to="/lms/mis-cursos" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft size={14} /> Volver a mis cursos
+      <Link to={course_slug ? `/lms/${course_slug}` : "/lms/mis-cursos"} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft size={14} /> {course_slug ? "Volver al curso" : "Volver a mis cursos"}
       </Link>
 
       <div className="mb-2 flex flex-wrap items-center gap-2">

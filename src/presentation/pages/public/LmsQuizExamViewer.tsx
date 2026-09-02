@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Maximize2 } from "lucide-react";
@@ -64,11 +65,11 @@ export default function LmsQuizExamViewer() {
     };
   }, []);
 
-  function exitToMyCourses() {
-    if (!window.confirm("¿Salir del cuestionario y volver a mis cursos?")) return;
+  function exitExam() {
+    if (!window.confirm("¿Salir del cuestionario y volver al curso?")) return;
     exitingRef.current = true;
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    navigate("/lms/mis-cursos");
+    navigate(courseSlug ? `/lms/${courseSlug}` : "/lms/mis-cursos");
   }
 
   if (q.isLoading) {
@@ -78,11 +79,11 @@ export default function LmsQuizExamViewer() {
     return <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">Actividad no encontrada.</div>;
   }
 
-  const { activity } = q.data;
+  const { activity, course_slug: courseSlug } = q.data;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {isOutOfFullscreen && (
+      {isOutOfFullscreen && createPortal(
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 bg-background/95 p-8 text-center">
           <Maximize2 size={40} className="text-primary" />
           <h2 className="font-display text-xl font-bold text-foreground">Debés permanecer en pantalla completa</h2>
@@ -92,12 +93,18 @@ export default function LmsQuizExamViewer() {
           <Button onClick={() => document.documentElement.requestFullscreen().catch(() => {})}>
             Volver a pantalla completa
           </Button>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <header className="flex items-center justify-between border-b border-border px-6 py-3">
-        <h1 className="font-display text-lg font-semibold text-foreground">{activity.title}</h1>
-        <Button variant="outline" size="sm" onClick={exitToMyCourses}>Salir</Button>
+        <div>
+          <h1 className="font-display text-lg font-semibold text-foreground">{activity.title}</h1>
+          {activity.due_at && (
+            <p className="text-xs text-muted-foreground">Fecha límite: {new Date(activity.due_at).toLocaleString()}</p>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={exitExam}>Salir</Button>
       </header>
 
       <main className="mx-auto max-w-3xl px-6 py-8">

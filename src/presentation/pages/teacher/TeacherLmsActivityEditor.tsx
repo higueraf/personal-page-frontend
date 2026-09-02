@@ -42,6 +42,7 @@ const EMPTY_FORM = {
   max_score: "",
   configText: "",
   requireSeb: false,
+  attemptsAllowed: "1",
 };
 
 function toDateInputValue(iso?: string | null) {
@@ -68,7 +69,7 @@ export default function TeacherLmsActivityEditor() {
   useEffect(() => {
     const activity = activityQ.data;
     if (!activity) return;
-    const { requireSeb, ...restConfig } = activity.config ?? {};
+    const { requireSeb, attempts_allowed, ...restConfig } = activity.config ?? {};
     setForm({
       type: activity.type,
       title: activity.title,
@@ -79,6 +80,7 @@ export default function TeacherLmsActivityEditor() {
       max_score: activity.max_score != null ? String(activity.max_score) : "",
       configText: Object.keys(restConfig).length ? JSON.stringify(restConfig, null, 2) : "",
       requireSeb: !!requireSeb,
+      attemptsAllowed: attempts_allowed != null ? String(attempts_allowed) : "1",
     });
   }, [activityQ.data]);
 
@@ -93,7 +95,7 @@ export default function TeacherLmsActivityEditor() {
         }
       }
       if (form.type === "quiz" || form.type === "exam") {
-        config = { ...config, requireSeb: form.requireSeb };
+        config = { ...config, requireSeb: form.requireSeb, attempts_allowed: Number(form.attemptsAllowed) || 1 };
       }
       const body = {
         type: form.type,
@@ -186,15 +188,29 @@ export default function TeacherLmsActivityEditor() {
           </div>
 
           {(form.type === "quiz" || form.type === "exam") && (
-            <label className="flex items-center gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-primary"
-                checked={form.requireSeb}
-                onChange={(e) => setForm((f) => ({ ...f, requireSeb: e.target.checked }))}
-              />
-              Requiere Safe Exam Browser (pantalla completa)
-            </label>
+            <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Comportamiento del cuestionario</p>
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-primary"
+                  checked={form.requireSeb}
+                  onChange={(e) => setForm((f) => ({ ...f, requireSeb: e.target.checked }))}
+                />
+                Requiere Safe Exam Browser (pantalla completa)
+              </label>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Intentos permitidos</label>
+                <Input
+                  type="number"
+                  min={0}
+                  className="max-w-32"
+                  value={form.attemptsAllowed}
+                  onChange={(e) => setForm((f) => ({ ...f, attemptsAllowed: e.target.value }))}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">1 = un solo intento (por defecto). 0 = intentos ilimitados.</p>
+              </div>
+            </div>
           )}
 
           <div>
