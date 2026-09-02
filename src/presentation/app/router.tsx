@@ -38,6 +38,7 @@ import LmsQuizExamViewer from "../pages/public/LmsQuizExamViewer";
 // ── Páginas del profesor (LMS académico) ─────────────────────────────────────
 import TeacherLmsCourses       from "../pages/teacher/TeacherLmsCourses";
 import TeacherLmsCourseEditor  from "../pages/teacher/TeacherLmsCourseEditor";
+import TeacherLmsActivityEditor from "../pages/teacher/TeacherLmsActivityEditor";
 
 // ── Páginas admin ─────────────────────────────────────────────────────────────
 import AdminLayout       from "../layout/AdminLayout";
@@ -144,6 +145,7 @@ export const router = createBrowserRouter([
               { index: true, element: <Navigate to="/teacher/cursos" replace /> },
               { path: "cursos", element: <TeacherLmsCourses /> },
               { path: "cursos/:courseId", element: <TeacherLmsCourseEditor /> },
+              { path: "cursos/:courseId/actividades/:activityId", element: <TeacherLmsActivityEditor /> },
             ],
           },
         ],

@@ -55,16 +55,20 @@ export class AxiosLmsRepositoryAdapter implements LmsRepositoryPort {
     const { data } = await axiosClient.get<LmsCourseUnit[]>(`/lms/courses/${courseId}/units`);
     return data;
   }
-  async createUnit(body: { course: string; title: string; order?: number; status?: string }): Promise<LmsCourseUnit> {
+  async createUnit(body: { course: string; title: string; order?: number; status?: string; starts_at?: string | null; ends_at?: string | null }): Promise<LmsCourseUnit> {
     const { data } = await axiosClient.post<LmsCourseUnit>("/lms/units", body);
     return data;
   }
-  async updateUnit(id: string, body: Partial<{ title: string; order: number; status: string }>): Promise<LmsCourseUnit> {
+  async updateUnit(id: string, body: Partial<{ title: string; order: number; status: string; starts_at: string | null; ends_at: string | null }>): Promise<LmsCourseUnit> {
     const { data } = await axiosClient.put<LmsCourseUnit>(`/lms/units/${id}`, body);
     return data;
   }
   async deleteUnit(id: string): Promise<void> {
     await axiosClient.delete(`/lms/units/${id}`);
+  }
+  async generateWeeklyUnits(courseId: string, body: { start_date: string; weeks: number }): Promise<LmsCourseUnit[]> {
+    const { data } = await axiosClient.post<LmsCourseUnit[]>(`/lms/courses/${courseId}/units/generate-weeks`, body);
+    return data;
   }
   async roster(courseId: string): Promise<LmsRosterEntry[]> {
     const { data } = await axiosClient.get<LmsRosterEntry[]>(`/lms/courses/${courseId}/roster`);
@@ -74,6 +78,10 @@ export class AxiosLmsRepositoryAdapter implements LmsRepositoryPort {
   // ── Profesor/admin: actividades ───────────────────────────────────────────
   async listActivities(unitId: string): Promise<LmsActivity[]> {
     const { data } = await axiosClient.get<LmsActivity[]>(`/lms/units/${unitId}/activities`);
+    return data;
+  }
+  async getActivityForManage(id: string): Promise<LmsActivity & { unit_id: string; unit?: { id: string; course_id: string } }> {
+    const { data } = await axiosClient.get(`/lms/activities/${id}`);
     return data;
   }
   async createActivity(body: Partial<LmsActivity> & { unit: string }): Promise<LmsActivity> {

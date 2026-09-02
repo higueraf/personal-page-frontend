@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { lmsUseCases } from "../../../infrastructure/factories/lms-module.factory";
 import type {
-  LmsActivity, LmsCourseUnit, LmsForumThread, LmsQuizFileFormat, LmsQuizQuestion, LmsSubmission,
+  LmsActivity, LmsForumThread, LmsQuizFileFormat, LmsQuizQuestion, LmsSubmission,
   LmsSurveyQuestion,
 } from "../../../domain/entities/lms.entity";
 import { uploadUrl } from "@/presentation/store/auth.store";
@@ -32,8 +32,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/presentation/compone
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/presentation/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/presentation/components/ui/dialog";
 
-const ACTIVITY_TYPES = ["presentation", "forum", "assignment", "quiz", "exam", "survey"] as const;
-
 const TYPE_META: Record<string, { label: string; icon: any }> = {
   presentation: { label: "Presentación", icon: PresentationIcon },
   forum: { label: "Foro", icon: MessageSquare },
@@ -47,30 +45,18 @@ function typeMeta(type: string) {
   return TYPE_META[type] ?? { label: type, icon: FileText };
 }
 
-const EMPTY_ACTIVITY_FORM = {
-  type: "presentation",
-  title: "",
-  instructions: "",
-  status: "DRAFT",
-  due_at: "",
-  max_score: "",
-  configText: "",
-  requireSeb: false,
-};
-
 export default function TeacherLmsCourseEditor() {
   const { courseId } = useParams<{ courseId: string }>();
   const qc = useQueryClient();
   const [tab, setTab] = useState("contenido");
   const [newUnitTitle, setNewUnitTitle] = useState("");
-  const [activityDialog, setActivityDialog] = useState<{ unitId: string; activity?: LmsActivity } | null>(null);
-  const [activityForm, setActivityForm] = useState(EMPTY_ACTIVITY_FORM);
-  const [activityFormError, setActivityFormError] = useState<string | null>(null);
   const [submissionsFor, setSubmissionsFor] = useState<LmsActivity | null>(null);
   const [questionsFor, setQuestionsFor] = useState<LmsActivity | null>(null);
   const [threadsFor, setThreadsFor] = useState<LmsActivity | null>(null);
   const [surveyFor, setSurveyFor] = useState<LmsActivity | null>(null);
   const [quizFromFileUnit, setQuizFromFileUnit] = useState<string | null>(null);
+  const [weeksDialogOpen, setWeeksDialogOpen] = useState(false);
+  const [weeksForm, setWeeksForm] = useState({ start_date: "", weeks: "12" });
 
   const courseQ = useQuery({
     queryKey: ["lms-course", courseId],
@@ -107,8 +93,13 @@ export default function TeacherLmsCourseEditor() {
     mutationFn: () => lmsUseCases.createUnit({ course: courseId!, title: newUnitTitle, order: units.length + 1 }),
     onSuccess: () => { setNewUnitTitle(""); invalidateUnits(); },
   });
+
+  const generateWeeksM = useMutation({
+    mutationFn: () => lmsUseCases.generateWeeklyUnits(courseId!, { start_date: weeksForm.start_date, weeks: Number(weeksForm.weeks) }),
+    onSuccess: () => { setWeeksDialogOpen(false); invalidateUnits(); },
+  });
   const updateUnitM = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<{ title: string; status: string; order: number }> }) =>
+    mutationFn: ({ id, body }: { id: string; body: Partial<{ title: string; status: string; order: number; starts_at: string | null; ends_at: string | null }> }) =>
       lmsUseCases.updateUnit(id, body),
     onSuccess: invalidateUnits,
   });
@@ -117,36 +108,6 @@ export default function TeacherLmsCourseEditor() {
     onSuccess: invalidateUnits,
   });
 
-  const saveActivityM = useMutation({
-    mutationFn: async () => {
-      let config: Record<string, any> = {};
-      if (activityForm.configText.trim()) {
-        try {
-          config = JSON.parse(activityForm.configText);
-        } catch {
-          throw new Error("La configuración debe ser JSON válido");
-        }
-      }
-      if (activityForm.type === "quiz" || activityForm.type === "exam") {
-        config = { ...config, requireSeb: activityForm.requireSeb };
-      }
-      const body = {
-        type: activityForm.type,
-        title: activityForm.title,
-        instructions: activityForm.instructions || null,
-        status: activityForm.status,
-        due_at: activityForm.due_at ? new Date(activityForm.due_at).toISOString() : null,
-        max_score: activityForm.max_score ? Number(activityForm.max_score) : null,
-        config,
-      };
-      if (activityDialog?.activity) {
-        return lmsUseCases.updateActivity(activityDialog.activity.id, body);
-      }
-      return lmsUseCases.createActivity({ ...body, unit: activityDialog!.unitId });
-    },
-    onSuccess: () => { setActivityDialog(null); setActivityFormError(null); invalidateUnits(); },
-    onError: (err: any) => setActivityFormError(err?.message || "No se pudo guardar la actividad"),
-  });
   const deleteActivityM = useMutation({
     mutationFn: (id: string) => lmsUseCases.deleteActivity(id),
     onSuccess: invalidateUnits,
@@ -160,27 +121,6 @@ export default function TeacherLmsCourseEditor() {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-  }
-
-  function openCreateActivity(unitId: string) {
-    setActivityForm(EMPTY_ACTIVITY_FORM);
-    setActivityFormError(null);
-    setActivityDialog({ unitId });
-  }
-  function openEditActivity(unit: LmsCourseUnit, activity: LmsActivity) {
-    const { requireSeb, ...restConfig } = activity.config ?? {};
-    setActivityForm({
-      type: activity.type,
-      title: activity.title,
-      instructions: activity.instructions ?? "",
-      status: activity.status,
-      due_at: activity.due_at ? activity.due_at.slice(0, 10) : "",
-      max_score: activity.max_score != null ? String(activity.max_score) : "",
-      configText: Object.keys(restConfig).length ? JSON.stringify(restConfig, null, 2) : "",
-      requireSeb: !!requireSeb,
-    });
-    setActivityFormError(null);
-    setActivityDialog({ unitId: unit.id, activity });
   }
 
   if (!courseId) return null;
@@ -258,18 +198,23 @@ export default function TeacherLmsCourseEditor() {
         </TabsList>
 
         <TabsContent value="contenido">
-          <form
-            className="mb-5 flex gap-2"
-            onSubmit={(e) => { e.preventDefault(); if (newUnitTitle.trim()) createUnitM.mutate(); }}
-          >
-            <Input placeholder="Título de la nueva unidad…" value={newUnitTitle} onChange={(e) => setNewUnitTitle(e.target.value)} className="max-w-sm" />
-            <Button type="submit" disabled={createUnitM.isPending || !newUnitTitle.trim()}>
-              <Plus size={15} /> Agregar unidad
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => { e.preventDefault(); if (newUnitTitle.trim()) createUnitM.mutate(); }}
+            >
+              <Input placeholder="Título de la nueva unidad…" value={newUnitTitle} onChange={(e) => setNewUnitTitle(e.target.value)} className="max-w-sm" />
+              <Button type="submit" disabled={createUnitM.isPending || !newUnitTitle.trim()}>
+                <Plus size={15} /> Agregar unidad
+              </Button>
+            </form>
+            <Button type="button" variant="outline" onClick={() => setWeeksDialogOpen(true)}>
+              <ListChecks size={15} /> Generar semanas
             </Button>
-          </form>
+          </div>
 
           {units.length === 0 && (
-            <EmptyState icon={ListChecks} title="Sin unidades aún" description="Agrega la primera unidad para empezar a publicar actividades." />
+            <EmptyState icon={ListChecks} title="Sin unidades aún" description="Agrega la primera unidad, o genera varias semanas de una vez." />
           )}
 
           <div className="flex flex-col gap-4">
@@ -277,7 +222,16 @@ export default function TeacherLmsCourseEditor() {
               <Card key={unit.id}>
                 <CardContent className="p-5">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="font-display font-semibold text-foreground">{unit.title}</h3>
+                    <div>
+                      <h3 className="font-display font-semibold text-foreground">{unit.title}</h3>
+                      {unit.starts_at && unit.ends_at && (
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(unit.starts_at).toLocaleDateString('es', { day: 'numeric', month: 'long', timeZone: 'UTC' })}
+                          {' – '}
+                          {new Date(unit.ends_at).toLocaleDateString('es', { day: 'numeric', month: 'long', timeZone: 'UTC' })}
+                        </p>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
                       <Select defaultValue={unit.status} onValueChange={(v) => updateUnitM.mutate({ id: unit.id, body: { status: v } })}>
                         <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
@@ -286,8 +240,10 @@ export default function TeacherLmsCourseEditor() {
                           <SelectItem value="PUBLISHED">Publicado</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button size="sm" variant="outline" onClick={() => openCreateActivity(unit.id)}>
-                        <Plus size={14} /> Actividad
+                      <Button size="sm" variant="outline" asChild>
+                        <Link to={`/teacher/cursos/${courseId}/actividades/nueva?unit=${unit.id}`}>
+                          <Plus size={14} /> Actividad
+                        </Link>
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => setQuizFromFileUnit(unit.id)}>
                         <FileUp size={14} /> Cuestionario desde archivo
@@ -314,6 +270,7 @@ export default function TeacherLmsCourseEditor() {
                               <div className="text-sm font-medium text-foreground">{activity.title}</div>
                               <div className="text-xs text-muted-foreground">
                                 {meta.label}
+                                {activity.starts_at && ` · desde ${new Date(activity.starts_at).toLocaleDateString()}`}
                                 {activity.due_at && ` · vence ${new Date(activity.due_at).toLocaleDateString()}`}
                               </div>
                             </div>
@@ -347,8 +304,10 @@ export default function TeacherLmsCourseEditor() {
                                 <ListTodo size={13} /> Preguntas
                               </Button>
                             )}
-                            <Button size="sm" variant="ghost" onClick={() => openEditActivity(unit, activity)}>
-                              <Pencil size={13} />
+                            <Button size="sm" variant="ghost" asChild>
+                              <Link to={`/teacher/cursos/${courseId}/actividades/${activity.id}`}>
+                                <Pencil size={13} />
+                              </Link>
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => deleteActivityM.mutate(activity.id)}>
                               <Trash2 size={13} />
@@ -404,93 +363,38 @@ export default function TeacherLmsCourseEditor() {
         </TabsContent>
       </Tabs>
 
-      {/* ── Crear/editar actividad ─────────────────────────────────────────── */}
-      <Dialog open={!!activityDialog} onOpenChange={(open) => !open && setActivityDialog(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{activityDialog?.activity ? "Editar actividad" : "Nueva actividad"}</DialogTitle>
-          </DialogHeader>
-          <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); saveActivityM.mutate(); }}>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-foreground">Tipo</label>
-                <Input
-                  list="lms-activity-types"
-                  value={activityForm.type}
-                  onChange={(e) => setActivityForm((f) => ({ ...f, type: e.target.value }))}
-                  required
-                />
-                <datalist id="lms-activity-types">
-                  {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{typeMeta(t).label}</option>)}
-                </datalist>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-foreground">Estado</label>
-                <Select value={activityForm.status} onValueChange={(v) => setActivityForm((f) => ({ ...f, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DRAFT">Borrador</SelectItem>
-                    <SelectItem value="PUBLISHED">Publicado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Título *</label>
-              <Input required value={activityForm.title} onChange={(e) => setActivityForm((f) => ({ ...f, title: e.target.value }))} />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Instrucciones</label>
-              <Textarea rows={3} value={activityForm.instructions} onChange={(e) => setActivityForm((f) => ({ ...f, instructions: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-foreground">Fecha límite</label>
-                <Input type="date" value={activityForm.due_at} onChange={(e) => setActivityForm((f) => ({ ...f, due_at: e.target.value }))} />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-foreground">Puntaje máximo</label>
-                <Input type="number" value={activityForm.max_score} onChange={(e) => setActivityForm((f) => ({ ...f, max_score: e.target.value }))} />
-              </div>
-            </div>
-            {(activityForm.type === "quiz" || activityForm.type === "exam") && (
-              <label className="flex items-center gap-2 text-sm text-foreground">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-primary"
-                  checked={activityForm.requireSeb}
-                  onChange={(e) => setActivityForm((f) => ({ ...f, requireSeb: e.target.checked }))}
-                />
-                Requiere Safe Exam Browser (pantalla completa)
-              </label>
-            )}
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Configuración (JSON, opcional)</label>
-              <Textarea
-                rows={4}
-                className="font-mono text-xs"
-                placeholder={'presentación: {"file_url":"https://..."}\nexamen externo: {"mode":"external","external_url":"https://..."}'}
-                value={activityForm.configText}
-                onChange={(e) => setActivityForm((f) => ({ ...f, configText: e.target.value }))}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Presentación: <code>file_url</code> o <code>embed_url</code>. Examen: <code>mode</code> (<code>quiz</code>/<code>manual</code>/<code>external</code>) y <code>external_url</code> si aplica. Encuesta: <code>anonymous</code> (<code>true</code>/<code>false</code>), también configurable al importar el Markdown.
-              </p>
-            </div>
-            {activityFormError && <p className="text-sm text-destructive">{activityFormError}</p>}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setActivityDialog(null)}>Cancelar</Button>
-              <Button type="submit" disabled={saveActivityM.isPending}>{saveActivityM.isPending ? "Guardando…" : "Guardar"}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
       <SubmissionsDialog activity={submissionsFor} onClose={() => setSubmissionsFor(null)} />
       <QuestionsDialog activity={questionsFor} onClose={() => setQuestionsFor(null)} />
       <ThreadsDialog activity={threadsFor} onClose={() => setThreadsFor(null)} />
       <SurveyQuestionsDialog activity={surveyFor} onClose={() => setSurveyFor(null)} />
       <CreateQuizFromFileDialog unitId={quizFromFileUnit} onClose={() => setQuizFromFileUnit(null)} onCreated={invalidateUnits} />
+
+      <Dialog open={weeksDialogOpen} onOpenChange={setWeeksDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Generar semanas</DialogTitle></DialogHeader>
+          <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); generateWeeksM.mutate(); }}>
+            <p className="text-sm text-muted-foreground">
+              Crea una unidad por cada semana (estilo Moodle), tituladas con su propio rango de
+              fechas — puedes renombrarlas después. Se agregan a continuación de las unidades que
+              ya existan.
+            </p>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Fecha de inicio (primera semana) *</label>
+              <Input type="date" required value={weeksForm.start_date} onChange={(e) => setWeeksForm((f) => ({ ...f, start_date: e.target.value }))} />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Cantidad de semanas *</label>
+              <Input type="number" min={1} max={52} required value={weeksForm.weeks} onChange={(e) => setWeeksForm((f) => ({ ...f, weeks: e.target.value }))} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setWeeksDialogOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={generateWeeksM.isPending || !weeksForm.start_date}>
+                {generateWeeksM.isPending ? "Generando…" : "Generar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

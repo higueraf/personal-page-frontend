@@ -33,6 +33,8 @@ export interface LmsCourseUnit {
   title: string;
   order: number;
   status: string;
+  starts_at?: string | null;
+  ends_at?: string | null;
   activities?: LmsActivity[];
 }
 
@@ -47,6 +49,7 @@ export interface LmsActivity {
   instructions?: string | null;
   order: number;
   status: string;
+  starts_at?: string | null;
   due_at?: string | null;
   max_score?: number | null;
   config: Record<string, any>;

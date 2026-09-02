@@ -34,6 +34,9 @@ export function QuizAttemptForm({ activity }: { activity: LmsActivity }) {
     }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-quiz-attempts", activity.id] }),
   });
+  const submitError = submitM.isError
+    ? (submitM.error as any)?.response?.data?.message || "No se pudo entregar el cuestionario. Intenta de nuevo."
+    : null;
 
   const lastAttempt = (attemptsQ.data ?? [])[0];
   if (lastAttempt?.answers) {
@@ -116,6 +119,7 @@ export function QuizAttemptForm({ activity }: { activity: LmsActivity }) {
           </CardContent>
         </Card>
       ))}
+      {submitError && <p className="text-sm text-destructive">{submitError}</p>}
       {questions.length > 0 && (
         <Button type="submit" className="self-start" disabled={submitM.isPending}>
           {submitM.isPending ? "Enviando…" : "Entregar"}

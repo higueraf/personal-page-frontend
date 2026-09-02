@@ -104,8 +104,15 @@ export default function LmsCourseDetail() {
         {(course.units ?? []).map((unit) => (
           <Card key={unit.id}>
             <CardContent className="p-5">
-              <h3 className="mb-3 font-display font-semibold text-foreground">{unit.title}</h3>
-              <div className="flex flex-col gap-2">
+              <h3 className="font-display font-semibold text-foreground">{unit.title}</h3>
+              {unit.starts_at && unit.ends_at && (
+                <p className="text-xs text-muted-foreground">
+                  {new Date(unit.starts_at).toLocaleDateString('es', { day: 'numeric', month: 'long', timeZone: 'UTC' })}
+                  {' – '}
+                  {new Date(unit.ends_at).toLocaleDateString('es', { day: 'numeric', month: 'long', timeZone: 'UTC' })}
+                </p>
+              )}
+              <div className="mt-3 flex flex-col gap-2">
                 {(unit.activities ?? []).map((activity) => {
                   const meta = typeMeta(activity.type);
                   const Icon = meta.icon;

@@ -31,7 +31,10 @@ export default function LmsActivityViewer() {
   });
 
   if (q.isLoading) return <div className="mx-auto max-w-3xl px-6 py-10 text-muted-foreground">Cargando…</div>;
-  if (!q.data) return <div className="mx-auto max-w-3xl px-6 py-10 text-muted-foreground">Actividad no encontrada.</div>;
+  if (!q.data) {
+    const message = (q.error as any)?.response?.data?.message || "Actividad no encontrada.";
+    return <div className="mx-auto max-w-3xl px-6 py-10 text-muted-foreground">{message}</div>;
+  }
 
   const { activity, progress } = q.data;
 
@@ -47,6 +50,9 @@ export default function LmsActivityViewer() {
           <Badge className="gap-1"><CheckCircle2 size={12} /> Completada</Badge>
         )}
       </div>
+      {activity.starts_at && (
+        <p className="mb-1 text-sm text-muted-foreground">Disponible desde: {new Date(activity.starts_at).toLocaleString()}</p>
+      )}
       {activity.due_at && (
         <p className="mb-4 text-sm text-muted-foreground">Fecha límite: {new Date(activity.due_at).toLocaleString()}</p>
       )}

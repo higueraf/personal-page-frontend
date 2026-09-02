@@ -28,13 +28,15 @@ export interface LmsRepositoryPort {
   archiveCourse(id: string): Promise<LmsCourse>;
   uploadCourseCover(id: string, file: File): Promise<LmsCourse>;
   listUnits(courseId: string): Promise<LmsCourseUnit[]>;
-  createUnit(body: { course: string; title: string; order?: number; status?: string }): Promise<LmsCourseUnit>;
-  updateUnit(id: string, body: Partial<{ title: string; order: number; status: string }>): Promise<LmsCourseUnit>;
+  createUnit(body: { course: string; title: string; order?: number; status?: string; starts_at?: string | null; ends_at?: string | null }): Promise<LmsCourseUnit>;
+  updateUnit(id: string, body: Partial<{ title: string; order: number; status: string; starts_at: string | null; ends_at: string | null }>): Promise<LmsCourseUnit>;
   deleteUnit(id: string): Promise<void>;
+  generateWeeklyUnits(courseId: string, body: { start_date: string; weeks: number }): Promise<LmsCourseUnit[]>;
   roster(courseId: string): Promise<LmsRosterEntry[]>;
 
   // ── Profesor/admin: actividades ───────────────────────────────────────────
   listActivities(unitId: string): Promise<LmsActivity[]>;
+  getActivityForManage(id: string): Promise<LmsActivity & { unit_id: string; unit?: { id: string; course_id: string } }>;
   createActivity(body: Partial<LmsActivity> & { unit: string }): Promise<LmsActivity>;
   updateActivity(id: string, body: Partial<LmsActivity>): Promise<LmsActivity>;
   deleteActivity(id: string): Promise<void>;

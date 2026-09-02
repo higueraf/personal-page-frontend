@@ -14,9 +14,11 @@ export class LmsUseCases implements LmsRepositoryPort {
   createUnit(body: any) { return this.repository.createUnit(body); }
   updateUnit(id: string, body: any) { return this.repository.updateUnit(id, body); }
   deleteUnit(id: string) { return this.repository.deleteUnit(id); }
+  generateWeeklyUnits(courseId: string, body: any) { return this.repository.generateWeeklyUnits(courseId, body); }
   roster(courseId: string) { return this.repository.roster(courseId); }
 
   listActivities(unitId: string) { return this.repository.listActivities(unitId); }
+  getActivityForManage(id: string) { return this.repository.getActivityForManage(id); }
   createActivity(body: any) { return this.repository.createActivity(body); }
   updateActivity(id: string, body: any) { return this.repository.updateActivity(id, body); }
   deleteActivity(id: string) { return this.repository.deleteActivity(id); }
