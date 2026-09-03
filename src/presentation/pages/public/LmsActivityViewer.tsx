@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, CheckCircle2, ExternalLink, MessageSquare, Paperclip, Pin, Send, X,
 } from "lucide-react";
@@ -338,22 +338,11 @@ function AssignmentBody({ activity }: { activity: LmsActivity }) {
 // ── Quiz / examen autoevaluable ───────────────────────────────────────────────
 
 function QuizBody({ activity }: { activity: LmsActivity }) {
-  if (activity.config?.requireSeb) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-start gap-3 p-5">
-          <p className="text-sm text-muted-foreground">
-            Este cuestionario requiere modo pantalla completa (Safe Exam Browser). Se abrirá en una
-            vista aislada, sin el resto del sitio, hasta que lo entregues.
-          </p>
-          <Button asChild>
-            <Link to={`/lms/examen/${activity.id}`}>Iniciar cuestionario</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-  return <QuizAttemptForm activity={activity} />;
+  const navigate = useNavigate();
+  const onRequireStart = activity.config?.requireSeb
+    ? () => navigate(`/lms/examen/${activity.id}`)
+    : undefined;
+  return <QuizAttemptForm activity={activity} onRequireStart={onRequireStart} />;
 }
 
 // ── Examen (interno con quiz, manual, o redirección externa) ────────────────

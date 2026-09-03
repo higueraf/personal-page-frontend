@@ -79,6 +79,7 @@ export interface LmsRepositoryPort {
   submitAssignment(activityId: string, body: { content_text?: string; file_url?: string }): Promise<LmsSubmission>;
   submitAssignmentFiles(activityId: string, body: { content_text?: string; files: File[] }): Promise<LmsSubmission>;
   listQuestionsForStudent(activityId: string): Promise<LmsQuizQuestion[]>;
+  startQuizAttempt(activityId: string): Promise<LmsQuizAttempt>;
   submitQuizAttempt(activityId: string, body: { answers: { question_id: string; selected_option_id?: string; selected_option_ids?: string[]; text_answer?: string }[] }): Promise<LmsQuizAttempt>;
   myQuizAttempts(activityId: string): Promise<LmsQuizAttempt[]>;
 

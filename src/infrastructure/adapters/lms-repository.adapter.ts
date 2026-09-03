@@ -247,6 +247,10 @@ export class AxiosLmsRepositoryAdapter implements LmsRepositoryPort {
     const { data } = await axiosClient.get<LmsQuizQuestion[]>(`/public/lms/activities/${activityId}/quiz-questions`);
     return data;
   }
+  async startQuizAttempt(activityId: string): Promise<LmsQuizAttempt> {
+    const { data } = await axiosClient.post<LmsQuizAttempt>(`/public/lms/activities/${activityId}/quiz-attempts/start`);
+    return data;
+  }
   async submitQuizAttempt(
     activityId: string,
     body: { answers: { question_id: string; selected_option_id?: string; selected_option_ids?: string[]; text_answer?: string }[] },

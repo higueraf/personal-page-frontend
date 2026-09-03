@@ -193,6 +193,7 @@ export interface LmsQuizAttempt {
   activity_id: string;
   student_id: string;
   score: number | null;
+  started_at: string | null;
   submitted_at: string | null;
   answers?: LmsQuizAnswerFeedback[];
 }

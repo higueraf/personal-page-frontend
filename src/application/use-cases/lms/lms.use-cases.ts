@@ -57,6 +57,7 @@ export class LmsUseCases implements LmsRepositoryPort {
   submitAssignment(activityId: string, body: any) { return this.repository.submitAssignment(activityId, body); }
   submitAssignmentFiles(activityId: string, body: any) { return this.repository.submitAssignmentFiles(activityId, body); }
   listQuestionsForStudent(activityId: string) { return this.repository.listQuestionsForStudent(activityId); }
+  startQuizAttempt(activityId: string) { return this.repository.startQuizAttempt(activityId); }
   submitQuizAttempt(activityId: string, body: any) { return this.repository.submitQuizAttempt(activityId, body); }
   myQuizAttempts(activityId: string) { return this.repository.myQuizAttempts(activityId); }
 
