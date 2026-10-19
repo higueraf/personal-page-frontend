@@ -6,4 +6,6 @@ export interface PlaygroundTemplateRepositoryPort {
   create(payload: SavePlaygroundTemplatePayload): Promise<PlaygroundTemplate>;
   update(id: string, payload: Partial<SavePlaygroundTemplatePayload>): Promise<PlaygroundTemplate>;
   remove(id: string): Promise<void>;
+  uploadStatementPdf(id: string, file: File): Promise<PlaygroundTemplate>;
+  removeStatementPdf(id: string): Promise<PlaygroundTemplate>;
 }

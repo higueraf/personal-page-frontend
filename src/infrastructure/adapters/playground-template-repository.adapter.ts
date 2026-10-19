@@ -28,4 +28,20 @@ export class AxiosPlaygroundTemplateRepositoryAdapter implements PlaygroundTempl
   async remove(id: string): Promise<void> {
     await axiosClient.delete(`/playground/admin/templates/${id}`);
   }
+
+  async uploadStatementPdf(id: string, file: File): Promise<PlaygroundTemplate> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await axiosClient.post<PlaygroundTemplate>(
+      `/playground/admin/templates/${id}/statement-pdf`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
+    return data;
+  }
+
+  async removeStatementPdf(id: string): Promise<PlaygroundTemplate> {
+    const { data } = await axiosClient.delete<PlaygroundTemplate>(`/playground/admin/templates/${id}/statement-pdf`);
+    return data;
+  }
 }

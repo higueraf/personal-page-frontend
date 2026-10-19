@@ -23,4 +23,12 @@ export class PlaygroundTemplateUseCases {
   remove(id: string): Promise<void> {
     return this.repository.remove(id);
   }
+
+  uploadStatementPdf(id: string, file: File): Promise<PlaygroundTemplate> {
+    return this.repository.uploadStatementPdf(id, file);
+  }
+
+  removeStatementPdf(id: string): Promise<PlaygroundTemplate> {
+    return this.repository.removeStatementPdf(id);
+  }
 }

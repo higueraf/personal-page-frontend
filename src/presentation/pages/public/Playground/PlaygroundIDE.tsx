@@ -21,7 +21,7 @@ import ReactNativePreviewPanel from "./components/ReactNativePreviewPanel";
 import { playgroundUseCases } from "../../../../infrastructure/factories/playground-module.factory";
 import { examUseCases } from "../../../../infrastructure/factories/exam-module.factory";
 import { DEFAULT_TIMEZONE_OFFSET_MINUTES, formatInOffset } from "../../../lib/timezone";
-import { useAuth } from "../../../store/auth.store";
+import { useAuth, uploadUrl } from "../../../store/auth.store";
 import type * as MonacoEditor from "monaco-editor";
 
 // ─── ANSI helpers ──────────────────────────────────────────────────────────────
@@ -187,6 +187,8 @@ export default function PlaygroundIDE() {
           language: f.language ?? "plaintext",
           path: f.path ?? `/${f.name}`,
           is_folder: f.is_folder ?? false,
+          file_type: f.file_type ?? "code",
+          external_url: f.external_url ?? null,
         }));
         initProject(
           data.id,
@@ -1063,7 +1065,14 @@ export default function PlaygroundIDE() {
 
           {/* Editor area */}
           <div className="flex-1 overflow-hidden">
-            {activeFile ? (
+            {activeFile?.file_type === "pdf" ? (
+              <iframe
+                key={activeFile.id}
+                src={uploadUrl(activeFile.external_url)}
+                title={activeFile.name}
+                className="w-full h-full bg-white"
+              />
+            ) : activeFile ? (
               <Editor
                 height="100%"
                 path={activeFile.path || activeFile.name}

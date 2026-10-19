@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
-import { LayoutTemplate, Plus, Trash2, Pencil, FileCode2, X, Save } from "lucide-react";
+import { LayoutTemplate, Plus, Trash2, Pencil, FileCode2, X, Save, FileText, Upload } from "lucide-react";
 import { playgroundTemplateUseCases } from "../../../infrastructure/factories/playground-template-module.factory";
 import {
   PlaygroundTemplate,
   PlaygroundTemplateFile,
   SavePlaygroundTemplatePayload,
+  StatementType,
 } from "../../../domain/entities/playground-template.entity";
+import { uploadUrl } from "../../store/auth.store";
 
 const LANGUAGE_OPTIONS = [
   "python", "javascript", "typescript", "java", "kotlin", "dart", "html", "html-array", "react", "vue", "angular",
@@ -34,14 +36,48 @@ function TemplateEditorModal({
   const [activeIndex, setActiveIndex] = useState(0);
   const [newFilePath, setNewFilePath] = useState("");
 
+  // Enunciado como PDF en vez de texto — solo se puede subir una vez la plantilla ya existe.
+  const [savedTemplateId, setSavedTemplateId] = useState(template?.id ?? null);
+  const [statementType, setStatementType] = useState<StatementType>(template?.statement_type ?? "text");
+  const [statementPdfUrl, setStatementPdfUrl] = useState(template?.statement_pdf_url ?? null);
+  const [statementPdfName, setStatementPdfName] = useState(template?.statement_pdf_original_name ?? null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
   const saveMutation = useMutation({
     mutationFn: (payload: SavePlaygroundTemplatePayload) =>
       template ? playgroundTemplateUseCases.update(template.id, payload) : playgroundTemplateUseCases.create(payload),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ["playground-templates"] });
+      setSavedTemplateId(saved.id);
       onClose();
     },
   });
+
+  const uploadPdfMutation = useMutation({
+    mutationFn: (file: File) => playgroundTemplateUseCases.uploadStatementPdf(savedTemplateId!, file),
+    onSuccess: (updated) => {
+      setStatementType("pdf");
+      setStatementPdfUrl(updated.statement_pdf_url ?? null);
+      setStatementPdfName(updated.statement_pdf_original_name ?? null);
+      queryClient.invalidateQueries({ queryKey: ["playground-templates"] });
+    },
+  });
+
+  const removePdfMutation = useMutation({
+    mutationFn: () => playgroundTemplateUseCases.removeStatementPdf(savedTemplateId!),
+    onSuccess: () => {
+      setStatementType("text");
+      setStatementPdfUrl(null);
+      setStatementPdfName(null);
+      queryClient.invalidateQueries({ queryKey: ["playground-templates"] });
+    },
+  });
+
+  function handlePickPdf(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) uploadPdfMutation.mutate(file);
+  }
 
   function handleAddFile() {
     const path = newFilePath.trim();
@@ -108,14 +144,86 @@ function TemplateEditorModal({
           </div>
 
           <div>
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Descripción (opcional)</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              className="w-full mt-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm outline-none focus:border-blue-500 resize-none"
-              placeholder="Breve descripción de la plantilla..."
-            />
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Descripción (opcional)</label>
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900 rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setStatementType("text")}
+                  className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                    statementType === "text" ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm" : "text-gray-500"
+                  }`}
+                >
+                  <FileText size={12} /> Texto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatementType("pdf")}
+                  className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                    statementType === "pdf" ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm" : "text-gray-500"
+                  }`}
+                >
+                  <Upload size={12} /> PDF
+                </button>
+              </div>
+            </div>
+
+            {statementType === "text" ? (
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className="w-full mt-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm outline-none focus:border-blue-500 resize-none"
+                placeholder="Breve descripción de la plantilla..."
+              />
+            ) : !savedTemplateId ? (
+              <p className="mt-1 text-xs text-gray-400 italic">
+                Guarda la plantilla primero para poder subir el PDF del enunciado.
+              </p>
+            ) : (
+              <div className="mt-1 flex items-center gap-2">
+                {statementPdfUrl ? (
+                  <>
+                    <a
+                      href={uploadUrl(statementPdfUrl)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 truncate px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      {statementPdfName ?? "Ver PDF"}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => pdfInputRef.current?.click()}
+                      disabled={uploadPdfMutation.isPending}
+                      className="px-2 py-2 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-700"
+                    >
+                      Reemplazar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm("¿Quitar el PDF y volver al enunciado en texto?")) removePdfMutation.mutate();
+                      }}
+                      disabled={removePdfMutation.isPending}
+                      className="px-2 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg border border-gray-300 dark:border-gray-700"
+                    >
+                      Quitar
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => pdfInputRef.current?.click()}
+                    disabled={uploadPdfMutation.isPending}
+                    className="flex items-center gap-2 px-3 py-2 text-sm border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 hover:text-blue-500 hover:border-blue-400 rounded-lg w-full justify-center"
+                  >
+                    <Upload size={14} /> {uploadPdfMutation.isPending ? "Subiendo..." : "Subir PDF del enunciado"}
+                  </button>
+                )}
+                <input ref={pdfInputRef} type="file" accept="application/pdf" className="hidden" onChange={handlePickPdf} />
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
