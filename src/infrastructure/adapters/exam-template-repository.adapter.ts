@@ -1,6 +1,6 @@
 import axiosClient from "../http/axios-client";
 import { ExamTemplateRepositoryPort } from "../../domain/ports/exam-template-repository.port";
-import { ExamTemplateSummary, SaveExamTemplatePayload } from "../../domain/entities/exam-template.entity";
+import { ExamTemplateSummary, ExamVersion, SaveExamTemplatePayload } from "../../domain/entities/exam-template.entity";
 
 export class AxiosExamTemplateRepositoryAdapter implements ExamTemplateRepositoryPort {
   async list(): Promise<ExamTemplateSummary[]> {
@@ -29,5 +29,23 @@ export class AxiosExamTemplateRepositoryAdapter implements ExamTemplateRepositor
 
   async resetPracticeData(): Promise<void> {
     await axiosClient.post("/playground/admin/exam-templates/reset-practice-data");
+  }
+
+  async uploadVersionStatementPdf(versionId: string, file: File): Promise<ExamVersion> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await axiosClient.post<ExamVersion>(
+      `/playground/admin/exam-templates/versions/${versionId}/statement-pdf`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
+    return data;
+  }
+
+  async removeVersionStatementPdf(versionId: string): Promise<ExamVersion> {
+    const { data } = await axiosClient.delete<ExamVersion>(
+      `/playground/admin/exam-templates/versions/${versionId}/statement-pdf`,
+    );
+    return data;
   }
 }

@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileQuestion, Plus, Trash2, Pencil, X, Save, RotateCcw } from "lucide-react";
+import { FileQuestion, Plus, Trash2, Pencil, X, Save, RotateCcw, FileText, Upload } from "lucide-react";
 import { examTemplateUseCases } from "../../../infrastructure/factories/exam-template-module.factory";
 import {
   ExamTemplateSummary,
@@ -8,6 +8,7 @@ import {
   ExamVersion,
   SaveExamTemplatePayload,
 } from "../../../domain/entities/exam-template.entity";
+import { uploadUrl } from "../../store/auth.store";
 
 const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "typescript", label: "TypeScript" },
@@ -80,6 +81,52 @@ function TemplateEditorModal({
     setVersions((prev) => prev.map((v, i) => (i === index ? { ...v, ...patch } : v)));
   }
 
+  // Enunciado de la variante completa como PDF en vez de texto — solo se puede subir
+  // una vez que la variante ya tiene un id real (la variante fue guardada al menos una vez).
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadPdfMutation = useMutation({
+    mutationFn: ({ versionId, file }: { versionId: string; file: File }) =>
+      examTemplateUseCases.uploadVersionStatementPdf(versionId, file),
+    onSuccess: (updated) => {
+      setVersions((prev) =>
+        prev.map((v) =>
+          v.id === updated.id
+            ? {
+                ...v,
+                statement_type: "pdf",
+                statement_pdf_url: updated.statement_pdf_url,
+                statement_pdf_original_name: updated.statement_pdf_original_name,
+              }
+            : v
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: ["exam-templates"] });
+    },
+  });
+
+  const removePdfMutation = useMutation({
+    mutationFn: (versionId: string) => examTemplateUseCases.removeVersionStatementPdf(versionId),
+    onSuccess: (updated) => {
+      setVersions((prev) =>
+        prev.map((v) =>
+          v.id === updated.id
+            ? { ...v, statement_type: "text", statement_pdf_url: null, statement_pdf_original_name: null }
+            : v
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: ["exam-templates"] });
+    },
+  });
+
+  function handlePickPdf(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file && current && !current.id.startsWith("local-")) {
+      uploadPdfMutation.mutate({ versionId: current.id, file });
+    }
+  }
+
   function updateQuestion(versionIndex: number, questionIndex: number, patch: Partial<ExamTemplateQuestion>) {
     setVersions((prev) =>
       prev.map((v, i) =>
@@ -120,6 +167,9 @@ function TemplateEditorModal({
         theme_name: v.theme_name.trim(),
         order_index: i,
         questions: v.questions.map((q, qi) => ({ ...q, order: qi + 1 })),
+        statement_type: v.statement_type ?? "text",
+        statement_pdf_url: v.statement_pdf_url ?? null,
+        statement_pdf_original_name: v.statement_pdf_original_name ?? null,
       })),
     });
   }
@@ -230,6 +280,107 @@ function TemplateEditorModal({
                     />
                   </div>
 
+                  <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                        Enunciado de esta variante
+                      </label>
+                      <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900 rounded-lg p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => updateVersion(activeVersion, { statement_type: "text" })}
+                          className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                            (current.statement_type ?? "text") === "text"
+                              ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          <FileText size={12} /> Texto por pregunta
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateVersion(activeVersion, { statement_type: "pdf" })}
+                          className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                            current.statement_type === "pdf"
+                              ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          <Upload size={12} /> PDF (toda la variante)
+                        </button>
+                      </div>
+                    </div>
+
+                    {current.statement_type === "pdf" && (
+                      <div className="mt-2">
+                        {current.id.startsWith("local-") ? (
+                          <p className="text-xs text-gray-400 italic">
+                            Guarda el examen primero para poder subir el PDF del enunciado de esta variante.
+                          </p>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {current.statement_pdf_url ? (
+                              <>
+                                <a
+                                  href={uploadUrl(current.statement_pdf_url)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex-1 truncate px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                  {current.statement_pdf_original_name ?? "Ver PDF"}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => pdfInputRef.current?.click()}
+                                  disabled={uploadPdfMutation.isPending}
+                                  className="px-2 py-2 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-700"
+                                >
+                                  Reemplazar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm("¿Quitar el PDF y volver al enunciado en texto por pregunta?")) {
+                                      removePdfMutation.mutate(current.id);
+                                    }
+                                  }}
+                                  disabled={removePdfMutation.isPending}
+                                  className="px-2 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg border border-gray-300 dark:border-gray-700"
+                                >
+                                  Quitar
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => pdfInputRef.current?.click()}
+                                disabled={uploadPdfMutation.isPending}
+                                className="flex items-center gap-2 px-3 py-2 text-sm border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 hover:text-blue-500 hover:border-blue-400 rounded-lg w-full justify-center"
+                              >
+                                <Upload size={14} />{" "}
+                                {uploadPdfMutation.isPending ? "Subiendo..." : "Subir PDF del enunciado"}
+                              </button>
+                            )}
+                            <input
+                              ref={pdfInputRef}
+                              type="file"
+                              accept="application/pdf"
+                              className="hidden"
+                              onChange={handlePickPdf}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {current.statement_type === "pdf" ? (
+                    <p className="text-xs text-gray-400 italic">
+                      Con enunciado en PDF, el título y los puntos de cada pregunta se siguen usando para la
+                      calificación, pero el texto del enunciado por pregunta no se muestra al alumno.
+                    </p>
+                  ) : null}
+
                   {current.questions.map((q, qi) => (
                     <div key={qi} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
                       <div className="flex items-center gap-2">
@@ -258,13 +409,15 @@ function TemplateEditorModal({
                           </button>
                         )}
                       </div>
-                      <textarea
-                        value={q.statement}
-                        onChange={(e) => updateQuestion(activeVersion, qi, { statement: e.target.value })}
-                        rows={3}
-                        className="w-full px-2 py-1.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded text-sm outline-none focus:border-blue-500 resize-none"
-                        placeholder="Enunciado del ejercicio..."
-                      />
+                      {current.statement_type !== "pdf" && (
+                        <textarea
+                          value={q.statement}
+                          onChange={(e) => updateQuestion(activeVersion, qi, { statement: e.target.value })}
+                          rows={3}
+                          className="w-full px-2 py-1.5 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded text-sm outline-none focus:border-blue-500 resize-none"
+                          placeholder="Enunciado del ejercicio..."
+                        />
+                      )}
                     </div>
                   ))}
 

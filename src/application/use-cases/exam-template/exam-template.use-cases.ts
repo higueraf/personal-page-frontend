@@ -1,5 +1,5 @@
 import { ExamTemplateRepositoryPort } from "../../../domain/ports/exam-template-repository.port";
-import { ExamTemplateSummary, SaveExamTemplatePayload } from "../../../domain/entities/exam-template.entity";
+import { ExamTemplateSummary, ExamVersion, SaveExamTemplatePayload } from "../../../domain/entities/exam-template.entity";
 
 export class ExamTemplateUseCases {
   constructor(private readonly repository: ExamTemplateRepositoryPort) {}
@@ -26,5 +26,13 @@ export class ExamTemplateUseCases {
 
   resetPracticeData(): Promise<void> {
     return this.repository.resetPracticeData();
+  }
+
+  uploadVersionStatementPdf(versionId: string, file: File): Promise<ExamVersion> {
+    return this.repository.uploadVersionStatementPdf(versionId, file);
+  }
+
+  removeVersionStatementPdf(versionId: string): Promise<ExamVersion> {
+    return this.repository.removeVersionStatementPdf(versionId);
   }
 }

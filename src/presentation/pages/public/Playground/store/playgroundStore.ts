@@ -25,6 +25,10 @@ export interface VirtualFile {
   language: string;
   path: string;
   is_folder: boolean;
+  /** 'pdf' = archivo de referencia a un PDF subido (ver `external_url`), que se
+   *  muestra en un visor embebido en vez de cargarse en el editor Monaco. */
+  file_type?: "code" | "pdf";
+  external_url?: string | null;
 }
 
 interface PlaygroundStore {

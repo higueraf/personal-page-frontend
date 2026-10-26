@@ -5,11 +5,16 @@ export interface ExamTemplateQuestion {
   statement: string;
 }
 
+export type StatementType = "text" | "pdf";
+
 export interface ExamVersion {
   id: string;
   theme_name: string;
   order_index: number;
   questions: ExamTemplateQuestion[];
+  statement_type?: StatementType;
+  statement_pdf_url?: string | null;
+  statement_pdf_original_name?: string | null;
 }
 
 export interface ExamTemplateSummary {
@@ -30,5 +35,8 @@ export interface SaveExamTemplatePayload {
     theme_name: string;
     order_index: number;
     questions: ExamTemplateQuestion[];
+    statement_type?: StatementType;
+    statement_pdf_url?: string | null;
+    statement_pdf_original_name?: string | null;
   }>;
 }
