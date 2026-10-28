@@ -20,11 +20,13 @@ const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "react-native", label: "React Native" },
   { value: "html", label: "HTML/CSS/JS (DOM)" },
   { value: "html-array", label: "HTML/CSS/JS (Arreglo, sin API)" },
+  { value: "html-design", label: "HTML/CSS (Maquetación de diseño, sin JS)" },
 ];
 
 /** Puntos por defecto de una pregunta nueva, según el lenguaje de la plantilla. */
 function defaultPointsFor(language: string, questionIndex: number): number {
   if (language === "flutter") return questionIndex === 0 ? 7 : 1.5;
+  if (language === "html-design") return 10;
   return 2.5;
 }
 
@@ -33,7 +35,12 @@ function emptyQuestion(order: number, language: string): ExamTemplateQuestion {
 }
 
 function emptyVersion(order_index: number, language: string): ExamVersion {
-  const questionCount = language === "flutter" || language === "react-native" || language === "react-cypress" || language === "react-crud" ? 3 : 4;
+  const questionCount =
+    language === "html-design"
+      ? 1
+      : language === "flutter" || language === "react-native" || language === "react-cypress" || language === "react-crud"
+        ? 3
+        : 4;
   return {
     id: `local-${order_index}`,
     theme_name: "",

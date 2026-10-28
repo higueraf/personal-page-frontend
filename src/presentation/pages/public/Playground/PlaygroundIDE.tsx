@@ -201,8 +201,10 @@ export default function PlaygroundIDE() {
           readOnlyNow,
           data.security_locked ?? false
         );
-        // Auto-open first file
-        const firstCode = projectFiles.find((f: any) => !f.is_folder);
+        // Auto-open: el enunciado (ENUNCIADO.md/.pdf) primero si existe — el orden en que la DB
+        // devuelve `files` no está garantizado, así que no basta con tomar "el primer archivo".
+        const enunciado = projectFiles.find((f: any) => !f.is_folder && /^ENUNCIADO\.(md|pdf)$/i.test(f.name));
+        const firstCode = enunciado ?? projectFiles.find((f: any) => !f.is_folder);
         if (firstCode) openFile(firstCode.id);
       })
       .catch((err) => {
