@@ -50,5 +50,8 @@ export interface AssignExamPayload {
   studentIds?: string[];
   studentId?: string;
   courseId?: string;
+  /** Asigna a todos los alumnos con matrícula activa en este curso del LMS, sin picker manual —
+   *  usado desde la pantalla de un curso (profesor dueño o admin), no desde el dashboard admin. */
+  lmsCourseId?: string;
   isPractice?: boolean;
 }

@@ -9,11 +9,12 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import {
-  ArrowLeft, BarChart3, ClipboardList, Download, FileText, FileUp, GraduationCap, HelpCircle,
+  ArrowLeft, BarChart3, BookOpen, ClipboardList, Download, FileText, FileUp, GraduationCap, HelpCircle,
   MessageSquare, Paperclip, Pin, PinOff, Plus, Presentation as PresentationIcon, Save, Lock,
   Unlock, Trash2, Pencil, Upload, Users, ListChecks, ListTodo,
 } from "lucide-react";
 import { lmsUseCases } from "../../../infrastructure/factories/lms-module.factory";
+import ExamAssignModal from "@/presentation/components/exams/ExamAssignModal";
 import type {
   LmsActivity, LmsForumThread, LmsQuizFileFormat, LmsQuizQuestion, LmsSubmission,
   LmsSurveyQuestion,
@@ -57,6 +58,7 @@ export default function TeacherLmsCourseEditor() {
   const [quizFromFileUnit, setQuizFromFileUnit] = useState<string | null>(null);
   const [weeksDialogOpen, setWeeksDialogOpen] = useState(false);
   const [weeksForm, setWeeksForm] = useState({ start_date: "", weeks: "12" });
+  const [examAssignOpen, setExamAssignOpen] = useState(false);
 
   const courseQ = useQuery({
     queryKey: ["lms-course", courseId],
@@ -324,6 +326,11 @@ export default function TeacherLmsCourseEditor() {
         </TabsContent>
 
         <TabsContent value="alumnos">
+          <div className="mb-4 flex justify-end">
+            <Button onClick={() => setExamAssignOpen(true)} disabled={(rosterQ.data ?? []).length === 0}>
+              <BookOpen size={14} /> Asignar examen
+            </Button>
+          </div>
           {(rosterQ.data ?? []).length === 0 ? (
             <EmptyState icon={Users} title="Aún no hay alumnos inscritos" description="Los alumnos aparecerán aquí cuando se matriculen desde el catálogo." />
           ) : (
@@ -368,6 +375,14 @@ export default function TeacherLmsCourseEditor() {
       <ThreadsDialog activity={threadsFor} onClose={() => setThreadsFor(null)} />
       <SurveyQuestionsDialog activity={surveyFor} onClose={() => setSurveyFor(null)} />
       <CreateQuizFromFileDialog unitId={quizFromFileUnit} onClose={() => setQuizFromFileUnit(null)} onCreated={invalidateUnits} />
+
+      {examAssignOpen && (
+        <ExamAssignModal
+          lmsCourseId={courseId!}
+          lmsCourseLabel={course?.title}
+          onClose={() => setExamAssignOpen(false)}
+        />
+      )}
 
       <Dialog open={weeksDialogOpen} onOpenChange={setWeeksDialogOpen}>
         <DialogContent>
