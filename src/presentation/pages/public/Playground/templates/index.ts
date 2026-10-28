@@ -421,6 +421,23 @@ flutter:
       { name: "script.js", path: "/script.js", language: "javascript", is_folder: false, content: `console.log("Hello World!");\n` },
     ],
   },
+  "html-design": {
+    id: "html-design",
+    label: "HTML/CSS (Maquetación de diseño, sin JS)",
+    description: "Maquetación estática: estructura semántica + CSS, sin JavaScript ni API",
+    color: "text-orange-700 dark:text-orange-400",
+    bgColor: "bg-orange-50 dark:bg-orange-950/40",
+    borderColor: "border-orange-200 dark:border-orange-500/40",
+    emoji: "🎨",
+    supportsPreview: true,
+    runtime: "iframe",
+    monacoLanguage: "html",
+    mainFileName: "index.html",
+    defaultFiles: [
+      { name: "index.html", path: "/index.html", language: "html", is_folder: false, content: `<!DOCTYPE html>\n<html>\n<head>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n\n</body>\n</html>\n` },
+      { name: "style.css", path: "/style.css", language: "css", is_folder: false, content: `` },
+    ],
+  },
   react: {
     id: "react",
     label: "React + TypeScript",

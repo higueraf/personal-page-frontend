@@ -10,6 +10,7 @@ export type Language =
   | "r"
   | "html"
   | "html-array"
+  | "html-design"
   | "react"
   | "react-crud"
   | "react-cypress"
