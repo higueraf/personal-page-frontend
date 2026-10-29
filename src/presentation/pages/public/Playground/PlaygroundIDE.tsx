@@ -761,6 +761,41 @@ export default function PlaygroundIDE() {
     }
   }, [id, isInSEB, navigate]);
 
+  // ── Alumno: salir SIN entregar — la válvula de escape que SIEMPRE debe funcionar, incluso
+  // cuando el examen está en un estado bloqueado (require_seb fuera de SEB real, editor
+  // bloqueado por incidentes, un guardado que sigue fallando, etc.). Intenta guardar lo último
+  // como último recurso (ignorando el error si falla — es justamente lo que puede estar roto),
+  // y siempre deja constancia en el proyecto de que salió sin terminar, sin cambiar su estado de
+  // entrega, antes de sacar al alumno de la pantalla del examen.
+  const handleExitWithoutSubmit = useCallback(async () => {
+    if (!id) return;
+    if (
+      !window.confirm(
+        "¿Salir SIN entregar? Tu progreso guardado hasta ahora queda como está, pero el examen NO se entregará — tu profesor verá que saliste sin terminar. ¿Continuar?"
+      )
+    )
+      return;
+    setExitingExam(true);
+    try {
+      await handleSave();
+    } catch (err) {
+      console.error("Best-effort save before exiting without submit failed:", err);
+    }
+    try {
+      await playgroundUseCases.exitWithoutSubmit(id);
+    } catch (err) {
+      console.error("exit-without-submit failed:", err);
+    } finally {
+      useAuth.getState().clearActiveExam();
+      if (isInSEB) {
+        window.location.href = "/seb-quit";
+      } else {
+        navigate("/", { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isInSEB, navigate]);
+
   // ── Exam auto-save every 5 minutes ──────────────────────────────────────────
   // Uses handleSaveRef (not handleSave directly) so the interval isn't torn down
   // and recreated on every keystroke (handleSave changes whenever `files` does,
@@ -838,7 +873,7 @@ export default function PlaygroundIDE() {
           </p>
           <p className="text-sm text-slate-400 max-w-lg mb-6">
             Contacta a tu profesor para que revise tu caso y reactive el examen. Si ya te autorizó, presiona
-            "Reintentar". Si no puedes seguir esperando, puedes salir del examen: se entregará tal como está.
+            "Reintentar". Si no puedes seguir esperando, puedes entregarlo tal como está o salir sin entregar.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
@@ -853,7 +888,14 @@ export default function PlaygroundIDE() {
               disabled={exitingExam}
               className="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 rounded-lg text-sm font-semibold transition-colors"
             >
-              {exitingExam ? "Saliendo…" : "Salir del examen"}
+              {exitingExam ? "Saliendo…" : "Entregar y salir"}
+            </button>
+            <button
+              onClick={handleExitWithoutSubmit}
+              disabled={exitingExam}
+              className="px-5 py-2.5 bg-transparent hover:bg-white/10 disabled:opacity-50 border border-gray-600 text-slate-300 rounded-lg text-sm font-semibold transition-colors"
+            >
+              {exitingExam ? "Saliendo…" : "Salir sin entregar"}
             </button>
           </div>
         </div>
@@ -874,14 +916,23 @@ export default function PlaygroundIDE() {
             Descarga el archivo de configuración <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs">.seb</code> proporcionado
             por tu profesor, ábrelo y se lanzará automáticamente en modo seguro.
           </p>
-          <a
-            href="https://safeexambrowser.org/download_en.html"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-sm transition-colors shadow-lg"
-          >
-            Descargar Safe Exam Browser
-          </a>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <a
+              href="https://safeexambrowser.org/download_en.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-sm transition-colors shadow-lg"
+            >
+              Descargar Safe Exam Browser
+            </a>
+            <button
+              onClick={handleExitWithoutSubmit}
+              disabled={exitingExam}
+              className="px-6 py-3 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 text-white rounded-lg text-sm font-semibold transition-colors"
+            >
+              {exitingExam ? "Saliendo…" : "Salir sin entregar"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -1033,6 +1084,7 @@ export default function PlaygroundIDE() {
         showPreview={showPreview}
         onTogglePreview={() => setShowPreview((v) => !v)}
         onExamSubmitted={handleExamSubmitted}
+        onExitWithoutSubmit={handleExitWithoutSubmit}
         endTime={endTime}
         clockOffset={clockOffsetRef.current}
       />

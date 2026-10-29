@@ -26,6 +26,9 @@ export interface ExamProject {
   timezone_offset_minutes?: number;
   cheating_logs: Array<{ timestamp: string; action: string; details?: string }>;
   security_locked?: boolean;
+  /** El alumno usó "Salir sin entregar" — ver PlaygroundService.exitWithoutSubmitting. */
+  exited_without_submit?: boolean;
+  exited_at?: string | null;
   user?: { id: string; first_name: string; last_name: string; email: string };
   exam_group_id: string | null;
   exam_version_id?: string | null;

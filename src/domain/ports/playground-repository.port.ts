@@ -17,6 +17,7 @@ export interface PlaygroundRepositoryPort {
   saveAll(id: string, files: PlaygroundFile[]): Promise<void>;
   renameFile(id: string, fileId: string, name: string): Promise<void>;
   submit(id: string): Promise<void>;
+  exitWithoutSubmit(id: string): Promise<void>;
   logCheat(id: string, action: string, details?: string): Promise<{ security_locked: boolean }>;
   execute(language: string, files: PlaygroundFile[]): Promise<RunResult>;
   getMyProjectInExamGroup(groupId: string): Promise<string>;

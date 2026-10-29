@@ -44,6 +44,10 @@ export class PlaygroundUseCases {
     return this.repository.submit(id);
   }
 
+  exitWithoutSubmit(id: string): Promise<void> {
+    return this.repository.exitWithoutSubmit(id);
+  }
+
   logCheat(id: string, action: string, details?: string): Promise<{ security_locked: boolean }> {
     return this.repository.logCheat(id, action, details);
   }

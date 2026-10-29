@@ -51,6 +51,10 @@ export class AxiosPlaygroundRepositoryAdapter implements PlaygroundRepositoryPor
     await axiosClient.post(`/playground/${id}/submit`);
   }
 
+  async exitWithoutSubmit(id: string): Promise<void> {
+    await axiosClient.post(`/playground/${id}/exit-without-submit`);
+  }
+
   async logCheat(id: string, action: string, details?: string): Promise<{ security_locked: boolean }> {
     const { data } = await axiosClient.post(`/playground/${id}/log-cheat`, { action, details });
     return { security_locked: !!data?.security_locked };

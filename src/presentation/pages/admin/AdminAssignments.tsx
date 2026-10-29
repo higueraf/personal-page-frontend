@@ -395,6 +395,14 @@ export default function AdminAssignments() {
                               <Lock size={11} /> Bloqueado
                             </span>
                           )}
+                          {p.exited_without_submit && (
+                            <span
+                              title={p.exited_at ? `Salió sin entregar: ${new Date(p.exited_at).toLocaleString()}` : "Salió sin entregar"}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border border-amber-300 bg-amber-100 text-amber-700"
+                            >
+                              <XCircle size={11} /> Salió sin entregar
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">

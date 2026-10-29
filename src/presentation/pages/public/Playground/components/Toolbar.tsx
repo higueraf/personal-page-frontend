@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Play, Square, Save, Loader2, ChevronLeft, TerminalSquare, Eye, EyeOff, Sun, Moon, Timer, Download, FlaskConical } from "lucide-react";
+import { Play, Square, Save, Loader2, ChevronLeft, TerminalSquare, Eye, EyeOff, Sun, Moon, Timer, Download, FlaskConical, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { LANGUAGE_CONFIGS } from "../templates/index";
 import { usePlaygroundStore } from "../store/playgroundStore";
@@ -18,6 +18,10 @@ interface ToolbarProps {
   showPreview: boolean;
   onTogglePreview: () => void;
   onExamSubmitted?: () => void;
+  /** Siempre debe quedar disponible durante un examen: la única forma garantizada de salir
+   *  cuando guardar/entregar está fallando (p. ej. require_seb fuera de SEB real) y no hay
+   *  ninguna otra barra de navegación en esta pantalla. No cambia el estado de entrega. */
+  onExitWithoutSubmit?: () => void;
   endTime?: Date | null;
   /** Milliseconds to add to Date.now() to get the server-corrected time.
    *  Compensates for students whose machine clock is not synced. */
@@ -35,6 +39,7 @@ export default function Toolbar({
   showPreview,
   onTogglePreview,
   onExamSubmitted,
+  onExitWithoutSubmit,
   endTime,
   clockOffset = 0,
 }: ToolbarProps) {
@@ -212,6 +217,16 @@ export default function Toolbar({
               <Timer size={13} />
               {timeLeft}
             </div>
+          )}
+          {onExitWithoutSubmit && (
+            <button
+              onClick={onExitWithoutSubmit}
+              title="Salir sin entregar — tu progreso guardado queda como está, pero el examen no se entrega"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+              <LogOut size={13} />
+              <span className="hidden sm:inline">Salir sin entregar</span>
+            </button>
           )}
           {confirmingSubmit ? (
             <div className="flex items-center gap-1.5">
