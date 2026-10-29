@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Editor } from "@monaco-editor/react";
 import { X, AlertCircle, WifiOff, ShieldCheck, Lock, History } from "lucide-react";
 import { useTheme } from "../../../providers/ThemeProvider";
+import ErrorBoundary from "../../../components/ErrorBoundary";
 
 import { usePlaygroundStore, type Language } from "./store/playgroundStore";
 import { LANGUAGE_CONFIGS } from "./templates/index";
@@ -1243,13 +1244,15 @@ export default function PlaygroundIDE() {
               className="flex-shrink-0 overflow-hidden"
               style={{ width: previewWidth }}
             >
-              {language === "flutter" ? (
-                <FlutterPreviewPanel refreshKey={previewRefreshKey} />
-              ) : language === "react-native" ? (
-                <ReactNativePreviewPanel refreshKey={previewRefreshKey} />
-              ) : (
-                <PreviewPanel refreshKey={previewRefreshKey} />
-              )}
+              <ErrorBoundary key={previewRefreshKey}>
+                {language === "flutter" ? (
+                  <FlutterPreviewPanel refreshKey={previewRefreshKey} />
+                ) : language === "react-native" ? (
+                  <ReactNativePreviewPanel refreshKey={previewRefreshKey} />
+                ) : (
+                  <PreviewPanel refreshKey={previewRefreshKey} />
+                )}
+              </ErrorBoundary>
             </div>
           </>
         )}
