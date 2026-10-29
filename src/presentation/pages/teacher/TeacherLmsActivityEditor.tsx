@@ -57,8 +57,13 @@ export default function TeacherLmsActivityEditor() {
   const qc = useQueryClient();
   const isNew = activityId === "nueva";
   const unitIdForCreate = searchParams.get("unit");
+  const typeFromQuery = searchParams.get("type");
 
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(() =>
+    typeFromQuery && (ACTIVITY_TYPES as readonly string[]).includes(typeFromQuery)
+      ? { ...EMPTY_FORM, type: typeFromQuery }
+      : EMPTY_FORM
+  );
   const [error, setError] = useState<string | null>(null);
 
   const activityQ = useQuery({

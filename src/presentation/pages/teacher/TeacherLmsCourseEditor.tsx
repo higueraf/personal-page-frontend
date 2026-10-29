@@ -7,7 +7,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, BarChart3, BookOpen, ClipboardList, Code2, Download, FileText, FileUp, GraduationCap, HelpCircle,
   MessageSquare, Paperclip, Pin, PinOff, Plus, Presentation as PresentationIcon, Save, Lock,
@@ -48,8 +48,23 @@ function typeMeta(type: string) {
   return TYPE_META[type] ?? { label: type, icon: FileText };
 }
 
+/** Opciones del selector unificado "Agregar actividad" por unidad: los 6 tipos genéricos (van al
+ *  editor de actividad de página completa, con el tipo ya preseleccionado), más los 2 flujos
+ *  especiales que tienen su propio modal (cuestionario desde archivo, examen Playground). */
+const ADD_ACTIVITY_OPTIONS = [
+  { kind: "generic" as const, type: "presentation", label: "Presentación", description: "Material de lectura o un enlace embebido.", icon: PresentationIcon },
+  { kind: "generic" as const, type: "assignment", label: "Tarea", description: "Entrega de archivos con fecha límite.", icon: ClipboardList },
+  { kind: "generic" as const, type: "quiz", label: "Cuestionario", description: "Preguntas de opción múltiple, autocalificado.", icon: HelpCircle },
+  { kind: "quizFromFile" as const, label: "Cuestionario desde archivo", description: "Importa preguntas desde un archivo (estilo Moodle).", icon: FileUp },
+  { kind: "generic" as const, type: "exam", label: "Examen", description: "Cuestionario estricto, con SEB opcional.", icon: GraduationCap },
+  { kind: "playgroundExam" as const, label: "Examen (Playground)", description: "Examen de código con IDE, evaluado o simulacro.", icon: Code2 },
+  { kind: "generic" as const, type: "forum", label: "Foro", description: "Discusión en hilos para la unidad.", icon: MessageSquare },
+  { kind: "generic" as const, type: "survey", label: "Encuesta", description: "Preguntas sin calificación, para recoger opiniones.", icon: ListTodo },
+];
+
 export default function TeacherLmsCourseEditor() {
   const { courseId } = useParams<{ courseId: string }>();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [tab, setTab] = useState("contenido");
   const [newUnitTitle, setNewUnitTitle] = useState("");
@@ -61,6 +76,18 @@ export default function TeacherLmsCourseEditor() {
   const [weeksDialogOpen, setWeeksDialogOpen] = useState(false);
   const [weeksForm, setWeeksForm] = useState({ start_date: "", weeks: "12" });
   const [examAssignFor, setExamAssignFor] = useState<{ unitId?: string } | null>(null);
+  const [addActivityForUnit, setAddActivityForUnit] = useState<string | null>(null);
+
+  function handlePickActivityOption(unitId: string, option: (typeof ADD_ACTIVITY_OPTIONS)[number]) {
+    setAddActivityForUnit(null);
+    if (option.kind === "generic") {
+      navigate(`/teacher/cursos/${courseId}/actividades/nueva?unit=${unitId}&type=${option.type}`);
+    } else if (option.kind === "quizFromFile") {
+      setQuizFromFileUnit(unitId);
+    } else {
+      setExamAssignFor({ unitId });
+    }
+  }
 
   const courseQ = useQuery({
     queryKey: ["lms-course", courseId],
@@ -267,16 +294,8 @@ export default function TeacherLmsCourseEditor() {
                           <SelectItem value="PUBLISHED">Publicado</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button size="sm" variant="outline" asChild>
-                        <Link to={`/teacher/cursos/${courseId}/actividades/nueva?unit=${unit.id}`}>
-                          <Plus size={14} /> Actividad
-                        </Link>
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setExamAssignFor({ unitId: unit.id })}>
-                        <Code2 size={14} /> Examen
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setQuizFromFileUnit(unit.id)}>
-                        <FileUp size={14} /> Cuestionario desde archivo
+                      <Button size="sm" variant="outline" onClick={() => setAddActivityForUnit(unit.id)}>
+                        <Plus size={14} /> Agregar actividad
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => deleteUnitM.mutate(unit.id)}>
                         <Trash2 size={14} />
@@ -429,6 +448,31 @@ export default function TeacherLmsCourseEditor() {
           onSuccess={invalidateUnits}
         />
       )}
+
+      <Dialog open={!!addActivityForUnit} onOpenChange={(open) => { if (!open) setAddActivityForUnit(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Agregar actividad</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {ADD_ACTIVITY_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              return (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => handlePickActivityOption(addActivityForUnit!, option)}
+                  className="flex items-start gap-3 rounded-lg border border-border p-3 text-left transition-colors hover:border-primary hover:bg-accent"
+                >
+                  <Icon size={18} className="mt-0.5 shrink-0 text-primary" />
+                  <div>
+                    <div className="text-sm font-medium text-foreground">{option.label}</div>
+                    <div className="text-xs text-muted-foreground">{option.description}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={weeksDialogOpen} onOpenChange={setWeeksDialogOpen}>
         <DialogContent>
