@@ -9,11 +9,12 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import {
-  ArrowLeft, BarChart3, BookOpen, ClipboardList, Download, FileText, FileUp, GraduationCap, HelpCircle,
+  ArrowLeft, BarChart3, BookOpen, ClipboardList, Code2, Download, FileText, FileUp, GraduationCap, HelpCircle,
   MessageSquare, Paperclip, Pin, PinOff, Plus, Presentation as PresentationIcon, Save, Lock,
   Unlock, Trash2, Pencil, Upload, Users, ListChecks, ListTodo,
 } from "lucide-react";
 import { lmsUseCases } from "../../../infrastructure/factories/lms-module.factory";
+import { examUseCases } from "../../../infrastructure/factories/exam-module.factory";
 import ExamAssignModal from "@/presentation/components/exams/ExamAssignModal";
 import type {
   LmsActivity, LmsForumThread, LmsQuizFileFormat, LmsQuizQuestion, LmsSubmission,
@@ -40,6 +41,7 @@ const TYPE_META: Record<string, { label: string; icon: any }> = {
   quiz: { label: "Cuestionario", icon: HelpCircle },
   exam: { label: "Examen", icon: GraduationCap },
   survey: { label: "Encuesta", icon: ListTodo },
+  playground_exam: { label: "Examen (Playground)", icon: Code2 },
 };
 
 function typeMeta(type: string) {
@@ -58,7 +60,7 @@ export default function TeacherLmsCourseEditor() {
   const [quizFromFileUnit, setQuizFromFileUnit] = useState<string | null>(null);
   const [weeksDialogOpen, setWeeksDialogOpen] = useState(false);
   const [weeksForm, setWeeksForm] = useState({ start_date: "", weeks: "12" });
-  const [examAssignOpen, setExamAssignOpen] = useState(false);
+  const [examAssignFor, setExamAssignFor] = useState<{ unitId?: string } | null>(null);
 
   const courseQ = useQuery({
     queryKey: ["lms-course", courseId],
@@ -121,6 +123,18 @@ export default function TeacherLmsCourseEditor() {
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function downloadPlaygroundSeb(activity: LmsActivity) {
+    const groupId = activity.config?.exam_group_id;
+    if (!groupId) return;
+    const blob = await examUseCases.downloadSebConfig(groupId);
+    const url = URL.createObjectURL(new Blob([blob], { type: "application/seb" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${activity.title.replace(/[^a-zA-Z0-9_\- ]/g, "_")}.seb`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -226,13 +240,24 @@ export default function TeacherLmsCourseEditor() {
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="font-display font-semibold text-foreground">{unit.title}</h3>
-                      {unit.starts_at && unit.ends_at && (
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(unit.starts_at).toLocaleDateString('es', { day: 'numeric', month: 'long', timeZone: 'UTC' })}
-                          {' – '}
-                          {new Date(unit.ends_at).toLocaleDateString('es', { day: 'numeric', month: 'long', timeZone: 'UTC' })}
-                        </p>
-                      )}
+                      <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>Semana:</span>
+                        <Input
+                          type="date"
+                          className="h-7 w-[9.5rem] text-xs"
+                          defaultValue={unit.starts_at ? unit.starts_at.slice(0, 10) : ""}
+                          key={`starts-${unit.id}-${unit.starts_at}`}
+                          onBlur={(e) => updateUnitM.mutate({ id: unit.id, body: { starts_at: e.target.value || null } })}
+                        />
+                        <span>–</span>
+                        <Input
+                          type="date"
+                          className="h-7 w-[9.5rem] text-xs"
+                          defaultValue={unit.ends_at ? unit.ends_at.slice(0, 10) : ""}
+                          key={`ends-${unit.id}-${unit.ends_at}`}
+                          onBlur={(e) => updateUnitM.mutate({ id: unit.id, body: { ends_at: e.target.value || null } })}
+                        />
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Select defaultValue={unit.status} onValueChange={(v) => updateUnitM.mutate({ id: unit.id, body: { status: v } })}>
@@ -246,6 +271,9 @@ export default function TeacherLmsCourseEditor() {
                         <Link to={`/teacher/cursos/${courseId}/actividades/nueva?unit=${unit.id}`}>
                           <Plus size={14} /> Actividad
                         </Link>
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setExamAssignFor({ unitId: unit.id })}>
+                        <Code2 size={14} /> Examen
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => setQuizFromFileUnit(unit.id)}>
                         <FileUp size={14} /> Cuestionario desde archivo
@@ -296,6 +324,20 @@ export default function TeacherLmsCourseEditor() {
                                 <Download size={13} /> .seb
                               </Button>
                             )}
+                            {activity.type === "playground_exam" && (
+                              <>
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link to={`/teacher/examenes?group=${activity.config?.exam_group_id}`}>
+                                    <Users size={13} /> Revisar alumnos
+                                  </Link>
+                                </Button>
+                                {activity.config?.require_seb && (
+                                  <Button size="sm" variant="outline" onClick={() => downloadPlaygroundSeb(activity)} title="Descargar archivo .seb para Safe Exam Browser">
+                                    <Download size={13} /> .seb
+                                  </Button>
+                                )}
+                              </>
+                            )}
                             {activity.type === "forum" && (
                               <Button size="sm" variant="outline" onClick={() => setThreadsFor(activity)}>
                                 <MessageSquare size={13} /> Hilos
@@ -306,11 +348,13 @@ export default function TeacherLmsCourseEditor() {
                                 <ListTodo size={13} /> Preguntas
                               </Button>
                             )}
-                            <Button size="sm" variant="ghost" asChild>
-                              <Link to={`/teacher/cursos/${courseId}/actividades/${activity.id}`}>
-                                <Pencil size={13} />
-                              </Link>
-                            </Button>
+                            {activity.type !== "playground_exam" && (
+                              <Button size="sm" variant="ghost" asChild>
+                                <Link to={`/teacher/cursos/${courseId}/actividades/${activity.id}`}>
+                                  <Pencil size={13} />
+                                </Link>
+                              </Button>
+                            )}
                             <Button size="sm" variant="ghost" onClick={() => deleteActivityM.mutate(activity.id)}>
                               <Trash2 size={13} />
                             </Button>
@@ -327,7 +371,7 @@ export default function TeacherLmsCourseEditor() {
 
         <TabsContent value="alumnos">
           <div className="mb-4 flex justify-end">
-            <Button onClick={() => setExamAssignOpen(true)} disabled={(rosterQ.data ?? []).length === 0}>
+            <Button onClick={() => setExamAssignFor({})} disabled={(rosterQ.data ?? []).length === 0}>
               <BookOpen size={14} /> Asignar examen
             </Button>
           </div>
@@ -376,11 +420,13 @@ export default function TeacherLmsCourseEditor() {
       <SurveyQuestionsDialog activity={surveyFor} onClose={() => setSurveyFor(null)} />
       <CreateQuizFromFileDialog unitId={quizFromFileUnit} onClose={() => setQuizFromFileUnit(null)} onCreated={invalidateUnits} />
 
-      {examAssignOpen && (
+      {examAssignFor && (
         <ExamAssignModal
           lmsCourseId={courseId!}
           lmsCourseLabel={course?.title}
-          onClose={() => setExamAssignOpen(false)}
+          unitId={examAssignFor.unitId}
+          onClose={() => setExamAssignFor(null)}
+          onSuccess={invalidateUnits}
         />
       )}
 

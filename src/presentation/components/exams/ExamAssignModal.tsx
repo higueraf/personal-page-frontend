@@ -36,6 +36,9 @@ export interface ExamAssignModalProps {
    */
   lmsCourseId?: string;
   lmsCourseLabel?: string;
+  /** Junto con lmsCourseId: deja una actividad 'playground_exam' publicada en esta unidad del
+   *  curso, apuntando al examen recién creado (para que aparezca en el contenido del curso). */
+  unitId?: string;
   initialAssignKind?: "exam" | "practice";
   initialInitMode?: "none" | "template" | "examTemplate";
 }
@@ -48,6 +51,7 @@ export default function ExamAssignModal({
   onSuccess,
   lmsCourseId,
   lmsCourseLabel,
+  unitId,
   initialAssignKind = "exam",
   initialInitMode = "none",
 }: ExamAssignModalProps) {
@@ -110,6 +114,7 @@ export default function ExamAssignModal({
     }
     if (locked) {
       payload.lmsCourseId = lmsCourseId;
+      if (unitId) payload.unitId = unitId;
     } else if (assignMode === "course") {
       if (!targetInstId) { alert("Seleccione un curso."); return; }
       payload.courseId = targetInstId;

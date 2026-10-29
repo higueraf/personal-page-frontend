@@ -146,6 +146,9 @@ export const router = createBrowserRouter([
               { path: "cursos", element: <TeacherLmsCourses /> },
               { path: "cursos/:courseId", element: <TeacherLmsCourseEditor /> },
               { path: "cursos/:courseId/actividades/:activityId", element: <TeacherLmsActivityEditor /> },
+              // Mismo componente que /admin/assignments — revisar un examen Playground
+              // asignado desde el contenido de un curso (profesor dueño o admin).
+              { path: "examenes", element: <AdminAssignments /> },
             ],
           },
         ],

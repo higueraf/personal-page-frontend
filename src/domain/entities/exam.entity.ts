@@ -53,5 +53,8 @@ export interface AssignExamPayload {
   /** Asigna a todos los alumnos con matrícula activa en este curso del LMS, sin picker manual —
    *  usado desde la pantalla de un curso (profesor dueño o admin), no desde el dashboard admin. */
   lmsCourseId?: string;
+  /** Junto con lmsCourseId: deja una actividad 'playground_exam' publicada en esta unidad,
+   *  apuntando al exam_group_id resultante. */
+  unitId?: string;
   isPractice?: boolean;
 }
