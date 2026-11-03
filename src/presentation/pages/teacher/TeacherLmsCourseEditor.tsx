@@ -10,11 +10,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, BarChart3, BookOpen, ClipboardList, Code2, Download, FileText, FileUp, GraduationCap, HelpCircle,
-  MessageSquare, Paperclip, Pin, PinOff, Plus, Presentation as PresentationIcon, Save, Lock,
+  MessageSquare, Paperclip, Pin, PinOff, Plus, Presentation as PresentationIcon, Save, Lock, UserPlus, X,
   Unlock, Trash2, Pencil, Upload, Users, ListChecks, ListTodo,
 } from "lucide-react";
 import { lmsUseCases } from "../../../infrastructure/factories/lms-module.factory";
 import { examUseCases } from "../../../infrastructure/factories/exam-module.factory";
+import { adminUserUseCases } from "../../../infrastructure/factories/admin-user-module.factory";
 import ExamAssignModal from "@/presentation/components/exams/ExamAssignModal";
 import type {
   LmsActivity, LmsForumThread, LmsQuizFileFormat, LmsQuizQuestion, LmsSubmission,
@@ -104,11 +105,29 @@ export default function TeacherLmsCourseEditor() {
     queryFn: () => lmsUseCases.roster(courseId!),
     enabled: !!courseId && tab === "alumnos",
   });
+  const allStudentsQ = useQuery({
+    queryKey: ["admin-students-lite"],
+    queryFn: async () => (await adminUserUseCases.list({ user_type: "student", page_size: 500 })).data,
+    enabled: !!courseId && tab === "alumnos",
+  });
 
   const course = courseQ.data;
   const units = useMemo(() => [...(unitsQ.data ?? [])].sort((a, b) => a.order - b.order), [unitsQ.data]);
 
   const invalidateUnits = () => qc.invalidateQueries({ queryKey: ["lms-units", courseId] });
+  const invalidateRoster = () => qc.invalidateQueries({ queryKey: ["lms-roster", courseId] });
+
+  const [studentSearch, setStudentSearch] = useState("");
+  const enrolledIds = useMemo(() => new Set((rosterQ.data ?? []).map((r) => r.student.id)), [rosterQ.data]);
+
+  const enrollM = useMutation({
+    mutationFn: (studentId: string) => lmsUseCases.enrollStudent(courseId!, studentId),
+    onSuccess: () => { setStudentSearch(""); invalidateRoster(); },
+  });
+  const removeEnrollmentM = useMutation({
+    mutationFn: (enrollmentId: string) => lmsUseCases.removeEnrollment(courseId!, enrollmentId),
+    onSuccess: invalidateRoster,
+  });
 
   const updateCourseM = useMutation({
     mutationFn: (body: { title: string; description: string; status: string }) => lmsUseCases.updateCourse(courseId!, body),
@@ -389,7 +408,36 @@ export default function TeacherLmsCourseEditor() {
         </TabsContent>
 
         <TabsContent value="alumnos">
-          <div className="mb-4 flex justify-end">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="relative w-full max-w-sm">
+              <Input
+                placeholder="Agregar alumno por nombre o correo…"
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+              />
+              {studentSearch && (
+                <div className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-md border border-border bg-popover shadow-lg">
+                  {(allStudentsQ.data ?? [])
+                    .filter((s) => !enrolledIds.has(s.id) && `${s.first_name} ${s.last_name} ${s.email}`.toLowerCase().includes(studentSearch.toLowerCase()))
+                    .slice(0, 20)
+                    .map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        disabled={enrollM.isPending}
+                        onClick={() => enrollM.mutate(s.id)}
+                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
+                      >
+                        <span>{s.first_name} {s.last_name} <span className="text-xs text-muted-foreground">({s.email})</span></span>
+                        <UserPlus size={14} className="shrink-0 text-primary" />
+                      </button>
+                    ))}
+                  {(allStudentsQ.data ?? []).filter((s) => !enrolledIds.has(s.id) && `${s.first_name} ${s.last_name} ${s.email}`.toLowerCase().includes(studentSearch.toLowerCase())).length === 0 && (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">Sin resultados.</div>
+                  )}
+                </div>
+              )}
+            </div>
             <Button onClick={() => setExamAssignFor({})} disabled={(rosterQ.data ?? []).length === 0}>
               <BookOpen size={14} /> Asignar examen
             </Button>
@@ -404,6 +452,7 @@ export default function TeacherLmsCourseEditor() {
                   <TableHead>Progreso</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Última actividad</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -424,6 +473,21 @@ export default function TeacherLmsCourseEditor() {
                     <TableCell><Badge variant="outline">{r.status}</Badge></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {r.last_activity_at ? new Date(r.last_activity_at).toLocaleDateString() : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        title="Quitar del curso"
+                        disabled={removeEnrollmentM.isPending}
+                        onClick={() => {
+                          if (window.confirm(`¿Quitar a ${r.student.first_name} ${r.student.last_name} de este curso?`)) {
+                            removeEnrollmentM.mutate(r.enrollment_id);
+                          }
+                        }}
+                      >
+                        <X size={14} />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

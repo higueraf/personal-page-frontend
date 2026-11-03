@@ -33,6 +33,8 @@ export interface LmsRepositoryPort {
   deleteUnit(id: string): Promise<void>;
   generateWeeklyUnits(courseId: string, body: { start_date: string; weeks: number }): Promise<LmsCourseUnit[]>;
   roster(courseId: string): Promise<LmsRosterEntry[]>;
+  enrollStudent(courseId: string, studentId: string): Promise<LmsRosterEntry>;
+  removeEnrollment(courseId: string, enrollmentId: string): Promise<void>;
 
   // ── Profesor/admin: actividades ───────────────────────────────────────────
   listActivities(unitId: string): Promise<LmsActivity[]>;

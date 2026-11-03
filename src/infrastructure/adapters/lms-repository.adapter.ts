@@ -74,6 +74,13 @@ export class AxiosLmsRepositoryAdapter implements LmsRepositoryPort {
     const { data } = await axiosClient.get<LmsRosterEntry[]>(`/lms/courses/${courseId}/roster`);
     return data;
   }
+  async enrollStudent(courseId: string, studentId: string): Promise<LmsRosterEntry> {
+    const { data } = await axiosClient.post<LmsRosterEntry>(`/lms/courses/${courseId}/enrollments`, { student_id: studentId });
+    return data;
+  }
+  async removeEnrollment(courseId: string, enrollmentId: string): Promise<void> {
+    await axiosClient.delete(`/lms/courses/${courseId}/enrollments/${enrollmentId}`);
+  }
 
   // ── Profesor/admin: actividades ───────────────────────────────────────────
   async listActivities(unitId: string): Promise<LmsActivity[]> {
