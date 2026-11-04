@@ -233,7 +233,7 @@ export default function ExamAssignModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Lenguaje</label>
-              <select value={examLang} onChange={(e) => { setExamLang(e.target.value); setExamTemplateId(""); }} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
+              <select value={examLang} onChange={(e) => { setExamLang(e.target.value); setExamTemplateId(""); setExamExamTemplateId(""); }} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
                 {["python", "javascript", "typescript", "java", "kotlin", "dart", "flutter", "nestjs", "html", "html-array", "html-design", "react", "react-crud", "react-cypress", "react-native", "vue", "angular"].map((l) => <option key={l} value={l}>{l}</option>)}
               </select>
             </div>
@@ -270,8 +270,11 @@ export default function ExamAssignModal({
                 <label className="block text-xs font-bold text-purple-700 dark:text-purple-400 uppercase mb-1">Examen con variantes *</label>
                 <select value={examExamTemplateId} onChange={(e) => setExamExamTemplateId(e.target.value)} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-purple-500">
                   <option value="">— Elija —</option>
-                  {(examTemplatesQ.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.name} ({t.versions?.length ?? 0} temas)</option>)}
+                  {(examTemplatesQ.data ?? []).filter((t) => t.language === examLang).map((t) => <option key={t.id} value={t.id}>{t.name} ({t.versions?.length ?? 0} temas)</option>)}
                 </select>
+                {(examTemplatesQ.data ?? []).filter((t) => t.language === examLang).length === 0 && (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">No hay exámenes con variantes para el lenguaje "{examLang}".</p>
+                )}
                 <p className="text-[10px] text-gray-500 mt-1">A cada alumno se le asignará automáticamente un tema distinto (round-robin), en rotación.</p>
               </div>
               <div>
