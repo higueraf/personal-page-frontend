@@ -369,6 +369,11 @@ export default function TeacherLmsCourseEditor() {
                                     <Users size={13} /> Revisar alumnos
                                   </Link>
                                 </Button>
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link to={`/teacher/examenes?edit=${activity.config?.exam_group_id}`}>
+                                    <Pencil size={13} /> Editar
+                                  </Link>
+                                </Button>
                                 {activity.config?.require_seb && (
                                   <Button size="sm" variant="outline" onClick={() => downloadPlaygroundSeb(activity)} title="Descargar archivo .seb para Safe Exam Browser">
                                     <Download size={13} /> .seb

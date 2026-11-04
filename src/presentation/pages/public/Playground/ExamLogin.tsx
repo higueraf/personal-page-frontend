@@ -27,6 +27,13 @@ export default function ExamLogin() {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Detect Safe Exam Browser (SEB) — same check used in PlaygroundIDE. A student can land here
+  // stuck inside real SEB kiosk mode (bad credentials, no active exam assigned, exam already
+  // expired) with no other UI to leave from, since SEB's kiosk mode has no address bar/back
+  // button of its own.
+  const isInSEB = typeof (window as any).SafeExamBrowser !== 'undefined'
+    || navigator.userAgent.includes('SEB');
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -125,6 +132,17 @@ export default function ExamLogin() {
                 {busy ? "Verificando…" : "Entrar al examen"}
               </Button>
             </form>
+
+            {isInSEB && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => { window.location.href = "/seb-quit"; }}
+              >
+                Salir de Safe Exam Browser
+              </Button>
+            )}
           </CardContent>
         </Card>
       </main>

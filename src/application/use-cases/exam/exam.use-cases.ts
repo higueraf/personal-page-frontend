@@ -19,6 +19,7 @@ export class ExamUseCases {
   updateGroup(payload: {
     groupId: string;
     name?: string;
+    materia?: string;
     start_time?: string;
     end_time?: string;
     allow_copy_paste?: boolean;

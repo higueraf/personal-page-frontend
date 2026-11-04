@@ -332,7 +332,7 @@ export default function AdminPlaygroundTemplates() {
     <div className="p-6 space-y-6">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <LayoutTemplate size={24} className="text-blue-500" /> Plantillas de Proyecto
           </h1>
           <p className="text-sm text-gray-500">

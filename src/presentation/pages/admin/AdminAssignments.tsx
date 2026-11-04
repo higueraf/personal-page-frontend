@@ -26,7 +26,7 @@ const ALLOWED = ['admin', 'teacher'];
 
 async function fetchGroups() { return examUseCases.listGroups(); }
 async function fetchGroupProjects(groupId: string) { return examUseCases.listGroupProjects(groupId); }
-async function updateGroup(payload: { groupId: string; name?: string; start_time?: string; end_time?: string; allow_copy_paste?: boolean; require_seb?: boolean; timezone_offset_minutes?: number }) {
+async function updateGroup(payload: { groupId: string; name?: string; materia?: string; start_time?: string; end_time?: string; allow_copy_paste?: boolean; require_seb?: boolean; timezone_offset_minutes?: number }) {
   return examUseCases.updateGroup(payload);
 }
 async function deleteGroup(groupId: string) {
@@ -117,6 +117,7 @@ export default function AdminAssignments() {
   // ── Edit modal ──
   const [editGroup,     setEditGroup]     = useState<ExamGroup | null>(null);
   const [editName,      setEditName]      = useState("");
+  const [editMateria,   setEditMateria]   = useState("");
   const [editStart,     setEditStart]     = useState("");
   const [editEnd,       setEditEnd]       = useState("");
   const [editCopyPaste, setEditCopyPaste] = useState(false);
@@ -138,6 +139,17 @@ export default function AdminAssignments() {
   // ── Queries ──
   const groupsQ   = useQuery({ queryKey: ["admin-exam-groups"],                             queryFn: fetchGroups });
   const projectsQ = useQuery({ queryKey: ["admin-exam-projects", activeGroup],              queryFn: () => fetchGroupProjects(activeGroup!), enabled: !!activeGroup });
+
+  // Autoabrir el modal de edición cuando se llega con ?edit=<groupId> (enlace directo "Editar
+  // examen" desde la actividad en el curso del profesor, sin tener que buscarlo en la lista).
+  useEffect(() => {
+    const editGroupId = searchParams.get("edit");
+    if (!editGroupId || !groupsQ.data) return;
+    const group = groupsQ.data.find((g) => g.group_id === editGroupId);
+    if (group) openEditModal(group);
+    setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete("edit"); return next; }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupsQ.data]);
 
   // ── Mutations ──
 
@@ -220,6 +232,7 @@ export default function AdminAssignments() {
   function openEditModal(g: ExamGroup) {
     setEditGroup(g);
     setEditName(g.name);
+    setEditMateria(g.materia ?? "");
     setEditCopyPaste(g.allow_copy_paste);
     setEditRequireSeb(g.require_seb ?? false);
     const offset = g.timezone_offset_minutes ?? DEFAULT_TIMEZONE_OFFSET_MINUTES;
@@ -234,6 +247,7 @@ export default function AdminAssignments() {
     editMutation.mutate({
       groupId: editGroup.group_id,
       name: editName || undefined,
+      materia: editMateria,
       start_time: editStart ? fromOffsetInputValue(editStart, editTimezoneOffset) : undefined,
       end_time:   editEnd   ? fromOffsetInputValue(editEnd, editTimezoneOffset)   : undefined,
       allow_copy_paste: editCopyPaste,
@@ -273,7 +287,7 @@ export default function AdminAssignments() {
             </button>
             <div className="h-5 border-l border-gray-300 dark:border-gray-600" />
             <div>
-              <h1 className="text-xl font-bold text-gray-800 dark:text-white">{currentGroup?.name ?? "Examen"}</h1>
+              <h1 className="text-xl font-bold text-gray-800">{currentGroup?.name ?? "Examen"}</h1>
               {currentGroup?.materia && (
                 <span className="text-xs text-gray-500">{currentGroup.materia}</span>
               )}
@@ -573,7 +587,7 @@ export default function AdminAssignments() {
     <div className="p-6 space-y-6">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Gestión de Exámenes y Simulacros</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Gestión de Exámenes y Simulacros</h1>
           <p className="text-sm text-gray-500">Cada fila representa una asignación (examen o simulacro). Haz clic para ver los proyectos de cada alumno.</p>
         </div>
         <button
@@ -721,6 +735,11 @@ export default function AdminAssignments() {
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre</label>
                 <input value={editName} onChange={e => setEditName(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Materia</label>
+                <input value={editMateria} onChange={e => setEditMateria(e.target.value)}
                   className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-4">
