@@ -11,6 +11,7 @@ import {
 import { uploadUrl } from "../../store/auth.store";
 
 const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "python", label: "Python" },
   { value: "typescript", label: "TypeScript" },
   { value: "flutter", label: "Flutter" },
   { value: "nestjs", label: "NestJS" },
