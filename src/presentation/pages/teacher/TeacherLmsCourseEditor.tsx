@@ -110,6 +110,11 @@ export default function TeacherLmsCourseEditor() {
     queryFn: async () => (await adminUserUseCases.list({ user_type: "student", page_size: 500 })).data,
     enabled: !!courseId && tab === "alumnos",
   });
+  const allTeachersQ = useQuery({
+    queryKey: ["admin-teachers-lite"],
+    queryFn: async () => (await adminUserUseCases.list({ role: "teacher", page_size: 500 })).data,
+    enabled: !!courseId && tab === "profesores",
+  });
 
   const course = courseQ.data;
   const units = useMemo(() => [...(unitsQ.data ?? [])].sort((a, b) => a.order - b.order), [unitsQ.data]);
@@ -129,8 +134,22 @@ export default function TeacherLmsCourseEditor() {
     onSuccess: invalidateRoster,
   });
 
+  const [teacherSearch, setTeacherSearch] = useState("");
+  const coTeacherIds = useMemo(() => new Set((course?.co_teachers ?? []).map((t) => t.id)), [course]);
+  const invalidateCourse = () => qc.invalidateQueries({ queryKey: ["lms-course", courseId] });
+
+  const addCoTeacherM = useMutation({
+    mutationFn: (teacherId: string) => lmsUseCases.addCoTeacher(courseId!, teacherId),
+    onSuccess: () => { setTeacherSearch(""); invalidateCourse(); },
+  });
+  const removeCoTeacherM = useMutation({
+    mutationFn: (teacherId: string) => lmsUseCases.removeCoTeacher(courseId!, teacherId),
+    onSuccess: invalidateCourse,
+  });
+
   const updateCourseM = useMutation({
-    mutationFn: (body: { title: string; description: string; status: string }) => lmsUseCases.updateCourse(courseId!, body),
+    mutationFn: (body: { title?: string; description?: string; status?: string; is_public?: boolean }) =>
+      lmsUseCases.updateCourse(courseId!, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-course", courseId] }),
   });
 
@@ -248,6 +267,20 @@ export default function TeacherLmsCourseEditor() {
                 <Save size={14} /> Guardar
               </Button>
             </div>
+            <label className="flex items-start gap-2 rounded-md border border-border p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={!!course.is_public}
+                onChange={(e) => updateCourseM.mutate({ is_public: e.target.checked })}
+                disabled={updateCourseM.isPending}
+                className="mt-0.5"
+                style={{ width: 16, height: 16, accentColor: "var(--color-primary)" }}
+              />
+              <span>
+                <strong>Cualquiera puede inscribirse</strong> — aparece en el catálogo de auto-matrícula.
+                Si está desmarcado, solo tú puedes matricular alumnos (pestaña "Alumnos").
+              </span>
+            </label>
             </div>
           </CardContent>
         </Card>
@@ -257,6 +290,7 @@ export default function TeacherLmsCourseEditor() {
         <TabsList className="mb-5">
           <TabsTrigger value="contenido">Contenido</TabsTrigger>
           <TabsTrigger value="alumnos">Alumnos</TabsTrigger>
+          <TabsTrigger value="profesores">Profesores</TabsTrigger>
         </TabsList>
 
         <TabsContent value="contenido">
@@ -499,6 +533,84 @@ export default function TeacherLmsCourseEditor() {
               </TableBody>
             </DataTable>
           )}
+        </TabsContent>
+
+        <TabsContent value="profesores">
+          <div className="mb-4 relative w-full max-w-sm">
+            <Input
+              placeholder="Agregar profesor por nombre o correo…"
+              value={teacherSearch}
+              onChange={(e) => setTeacherSearch(e.target.value)}
+            />
+            {teacherSearch && (
+              <div className="absolute top-full left-0 right-0 z-10 mt-1 max-h-56 overflow-y-auto rounded-md border border-border bg-popover shadow-lg">
+                {(allTeachersQ.data ?? [])
+                  .filter((t) => t.id !== course?.teacher_id && !coTeacherIds.has(t.id) && `${t.first_name} ${t.last_name} ${t.email}`.toLowerCase().includes(teacherSearch.toLowerCase()))
+                  .slice(0, 20)
+                  .map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      disabled={addCoTeacherM.isPending}
+                      onClick={() => addCoTeacherM.mutate(t.id)}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
+                    >
+                      <span>{t.first_name} {t.last_name} <span className="text-xs text-muted-foreground">({t.email})</span></span>
+                      <UserPlus size={14} className="shrink-0 text-primary" />
+                    </button>
+                  ))}
+                {(allTeachersQ.data ?? []).filter((t) => t.id !== course?.teacher_id && !coTeacherIds.has(t.id) && `${t.first_name} ${t.last_name} ${t.email}`.toLowerCase().includes(teacherSearch.toLowerCase())).length === 0 && (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">Sin resultados.</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DataTable>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Profesor</TableHead>
+                <TableHead>Rol</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {course?.teacher && (
+                <TableRow>
+                  <TableCell>
+                    <div className="font-medium text-foreground">{course.teacher.first_name} {course.teacher.last_name}</div>
+                    <div className="text-xs text-muted-foreground">{course.teacher.email}</div>
+                  </TableCell>
+                  <TableCell><Badge variant="outline">Dueño</Badge></TableCell>
+                  <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                </TableRow>
+              )}
+              {(course?.co_teachers ?? []).map((t) => (
+                <TableRow key={t.id}>
+                  <TableCell>
+                    <div className="font-medium text-foreground">{t.first_name} {t.last_name}</div>
+                    <div className="text-xs text-muted-foreground">{t.email}</div>
+                  </TableCell>
+                  <TableCell><Badge variant="outline">Co-profesor</Badge></TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Quitar del curso"
+                      disabled={removeCoTeacherM.isPending}
+                      onClick={() => {
+                        if (window.confirm(`¿Quitar a ${t.first_name} ${t.last_name} como profesor de este curso?`)) {
+                          removeCoTeacherM.mutate(t.id);
+                        }
+                      }}
+                    >
+                      <X size={14} />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </DataTable>
         </TabsContent>
       </Tabs>
 

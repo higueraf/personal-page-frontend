@@ -8,6 +8,7 @@ export interface AdminUserRepositoryPort {
     status?: string;
     search?: string;
     user_type?: string;
+    role?: string;
   }): Promise<Paginated<AdminUser>>;
 
   listRoles(): Promise<AdminRole[]>;

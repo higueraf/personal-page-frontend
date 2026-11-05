@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { Archive, GraduationCap, Plus, Search, Settings2 } from "lucide-react";
+import { Archive, GraduationCap, Globe, Lock, Plus, Search, Settings2 } from "lucide-react";
 import { lmsUseCases } from "../../../infrastructure/factories/lms-module.factory";
 import type { LmsCourse } from "../../../domain/entities/lms.entity";
 import PageHeader from "@/presentation/components/patterns/PageHeader";
@@ -32,7 +32,7 @@ export default function TeacherLmsCourses() {
   const nav = useNavigate();
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "" });
+  const [form, setForm] = useState({ title: "", description: "", is_public: false });
   const [viewMode, setViewMode] = usePersistedViewMode("teacher-lms-courses-view");
 
   const coursesQ = useQuery({
@@ -46,13 +46,18 @@ export default function TeacherLmsCourses() {
     onSuccess: (course: LmsCourse) => {
       qc.invalidateQueries({ queryKey: ["lms-teacher-courses"] });
       setCreateOpen(false);
-      setForm({ title: "", description: "" });
+      setForm({ title: "", description: "", is_public: false });
       nav(`/teacher/cursos/${course.id}`);
     },
   });
 
   const archiveM = useMutation({
     mutationFn: (id: string) => lmsUseCases.archiveCourse(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-teacher-courses"] }),
+  });
+
+  const togglePublicM = useMutation({
+    mutationFn: ({ id, is_public }: { id: string; is_public: boolean }) => lmsUseCases.updateCourse(id, { is_public }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-teacher-courses"] }),
   });
 
@@ -98,20 +103,36 @@ export default function TeacherLmsCourses() {
               icon={GraduationCap}
               image={c.cover_image}
               meta={
-                <div className="flex w-full items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-primary">
-                    <Settings2 size={13} /> Gestionar
-                  </span>
-                  {c.status !== "ARCHIVED" && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.preventDefault(); archiveM.mutate(c.id); }}
-                      disabled={archiveM.isPending}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
-                    >
-                      <Archive size={12} /> Archivar
-                    </button>
-                  )}
+                <div className="flex w-full flex-col gap-2">
+                  <label
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!c.is_public}
+                      disabled={togglePublicM.isPending}
+                      onChange={(e) => togglePublicM.mutate({ id: c.id, is_public: e.target.checked })}
+                      style={{ width: 14, height: 14, accentColor: "var(--color-primary)" }}
+                    />
+                    {c.is_public ? <Globe size={12} /> : <Lock size={12} />}
+                    Cualquiera puede inscribirse
+                  </label>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                      <Settings2 size={13} /> Gestionar
+                    </span>
+                    {c.status !== "ARCHIVED" && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); archiveM.mutate(c.id); }}
+                        disabled={archiveM.isPending}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
+                      >
+                        <Archive size={12} /> Archivar
+                      </button>
+                    )}
+                  </div>
                 </div>
               }
             />
@@ -125,6 +146,7 @@ export default function TeacherLmsCourses() {
             <TableRow>
               <TableHead>Curso</TableHead>
               <TableHead>Estado</TableHead>
+              <TableHead>Inscripción abierta</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -137,6 +159,19 @@ export default function TeacherLmsCourses() {
                 </TableCell>
                 <TableCell>
                   <Badge variant={STATUS_VARIANT[c.status] ?? "outline"}>{STATUS_LABEL[c.status] ?? c.status}</Badge>
+                </TableCell>
+                <TableCell>
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={!!c.is_public}
+                      disabled={togglePublicM.isPending}
+                      onChange={(e) => togglePublicM.mutate({ id: c.id, is_public: e.target.checked })}
+                      style={{ width: 14, height: 14, accentColor: "var(--color-primary)" }}
+                    />
+                    {c.is_public ? <Globe size={12} /> : <Lock size={12} />}
+                    {c.is_public ? "Pública" : "Restringida"}
+                  </label>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
@@ -178,6 +213,19 @@ export default function TeacherLmsCourses() {
               <label className="mb-1.5 block text-sm font-medium text-foreground">Descripción</label>
               <Textarea rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
             </div>
+            <label className="flex items-start gap-2 rounded-md border border-border p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={form.is_public}
+                onChange={(e) => setForm((f) => ({ ...f, is_public: e.target.checked }))}
+                className="mt-0.5"
+                style={{ width: 16, height: 16, accentColor: "var(--color-primary)" }}
+              />
+              <span>
+                <strong>Cualquiera puede inscribirse</strong> — el curso aparecerá en el catálogo de
+                auto-matrícula. Si lo dejas sin marcar, solo tú podrás inscribir alumnos manualmente.
+              </span>
+            </label>
             <p className="text-xs text-muted-foreground">
               El curso se crea como borrador. Podrás agregar unidades y actividades, y publicarlo cuando esté listo.
             </p>

@@ -63,7 +63,8 @@ export default function LmsCourseDetail() {
   const enrollM = useMutation({
     mutationFn: () => lmsUseCases.enroll(course!.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["lms-my-courses"] }),
-    onError: () => setEnrollError("No se pudo completar la inscripción. Intenta de nuevo."),
+    onError: (err: any) =>
+      setEnrollError(err?.response?.data?.message || "No se pudo completar la inscripción. Intenta de nuevo."),
   });
 
   function handleEnroll() {

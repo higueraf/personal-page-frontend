@@ -10,6 +10,7 @@ export class AxiosAdminUserRepositoryAdapter implements AdminUserRepositoryPort 
     status?: string;
     search?: string;
     user_type?: string;
+    role?: string;
   }): Promise<Paginated<AdminUser>> {
     const { data } = await axiosClient.get<Paginated<AdminUser>>("/admin/users", { params });
     return data;

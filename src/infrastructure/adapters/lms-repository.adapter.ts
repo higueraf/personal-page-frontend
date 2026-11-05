@@ -43,6 +43,14 @@ export class AxiosLmsRepositoryAdapter implements LmsRepositoryPort {
     const { data } = await axiosClient.put<LmsCourse>(`/lms/courses/${id}/archive`, {});
     return data;
   }
+  async addCoTeacher(courseId: string, teacherId: string): Promise<LmsCourse> {
+    const { data } = await axiosClient.post<LmsCourse>(`/lms/courses/${courseId}/co-teachers`, { teacher_id: teacherId });
+    return data;
+  }
+  async removeCoTeacher(courseId: string, teacherId: string): Promise<LmsCourse> {
+    const { data } = await axiosClient.delete<LmsCourse>(`/lms/courses/${courseId}/co-teachers/${teacherId}`);
+    return data;
+  }
   async uploadCourseCover(id: string, file: File): Promise<LmsCourse> {
     const formData = new FormData();
     formData.append("cover", file);

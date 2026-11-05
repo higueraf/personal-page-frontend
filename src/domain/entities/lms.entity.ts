@@ -19,8 +19,11 @@ export interface LmsCourse {
   description?: string | null;
   status: LmsCourseStatus;
   cover_image?: string;
+  /** Si es false, el curso no aparece en el catálogo de auto-matrícula; solo lo ven los alumnos ya inscritos y el profesor/admin. */
+  is_public?: boolean;
   teacher_id: string;
   teacher?: LmsTeacherRef;
+  co_teachers?: LmsTeacherRef[];
   study_courses?: LmsStudyCourseRef[];
   units?: LmsCourseUnit[];
   created_at?: string;
