@@ -268,6 +268,13 @@ export default function PlaygroundIDE() {
 
     // 2. Prevent exiting/reloading (beforeunload)
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Salida intencional por nuestros propios flujos ("Salir sin entregar", "Salir del
+      // examen"): no hay nada que confirmar. Sin este corte, el diálogo nativo de
+      // "¿seguro que deseas salir?" sigue disparándose incluso cuando YA se decidió salir
+      // (confirmado con `window.confirm` en el botón), y dentro del WebView kiosco de Safe
+      // Exam Browser ese diálogo nativo nunca se resuelve — la navegación a `/seb-quit`
+      // jamás llega a completarse y el alumno queda atascado en la misma pantalla.
+      if (examFinishedRef.current) return;
       unloadingRef.current = true;
       // Safety net: if the browser's "leave site?" prompt gets cancelled (the
       // student stays), the page never actually unloads, so nothing else would
@@ -747,6 +754,7 @@ export default function PlaygroundIDE() {
   const handleExitExam = useCallback(async () => {
     if (!id) return;
     if (!window.confirm("¿Salir del examen? Se entregará con lo que tengas guardado hasta ahora y no podrás seguir editando.")) return;
+    examFinishedRef.current = true;
     setExitingExam(true);
     try {
       await playgroundUseCases.submit(id);
@@ -776,6 +784,7 @@ export default function PlaygroundIDE() {
       )
     )
       return;
+    examFinishedRef.current = true;
     setExitingExam(true);
     try {
       await handleSave();
