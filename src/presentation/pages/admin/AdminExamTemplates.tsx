@@ -13,6 +13,7 @@ import { uploadUrl } from "../../store/auth.store";
 const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "python", label: "Python" },
   { value: "typescript", label: "TypeScript" },
+  { value: "kotlin", label: "Kotlin" },
   { value: "flutter", label: "Flutter" },
   { value: "nestjs", label: "NestJS" },
   { value: "react", label: "React" },
@@ -28,6 +29,8 @@ const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
 function defaultPointsFor(language: string, questionIndex: number): number {
   if (language === "flutter") return questionIndex === 0 ? 7 : 1.5;
   if (language === "html-design") return 10;
+  // Kotlin: condicionales/ciclos (2 pts) en las 2 primeras, funciones/ciclos (3 pts) en las 2 últimas.
+  if (language === "kotlin") return questionIndex < 2 ? 2 : 3;
   return 2.5;
 }
 
