@@ -8,6 +8,7 @@ export type Language =
   | "kotlin"
   | "dart"
   | "r"
+  | "js-dom-crud"
   | "html"
   | "html-array"
   | "html-design"
