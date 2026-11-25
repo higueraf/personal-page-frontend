@@ -20,8 +20,10 @@ const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "react-crud", label: "React — CRUD" },
   { value: "react-cypress", label: "React + Cypress" },
   { value: "react-native", label: "React Native" },
+  { value: "angular", label: "Angular" },
   { value: "html", label: "HTML/CSS/JS (DOM)" },
   { value: "html-array", label: "HTML/CSS/JS (Arreglo, sin API)" },
+  { value: "js-dom-crud", label: "JavaScript (DOM, ciclos y CRUD)" },
   { value: "html-design", label: "HTML/CSS (Maquetación de diseño, sin JS)" },
 ];
 
@@ -29,6 +31,8 @@ const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
 function defaultPointsFor(language: string, questionIndex: number): number {
   if (language === "flutter") return questionIndex === 0 ? 7 : 1.5;
   if (language === "html-design") return 10;
+  // JS DOM/CRUD: 2.5 pts los dos primeros ejercicios y 5 pts el CRUD.
+  if (language === "js-dom-crud") return questionIndex < 2 ? 2.5 : 5;
   // Kotlin: condicionales/ciclos (2 pts) en las 2 primeras, funciones/ciclos (3 pts) en las 2 últimas.
   if (language === "kotlin") return questionIndex < 2 ? 2 : 3;
   return 2.5;
@@ -42,7 +46,7 @@ function emptyVersion(order_index: number, language: string): ExamVersion {
   const questionCount =
     language === "html-design"
       ? 1
-      : language === "flutter" || language === "react-native" || language === "react-cypress" || language === "react-crud"
+      : language === "flutter" || language === "react-native" || language === "react-cypress" || language === "react-crud" || language === "angular" || language === "js-dom-crud"
         ? 3
         : 4;
   return {

@@ -234,7 +234,7 @@ export default function ExamAssignModal({
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Lenguaje</label>
               <select value={examLang} onChange={(e) => { setExamLang(e.target.value); setExamTemplateId(""); setExamExamTemplateId(""); }} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500">
-                {["python", "javascript", "typescript", "java", "kotlin", "dart", "flutter", "nestjs", "html", "html-array", "html-design", "react", "react-crud", "react-cypress", "react-native", "vue", "angular"].map((l) => <option key={l} value={l}>{l}</option>)}
+                {["python", "javascript", "typescript", "java", "kotlin", "dart", "flutter", "nestjs", "html", "html-array", "html-design", "js-dom-crud", "react", "react-crud", "react-cypress", "react-native", "vue", "angular"].map((l) => <option key={l} value={l}>{l}</option>)}
               </select>
             </div>
             <div>

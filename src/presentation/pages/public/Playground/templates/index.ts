@@ -403,6 +403,24 @@ flutter:
       { name: "script.js", path: "/script.js", language: "javascript", is_folder: false, content: `console.log("Hello World!");\n` },
     ],
   },
+  "js-dom-crud": {
+    id: "js-dom-crud",
+    label: "JavaScript (DOM, ciclos y CRUD)",
+    description: "Examen de tres ejercicios en una sola pagina: DOM, tabla dinamica y CRUD en memoria",
+    color: "text-amber-700 dark:text-amber-400",
+    bgColor: "bg-amber-50 dark:bg-amber-950/40",
+    borderColor: "border-amber-200 dark:border-amber-500/40",
+    emoji: "\u{1F9E9}",
+    supportsPreview: true,
+    runtime: "iframe",
+    monacoLanguage: "html",
+    mainFileName: "index.html",
+    defaultFiles: [
+      { name: "index.html", path: "/index.html", language: "html", is_folder: false, content: `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <link rel="stylesheet" href="estilos.css">\n</head>\n<body>\n  <h1>Examen de JavaScript</h1>\n  <script src="script.js"></script>\n</body>\n</html>\n` },
+      { name: "estilos.css", path: "/estilos.css", language: "css", is_folder: false, content: `body { font-family: Arial, sans-serif; margin: 24px; }\n` },
+      { name: "script.js", path: "/script.js", language: "javascript", is_folder: false, content: `console.log("Examen de JavaScript");\n` },
+    ],
+  },
   "html-array": {
     id: "html-array",
     label: "HTML/CSS/JS (Arreglo, sin API)",
@@ -835,7 +853,7 @@ const styles = StyleSheet.create({
   angular: {
     id: "angular",
     label: "Angular",
-    description: "Web Components con TypeScript — preview en vivo",
+    description: "Componentes standalone con TypeScript y decoradores — preview en vivo",
     color: "text-red-700 dark:text-red-400",
     bgColor: "bg-red-50 dark:bg-red-950/40",
     borderColor: "border-red-200 dark:border-red-500/40",
@@ -843,8 +861,120 @@ const styles = StyleSheet.create({
     supportsPreview: true,
     runtime: "iframe",
     monacoLanguage: "typescript",
-    mainFileName: "app.ts",
-    defaultFiles: [{ name: "app.ts", path: "/app.ts", language: "typescript", is_folder: false, content: `document.body.innerHTML = \`<h1 style="text-align: center; font-family: sans-serif; margin-top: 2rem;">Hello World!</h1>\`;\n` }],
+    mainFileName: "src/main.ts",
+    defaultFiles: [
+      // Folders
+      { name: "src", path: "/src", language: "plaintext", is_folder: true, content: "" },
+      { name: "app", path: "/src/app", language: "plaintext", is_folder: true, content: "" },
+      // Host page: el preview usa el contenido de su <body> para montar la app
+      {
+        name: "index.html", path: "/index.html", language: "html", is_folder: false,
+        content:
+`<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <title>Angular Playground</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+</html>
+`,
+      },
+      // Entry point
+      {
+        name: "main.ts", path: "/src/main.ts", language: "typescript", is_folder: false,
+        content:
+`import { bootstrapApplication } from '@angular/platform-browser';
+import { AppComponent } from './app/app.component';
+
+bootstrapApplication(AppComponent).catch((err) => console.error(err));
+`,
+      },
+      // Estilos globales (el preview los inyecta igual que angular.json en un proyecto real)
+      {
+        name: "styles.css", path: "/src/styles.css", language: "css", is_folder: false,
+        content:
+`* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+}
+`,
+      },
+      // Componente raíz
+      {
+        name: "app.component.ts", path: "/src/app/app.component.ts", language: "typescript", is_folder: false,
+        content:
+`import { Component } from '@angular/core';
+import { CounterComponent } from './counter.component';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [CounterComponent],
+  template: \`
+    <div class="page">
+      <h1>🔺 Angular + TypeScript</h1>
+      <p class="muted">Edita los archivos en <code>src/app/</code> para empezar.</p>
+      <app-counter [initialCount]="0"></app-counter>
+    </div>
+  \`,
+  styles: [\`
+    .page { padding: 2rem; max-width: 600px; margin: 0 auto; }
+    h1 { color: #dd0031; }
+    .muted { color: #64748b; }
+  \`],
+})
+export class AppComponent {}
+`,
+      },
+      // Componente de ejemplo con @Input y binding de eventos
+      {
+        name: "counter.component.ts", path: "/src/app/counter.component.ts", language: "typescript", is_folder: false,
+        content:
+`import { Component, Input } from '@angular/core';
+
+@Component({
+  selector: 'app-counter',
+  standalone: true,
+  template: \`
+    <div class="counter">
+      <p>Contador: <strong>{{ count }}</strong></p>
+      <button (click)="increment()">+</button>
+      <button (click)="decrement()">−</button>
+    </div>
+  \`,
+  styles: [\`
+    .counter { border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; background: #fff; }
+    button { margin-right: 8px; padding: 4px 12px; cursor: pointer; }
+  \`],
+})
+export class CounterComponent {
+  @Input() initialCount = 0;
+
+  count = 0;
+
+  ngOnInit(): void {
+    this.count = this.initialCount;
+  }
+
+  increment(): void {
+    this.count += 1;
+  }
+
+  decrement(): void {
+    this.count -= 1;
+  }
+}
+`,
+      },
+    ],
   },
 };
 
