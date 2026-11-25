@@ -1,16 +1,22 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Editor } from "@monaco-editor/react";
-import { X, AlertCircle, WifiOff, ShieldCheck, Lock, History } from "lucide-react";
+import { WifiOff } from "lucide-react";
 import { useTheme } from "../../../providers/ThemeProvider";
 import ErrorBoundary from "../../../components/ErrorBoundary";
 
 import { usePlaygroundStore, type Language } from "./store/playgroundStore";
 import { LANGUAGE_CONFIGS } from "./templates/index";
-import { useExecutionSocket } from "./runners/useExecutionSocket";
-import type { TerminalApi } from "./components/TerminalPanel";
 import { getMonacoLanguage } from "./utils/fileUtils";
 import { setupMonacoCompletion } from "./utils/monacoCompletion";
+import { downloadProjectZip } from "./utils/downloadZip";
+import { useProjectRunner } from "./hooks/useProjectRunner";
+import { useProjectSave } from "./hooks/useProjectSave";
+import { useAdminReview } from "./hooks/useAdminReview";
+import { useProjectLoader } from "./hooks/useProjectLoader";
+import { useExamExit } from "./hooks/useExamExit";
+import { useExamTimer } from "./hooks/useExamTimer";
+import { useExamSecurity } from "./hooks/useExamSecurity";
 
 import Toolbar from "./components/Toolbar";
 import FileExplorer from "./components/FileExplorer";
@@ -18,27 +24,21 @@ import TerminalPanel from "./components/TerminalPanel";
 import PreviewPanel from "./components/PreviewPanel";
 import FlutterPreviewPanel from "./components/FlutterPreviewPanel";
 import ReactNativePreviewPanel from "./components/ReactNativePreviewPanel";
+import TabBar from "./components/TabBar";
+import EmptyEditor from "./components/EmptyEditor";
+import ResizeHandle from "./components/ResizeHandle";
+import ReadOnlyBanner from "./components/ReadOnlyBanner";
+import SnapshotHistoryModal from "./components/SnapshotHistoryModal";
+import {
+  SecurityLockedScreen,
+  SebRequiredScreen,
+  FullscreenLockScreen,
+  TabSwitchLockScreen,
+  KeyboardLockScreen,
+} from "./components/ExamLockScreens";
 
-import { playgroundUseCases } from "../../../../infrastructure/factories/playground-module.factory";
-import { examUseCases } from "../../../../infrastructure/factories/exam-module.factory";
-import { DEFAULT_TIMEZONE_OFFSET_MINUTES, formatInOffset } from "../../../lib/timezone";
-import { useAuth, uploadUrl } from "../../../store/auth.store";
+import { uploadUrl } from "../../../store/auth.store";
 import type * as MonacoEditor from "monaco-editor";
-
-// ─── ANSI helpers ──────────────────────────────────────────────────────────────
-const C = {
-  reset: "\x1b[0m",
-  bold: "\x1b[1m",
-  dim: "\x1b[2m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  red: "\x1b[31m",
-  cyan: "\x1b[36m",
-  magenta: "\x1b[35m",
-  blue: "\x1b[34m",
-  white: "\x1b[37m",
-  gray: "\x1b[90m",
-};
 
 export default function PlaygroundIDE() {
   const { id } = useParams<{ id: string }>();
@@ -59,14 +59,12 @@ export default function PlaygroundIDE() {
     projectName,
     isReadOnly,
     securityLocked,
-    initProject,
     openFile,
     closeFile,
     updateFileContent,
     setRunning,
     setSaving,
     setSaveError,
-    setReadOnly,
     setSecurityLocked,
   } = usePlaygroundStore();
 
@@ -75,746 +73,88 @@ export default function PlaygroundIDE() {
     || navigator.userAgent.includes('SEB');
 
   const { theme } = useTheme();
-  const terminalApiRef = useRef<TerminalApi | null>(null);
   const editorInstanceRef = useRef<MonacoEditor.editor.IStandaloneCodeEditor | null>(null);
 
   // Internal clipboard: stores text copied/cut inside Monaco so we can
   // distinguish internal paste from external paste during exams.
   const internalClipboardRef = useRef<string>("");
 
-  // Clock offset (ms) = serverTime - clientTime, computed at exam load.
-  // Corrects for machines whose system clock is not synced.
-  const clockOffsetRef = useRef<number>(0);
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showTerminal, setShowTerminal] = useState(true);
-  const [showPreview, setShowPreview] = useState(true);
-  const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
-
   const [terminalHeight, setTerminalHeight] = useState(220);
   const [explorerWidth, setExplorerWidth] = useState(200);
   const [previewWidth, setPreviewWidth] = useState(380);
-  const [isLockedOut, setIsLockedOut] = useState(false);
-  const [isTabSwitchLocked, setIsTabSwitchLocked] = useState(false);
-  const [isKeyboardAlertLocked, setIsKeyboardAlertLocked] = useState(false);
   const examFinishedRef = useRef(false);
-  // Set inside `beforeunload` (fires before `visibilitychange`/`blur` in the
-  // unload sequence) so a refresh/close isn't misreported as a tab switch —
-  // `visibilitychange` always fires with `hidden` right before a page unloads,
-  // even on a plain refresh, not just on a genuine tab/window switch.
-  const unloadingRef = useRef(false);
-
-  // Admin-review only: student identity + inline grading panel state
-  const [studentUser, setStudentUser] = useState<{ first_name: string; last_name: string; email: string } | null>(null);
-  const [grade, setGrade] = useState<number | "">("");
-  const [feedback, setFeedback] = useState("");
-  const [savingGrade, setSavingGrade] = useState(false);
-
-  // Store end_time for the timer — state drives Toolbar re-render, ref drives auto-submit closure
-  const [endTime, setEndTime] = useState<Date | null>(null);
-  const endTimeRef = useRef<Date | null>(null);
-
-  // Exam's own configured timezone (never the browser's local timezone) — used to
-  // display snapshot history timestamps and any other exam-related dates.
-  const [examTimezoneOffset, setExamTimezoneOffset] = useState<number>(DEFAULT_TIMEZONE_OFFSET_MINUTES);
-
-  // Admin-review only: change history (snapshots) viewer
-  const [showHistory, setShowHistory] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyList, setHistoryList] = useState<{ id: string; created_at: string; file_count: number }[]>([]);
-  const [selectedSnapshot, setSelectedSnapshot] = useState<{ id: string; created_at: string; files: any[] } | null>(null);
-  const [unlocking, setUnlocking] = useState(false);
-  // Student-facing (not admin): retry the security-lock check, and a way to bail out of a
-  // locked/stuck exam entirely (see handleRetryUnlock / handleExitExam below).
-  const [retryingUnlock, setRetryingUnlock] = useState(false);
-  const [exitingExam, setExitingExam] = useState(false);
 
   const config = LANGUAGE_CONFIGS[language];
 
-  // ── Load project ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!id) {
-      navigate("/playground");
-      return;
-    }
+  const {
+    loading,
+    error,
+    studentUser,
+    grade,
+    setGrade,
+    feedback,
+    setFeedback,
+    examTimezoneOffset,
+    endTime,
+    endTimeRef,
+    clockOffsetRef,
+  } = useProjectLoader(id, isAdminReview);
 
-    setLoading(true);
-    setError(null);
-
-    // Fetch project data and server time in parallel so we can correct the
-    // student's system clock for exam timer comparisons.
-    Promise.all([
-      playgroundUseCases.get(id),
-      playgroundUseCases.getServerTime(),
-    ])
-      .then(([data, serverTime]) => {
-        // Compute clock offset: positive means client is behind server
-        if (serverTime) {
-          clockOffsetRef.current = new Date(serverTime).getTime() - Date.now();
-        }
-
-        setStudentUser(data.user ?? null);
-        setGrade(data.grade ?? "");
-        setFeedback(data.feedback ?? "");
-        setExamTimezoneOffset(data.timezone_offset_minutes ?? DEFAULT_TIMEZONE_OFFSET_MINUTES);
-
-        let readOnlyNow = isAdminReview;
-
-        if (data.is_exam && !isAdminReview) {
-          if (data.status === 'submitted' || data.status === 'graded' || data.security_locked) {
-            if (data.status === 'submitted' || data.status === 'graded') useAuth.getState().clearActiveExam();
-            readOnlyNow = true;
-          } else {
-            // Use server-corrected time for the expiry check
-            const correctedNow = Date.now() + clockOffsetRef.current;
-            if (data.end_time && correctedNow > new Date(data.end_time).getTime()) {
-              playgroundUseCases.submit(id).catch(() => {});
-              useAuth.getState().clearActiveExam();
-              readOnlyNow = true;
-            } else {
-              // Store end_time for the live timer
-              const et = data.end_time ? new Date(data.end_time) : null;
-              endTimeRef.current = et;
-              setEndTime(et);
-            }
-          }
-        }
-
-        const projectFiles = (data.files ?? []).map((f: any) => ({
-          id: f.id ?? f.name,
-          name: f.name,
-          content: f.content ?? "",
-          language: f.language ?? "plaintext",
-          path: f.path ?? `/${f.name}`,
-          is_folder: f.is_folder ?? false,
-          file_type: f.file_type ?? "code",
-          external_url: f.external_url ?? null,
-        }));
-        initProject(
-          data.id,
-          data.name ?? "Proyecto",
-          (data.language ?? "python") as Language,
-          data.is_exam ?? false,
-          data.allow_copy_paste ?? true,
-          data.require_seb ?? false,
-          projectFiles,
-          readOnlyNow,
-          data.security_locked ?? false
-        );
-        // Auto-open: el enunciado (ENUNCIADO.md/.pdf) primero si existe — el orden en que la DB
-        // devuelve `files` no está garantizado, así que no basta con tomar "el primer archivo".
-        const enunciado = projectFiles.find((f: any) => !f.is_folder && /^ENUNCIADO\.(md|pdf)$/i.test(f.name));
-        const firstCode = enunciado ?? projectFiles.find((f: any) => !f.is_folder);
-        if (firstCode) openFile(firstCode.id);
-      })
-      .catch((err) => {
-        setError(
-          err?.response?.data?.message ?? "No se pudo cargar el proyecto"
-        );
-      })
-      .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  // ── Auto-show preview for web languages ─────────────────────────────────────
-  useEffect(() => {
-    setShowPreview(config.supportsPreview);
-  }, [config.supportsPreview]);
-
-  // Called after every logCheat response: the backend groups incidents and
-  // may have just crossed the 5-incident threshold — if so, lock the editor
-  // immediately client-side too, without waiting for a page refresh.
-  const handleCheatLogResult = useCallback((res: { security_locked: boolean }) => {
-    if (res.security_locked) {
-      setSecurityLocked(true);
-      setReadOnly(true);
-    }
-  }, [setSecurityLocked, setReadOnly]);
-
-  // ── Block browser back/forward during exam ──────────────────────────────────
-  // Traps the student on this route: any attempt to navigate away via the
-  // browser's back/forward buttons just re-pushes the same URL.
-  useEffect(() => {
-    if (!isExam || isReadOnly) return;
-    window.history.pushState(null, "", window.location.href);
-    const handlePopState = () => {
-      if (examFinishedRef.current) return;
-      window.history.pushState(null, "", window.location.href);
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [isExam, isReadOnly]);
-
-  // ── Exam Restrictions ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isExam || isReadOnly) return;
-
-    // 0. Best-effort clipboard clear at exam start — an extra layer so a
-    //    student can't paste content copied from outside before the exam
-    //    began (does NOT replace the external-paste block below, which is
-    //    the actual protection during the exam).
-    navigator.clipboard?.writeText("").catch(() => {});
-
-    // 1. Enter Fullscreen (may require user interaction so it's a best-effort)
-    const enterFullscreen = () => {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      }
-    };
-    enterFullscreen();
-    // Try again on any click inside the document to bypass browser auto-block
-    document.addEventListener("click", enterFullscreen, { once: true });
-
-    // 2. Prevent exiting/reloading (beforeunload)
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // Salida intencional por nuestros propios flujos ("Salir sin entregar", "Salir del
-      // examen"): no hay nada que confirmar. Sin este corte, el diálogo nativo de
-      // "¿seguro que deseas salir?" sigue disparándose incluso cuando YA se decidió salir
-      // (confirmado con `window.confirm` en el botón), y dentro del WebView kiosco de Safe
-      // Exam Browser ese diálogo nativo nunca se resuelve — la navegación a `/seb-quit`
-      // jamás llega a completarse y el alumno queda atascado en la misma pantalla.
-      if (examFinishedRef.current) return;
-      unloadingRef.current = true;
-      // Safety net: if the browser's "leave site?" prompt gets cancelled (the
-      // student stays), the page never actually unloads, so nothing else would
-      // ever clear this flag — reset it after a beat so real tab/window
-      // switches keep being detected normally.
-      setTimeout(() => { unloadingRef.current = false; }, 1000);
-      const msg = "Estás en un examen activo. ¿Seguro que deseas salir?";
-      e.returnValue = msg;
-      return msg;
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    // 3. Block external paste — allow internal copy/paste within the editor
-    //    Strategy: when user copies/cuts inside Monaco, we store the text in
-    //    internalClipboardRef. On paste, we compare the clipboard text against
-    //    internalClipboardRef; if it differs → it came from outside → block.
-    const normalizeLF = (s: string) => s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const handlePaste = (e: ClipboardEvent) => {
-      if (allowCopyPaste) return;
-      const pastedText = e.clipboardData?.getData("text") ?? "";
-      if (pastedText && normalizeLF(pastedText) !== normalizeLF(internalClipboardRef.current)) {
-        e.preventDefault();
-        e.stopPropagation();
-        playgroundUseCases.logCheat(
-          id as string,
-          "paste_external",
-          "El alumno intentó pegar contenido externo al editor."
-        ).then(handleCheatLogResult).catch(() => {});
-        alert("Solo puedes pegar contenido que hayas copiado dentro del editor. Pegar texto externo está bloqueado durante este examen.");
-      }
-    };
-
-    // Block cut/copy ONLY outside the editor (context menus, other elements)
-    const handleCopyCutOutsideEditor = (e: ClipboardEvent) => {
-      if (allowCopyPaste) return;
-      const editorContainer = document.querySelector(".monaco-editor");
-      if (editorContainer && editorContainer.contains(e.target as Node)) {
-        // Copy/cut inside Monaco — track in our internal clipboard
-        // The actual text gets tracked via Monaco's onDidChangeCursorSelection below
-        return; // allow it
-      }
-      // Outside the editor — block
-      e.preventDefault();
-      e.stopPropagation();
-    };
-
-    // Block drag-and-drop of external text into the editor — without this,
-    // dragging text from another app/window bypasses the paste block above
-    // entirely, since `drop` never fires a `paste` ClipboardEvent.
-    const handleDropOrDragOver = (e: DragEvent) => {
-      if (allowCopyPaste) return;
-      e.preventDefault();
-      e.stopPropagation();
-    };
-
-    // 4. Fullscreen lock check
-    // NO aplica dentro de Safe Exam Browser: SEB ya mantiene su propio modo kiosco a nivel de
-    // sistema operativo (no se puede minimizar, alternar de ventana ni salir sin pasar por
-    // quitURL), así que este chequeo es redundante ahí — y en la práctica `document.fullscreenElement`
-    // se ha visto inconsistente dentro de SEB (se "sale" de fullscreen sola al interactuar con el
-    // iframe de vista previa, más notorio en exámenes con mucha interacción de UI como react-crud),
-    // generando bloqueos falsos que dejaban al alumno sin poder guardar ni entregar. Fuera de SEB
-    // este sigue siendo el único mecanismo real contra salir de pantalla completa, así que ahí se
-    // mantiene activo.
-    const handleFullscreenChange = () => {
-      if (isInSEB) return;
-      if (!document.fullscreenElement) {
-        if (examFinishedRef.current) return; // exiting fullscreen as part of submit — ignore
-        setIsLockedOut(true);
-        playgroundUseCases.logCheat(
-          id as string,
-          "exit_fullscreen",
-          "El alumno salió del modo pantalla completa."
-        ).then(handleCheatLogResult).catch(() => {});
-      } else {
-        setIsLockedOut(false);
-      }
-    };
-
-    // 5. Tab/window switch monitoring — applies to ALL exams
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        if (examFinishedRef.current || unloadingRef.current) return;
-        playgroundUseCases.logCheat(
-          id as string,
-          "tab_switch",
-          "El alumno cambió de pestaña, abrió otra ventana o minimizó el navegador."
-        ).then(handleCheatLogResult).catch(() => {});
-        setIsTabSwitchLocked(true);
-      }
-    };
-
-    // 6. Window blur — catches Alt+Tab to another app (visibilitychange may not fire in all browsers).
-    //    EXCEPTION: clicking inside the built-in HTML preview iframe also fires window.blur because
-    //    the iframe captures focus from the parent window. We must NOT flag that as a violation.
-    //    Strategy: defer the check with setTimeout(0) so the browser has time to update
-    //    document.activeElement. If the new active element is an <iframe> that lives inside this
-    //    page (i.e. the preview panel), we silently ignore the blur.
-    const handleWindowBlur = () => {
-      if (examFinishedRef.current || unloadingRef.current) return;
-      setTimeout(() => {
-        if (examFinishedRef.current || unloadingRef.current) return;
-        // If focus moved to an iframe that belongs to this document it is the
-        // preview panel — not a real tab/window switch.
-        const active = document.activeElement;
-        if (active && active.tagName === 'IFRAME') return;
-
-        playgroundUseCases.logCheat(
-          id as string,
-          "window_blur",
-          "El alumno cambió de ventana o aplicación (Alt+Tab u otro método)."
-        ).then(handleCheatLogResult).catch(() => {});
-        setIsTabSwitchLocked(true);
-      }, 0);
-    };
-
-    // Fullscreen + visibility + blur apply to all exams
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleWindowBlur);
-
-    if (!allowCopyPaste) {
-      window.addEventListener("paste", handlePaste, true);
-      window.addEventListener("copy", handleCopyCutOutsideEditor as any, true);
-      window.addEventListener("cut", handleCopyCutOutsideEditor as any, true);
-      window.addEventListener("drop", handleDropOrDragOver, true);
-      window.addEventListener("dragover", handleDropOrDragOver, true);
-    }
-
-    return () => {
-      document.removeEventListener("click", enterFullscreen);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleWindowBlur);
-      if (!allowCopyPaste) {
-        window.removeEventListener("paste", handlePaste, true);
-        window.removeEventListener("copy", handleCopyCutOutsideEditor as any, true);
-        window.removeEventListener("cut", handleCopyCutOutsideEditor as any, true);
-        window.removeEventListener("drop", handleDropOrDragOver, true);
-        window.removeEventListener("dragover", handleDropOrDragOver, true);
-      }
-    };
-  }, [isExam, isReadOnly, allowCopyPaste, isInSEB]);
-
-  // ── Exam Keyboard Lock: block navigation shortcuts ───────────────────────────
-  useEffect(() => {
-    if (!isExam || isReadOnly) return;
-
-    const handleDangerousKey = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      const isDangerous =
-        (e.altKey && e.key === 'Tab') ||          // Alt+Tab  — cambiar ventana
-        (e.altKey && e.key === 'F4') ||           // Alt+F4   — cerrar ventana
-        (e.ctrlKey && key === 'w') ||             // Ctrl+W   — cerrar pestaña
-        (e.ctrlKey && key === 't') ||             // Ctrl+T   — nueva pestaña
-        (e.ctrlKey && key === 'n') ||             // Ctrl+N   — nueva ventana
-        (e.ctrlKey && e.key === 'Tab') ||         // Ctrl+Tab — cambiar pestaña
-        (e.ctrlKey && e.shiftKey && e.key === 'Tab') || // Ctrl+Shift+Tab
-        (e.key === 'F5') ||                       // F5       — recargar
-        (e.ctrlKey && key === 'r') ||             // Ctrl+R   — recargar
-        (e.ctrlKey && key === 'l') ||             // Ctrl+L   — barra de dirección
-        (e.metaKey);                              // Tecla Windows/Cmd
-
-      if (isDangerous) {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsKeyboardAlertLocked(true);
-        const combo = [
-          e.ctrlKey && 'Ctrl',
-          e.altKey && 'Alt',
-          e.shiftKey && 'Shift',
-          e.metaKey && 'Meta',
-          e.key,
-        ].filter(Boolean).join('+');
-        playgroundUseCases.logCheat(
-          id as string,
-          'keyboard_escape_attempt',
-          `El alumno intentó salir del examen con teclado: ${combo}`
-        ).then(handleCheatLogResult).catch(() => {});
-      }
-    };
-
-    window.addEventListener('keydown', handleDangerousKey, true);
-    return () => window.removeEventListener('keydown', handleDangerousKey, true);
-  }, [isExam, isReadOnly, id]);
-
-  // ── Save ────────────────────────────────────────────────────────────────────
-  // Uses a single batch request to avoid URL-encoding issues with underscores,
-  // hyphens, or dots in file names, and to guarantee atomicity on time expiry.
-  const handleSave = useCallback(async (): Promise<boolean> => {
-    if (!id) return false;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const filesToSave = files
-        .map(f => ({ id: f.id, name: f.name, content: f.content, path: f.path, is_folder: f.is_folder }));
-      await playgroundUseCases.saveAll(id, filesToSave);
-      return true;
-    } catch (err: any) {
-      console.error("Save error:", err);
-      const msg =
-        err?.response?.data?.message ??
-        (err?.response?.status === 413
-          ? "El proyecto es demasiado grande para guardarse en un solo request."
-          : "No se pudo guardar el proyecto. Revisa tu conexión e intenta de nuevo.");
-      setSaveError(msg);
-      return false;
-    } finally {
-      setSaving(false);
-    }
-  }, [id, files, setSaving, setSaveError]);
-
-  // ── Stable save ref — always points to the latest handleSave so the timer
-  //    effect never captures a stale closure over an old `files` snapshot.
-  const handleSaveRef = useRef<() => Promise<boolean>>(async () => false);
-  useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
-
-  // ── Exam Timer: auto-submit when end_time is reached ───────────────────────
-  useEffect(() => {
-    if (!isExam || isReadOnly) return;
-
-    const checkTimer = () => {
-      if (!endTimeRef.current) return;
-      const correctedNow = Date.now() + clockOffsetRef.current;
-      if (correctedNow >= endTimeRef.current.getTime()) {
-        // Time's up — save current state then submit
-        examFinishedRef.current = true;
-        if (id) {
-          // handleSave() never rejects (returns false on failure) — submit
-          // regardless so the exam is recorded even if the last save failed.
-          handleSaveRef.current().finally(() => {
-            playgroundUseCases.submit(id).catch(() => {});
-          }).finally(() => {
-            useAuth.getState().clearActiveExam();
-          });
-        }
-        setReadOnly(true);
-        if (document.fullscreenElement) {
-          document.exitFullscreen().catch(() => {});
-        }
-      }
-    };
-
-    const interval = setInterval(checkTimer, 15_000); // check every 15s
-    return () => clearInterval(interval);
-  }, [isExam, isReadOnly, id]);
-
-  // ── Handle exam submitted callback (from Toolbar) ──────────────────────────
-  const handleExamSubmitted = useCallback(() => {
-    examFinishedRef.current = true;
-    setReadOnly(true);
-    useAuth.getState().clearActiveExam();
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    }
-  }, [setReadOnly]);
-
-  // ── WebSocket execution ──────────────────────────────────────────────────────
-  const { startExecution, startTestExecution, sendInput, stopExecution } = useExecutionSocket({
-    onOutput: useCallback((data: string) => {
-      terminalApiRef.current?.write(data);
-    }, []),
-
-    onDone: useCallback((code: number, killed?: boolean) => {
-      setRunning(false);
-      const api = terminalApiRef.current;
-      if (!api) return;
-      api.write(`\r\n${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
-      if (killed) {
-        api.write(`${C.gray}✖ Proceso cancelado${C.reset}\r\n`);
-      } else if (code === 0) {
-        api.write(`${C.green}✔ Proceso terminado con código 0${C.reset}\r\n`);
-      } else {
-        api.write(`${C.red}✖ Proceso terminado con código ${code}${C.reset}\r\n`);
-      }
-    }, [setRunning]),
-
-    onConnectionError: useCallback((msg: string) => {
-      setRunning(false);
-      terminalApiRef.current?.write(`${C.red}${C.bold}✖ Error de conexión WebSocket: ${msg}${C.reset}\r\n`);
-    }, [setRunning]),
-  });
-
-  // ── Run ─────────────────────────────────────────────────────────────────────
-  const handleRun = useCallback(() => {
-    // Flutter and React Native use iframe embeds (DartPad / Expo Snack) —
-    // no backend execution, no terminal output relevant to the user.
-    // For all other languages the terminal stays visible.
-    if (language !== "flutter" && language !== "react-native") {
-      setShowTerminal(true);
-    }
-
-    if (config.runtime === "iframe") {
-      // Web preview — just refresh the iframe (no backend needed)
-      setPreviewRefreshKey((k) => k + 1);
-      setShowPreview(true);
-      return;
-    }
-
-    // Clear terminal directly (bypasses the store-driven clear path)
-    terminalApiRef.current?.clear();
-    setRunning(true);
-
-    const activeFile = files.find((f) => f.id === activeFileId);
-    const targetFile = activeFile?.name;
-
-    // NestJS .spec.ts files have no Jest globals (describe/it/expect) when run
-    // directly with tsx — they need to go through the Jest runner instead
-    // (same one the "Ejecutar tests" button uses).
-    if (language === "nestjs" && targetFile && /\.(spec|test)\.ts$/.test(targetFile)) {
-      const now = new Date().toLocaleTimeString();
-      terminalApiRef.current?.write(
-        `${C.gray}[${now}]${C.reset} ${C.yellow}⚠ ${targetFile} es un archivo de test: ejecutándolo con Jest en vez de tsx…${C.reset}\r\n`
-      );
-      terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
-      startTestExecution(files, language, id);
-      return;
-    }
-
-    const now = new Date().toLocaleTimeString();
-    const label = targetFile ?? config.label;
-    terminalApiRef.current?.write(
-      `${C.gray}[${now}]${C.reset} ${C.bold}${C.green}▶ Ejecutando ${label}…${C.reset}\r\n`
-    );
-    terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
-
-    startExecution(language, files, targetFile, id);
-  }, [
-    config,
-    language,
-    files,
-    activeFileId,
-    id,
-    setRunning,
+  const {
+    showTerminal,
     setShowTerminal,
-    startExecution,
-    startTestExecution,
-  ]);
-
-  // ── Run specific file (from terminal commands like `kotlin archivo.kt`) ────
-  const handleRunFile = useCallback((targetFile: string) => {
-    // Framework/bundled projects (React, React Native, Vue, Angular, HTML…) always run
-    // as a whole project through their entry point — never a single active/open file
-    // (e.g. clicking "Ejecutar" while ENUNCIADO.md or any non-entry file is open must
-    // never attempt to execute that file's raw content as if it were the app).
-    if (config.runtime === "iframe") {
-      setPreviewRefreshKey((k) => k + 1);
-      setShowPreview(true);
-      return;
-    }
-
-    setShowTerminal(true);
-
-    terminalApiRef.current?.clear();
-    setRunning(true);
-
-    const now = new Date().toLocaleTimeString();
-    terminalApiRef.current?.write(
-      `${C.gray}[${now}]${C.reset} ${C.bold}${C.green}▶ Ejecutando ${targetFile}…${C.reset}\r\n`
-    );
-    terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
-
-    startExecution(language, files, targetFile, id);
-  }, [
-    config,
-    language,
-    files,
-    id,
-    setRunning,
+    showPreview,
     setShowPreview,
-    startExecution,
-  ]);
+    previewRefreshKey,
+    terminalApiRef,
+    handleRun,
+    handleRunFile,
+    handleRunTests,
+    sendInput,
+    stopExecution,
+  } = useProjectRunner({ language, files, activeFileId, id, config, setRunning });
 
-  // ── Run tests (Vitest, solo proyectos React de práctica) ────────────────────
-  const handleRunTests = useCallback(() => {
-    setShowTerminal(true);
-    terminalApiRef.current?.clear();
-    setRunning(true);
+  const {
+    isLockedOut,
+    setIsLockedOut,
+    isTabSwitchLocked,
+    setIsTabSwitchLocked,
+    isKeyboardAlertLocked,
+    setIsKeyboardAlertLocked,
+  } = useExamSecurity({ id, isExam, isReadOnly, allowCopyPaste, isInSEB, examFinishedRef, internalClipboardRef });
 
-    const now = new Date().toLocaleTimeString();
-    terminalApiRef.current?.write(
-      `${C.gray}[${now}]${C.reset} ${C.bold}${C.green}▶ Ejecutando tests…${C.reset}\r\n`
-    );
-    terminalApiRef.current?.write(`${C.dim}${"─".repeat(48)}${C.reset}\r\n`);
-
-    startTestExecution(files, language, id);
-  }, [
-    files,
-    language,
-    id,
-    setRunning,
-    setShowTerminal,
-    startTestExecution,
-  ]);
+  const { handleSave, handleSaveRef } = useProjectSave({ id, files, setSaving, setSaveError });
 
   // ── Download ZIP ─────────────────────────────────────────────────────────────
   const handleDownloadZip = useCallback(async () => {
-    const JSZip = (await import("jszip")).default;
-    const zip = new JSZip();
-    for (const file of files) {
-      if (!file.is_folder) {
-        const path = (file.path ?? `/${file.name}`).replace(/^\//, "");
-        zip.file(path || file.name, file.content ?? "");
-      }
-    }
-    const blob = await zip.generateAsync({ type: "blob" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${projectName.replace(/[^a-zA-Z0-9_\-]/g, "_")}.zip`;
-    a.click();
-    URL.revokeObjectURL(url);
+    await downloadProjectZip(files, projectName);
   }, [files, projectName]);
 
-  // ── Admin: change history (snapshots) ───────────────────────────────────────
-  const handleOpenHistory = useCallback(async () => {
-    if (!id) return;
-    setShowHistory(true);
-    setHistoryLoading(true);
-    setSelectedSnapshot(null);
-    try {
-      const list = await playgroundUseCases.getProjectHistory(id);
-      setHistoryList(list);
-    } catch (err) {
-      console.error("History load error:", err);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [id]);
+  const {
+    savingGrade,
+    handleSaveGrade,
+    showHistory,
+    setShowHistory,
+    historyLoading,
+    historyList,
+    selectedSnapshot,
+    setSelectedSnapshot,
+    handleOpenHistory,
+    handleViewSnapshot,
+    unlocking,
+    handleUnlockProject,
+  } = useAdminReview({ id, grade, feedback, setSecurityLocked });
 
-  const handleViewSnapshot = useCallback(async (snapshotId: string) => {
-    if (!id) return;
-    try {
-      const snap = await playgroundUseCases.getProjectSnapshot(id, snapshotId);
-      setSelectedSnapshot(snap);
-    } catch (err) {
-      console.error("Snapshot load error:", err);
-    }
-  }, [id]);
+  const {
+    handleExamSubmitted,
+    retryingUnlock,
+    handleRetryUnlock,
+    exitingExam,
+    handleExitExam,
+    handleExitWithoutSubmit,
+  } = useExamExit({ id, isInSEB, examFinishedRef, handleSave });
 
-  // ── Admin: reactivar examen bloqueado por incidentes de seguridad ──────────
-  const handleUnlockProject = useCallback(async () => {
-    if (!id) return;
-    setUnlocking(true);
-    try {
-      await playgroundUseCases.unlockProject(id);
-      setSecurityLocked(false);
-    } catch (err) {
-      console.error("Unlock error:", err);
-    } finally {
-      setUnlocking(false);
-    }
-  }, [id, setSecurityLocked]);
-
-  // ── Alumno: reintentar el bloqueo (por si el profesor ya lo reactivó) ──────
-  const handleRetryUnlock = useCallback(async () => {
-    if (!id) return;
-    setRetryingUnlock(true);
-    try {
-      const data = await playgroundUseCases.get(id);
-      const stillLocked = data.security_locked ?? false;
-      setSecurityLocked(stillLocked);
-      if (!stillLocked) setReadOnly(data.status === "submitted" || data.status === "graded");
-    } catch (err) {
-      console.error("Retry unlock check failed:", err);
-    } finally {
-      setRetryingUnlock(false);
-    }
-  }, [id, setSecurityLocked, setReadOnly]);
-
-  // ── Alumno: salir de un examen bloqueado (se entrega tal cual está y libera al alumno) ──
-  // Entrega lo que tenga guardado (igual que la entrega automática por tiempo agotado),
-  // limpia `activeExam` del store de auth para que ExamLockGate deje de forzarlo de vuelta
-  // acá en cualquier otra ruta, y sale de Safe Exam Browser si está dentro. Si vuelve a
-  // entrar a este mismo examen, ya está "submitted" y lo verá en modo solo lectura.
-  const handleExitExam = useCallback(async () => {
-    if (!id) return;
-    if (!window.confirm("¿Salir del examen? Se entregará con lo que tengas guardado hasta ahora y no podrás seguir editando.")) return;
-    examFinishedRef.current = true;
-    setExitingExam(true);
-    try {
-      await playgroundUseCases.submit(id);
-    } catch (err) {
-      console.error("Exit exam submit failed:", err);
-    } finally {
-      useAuth.getState().clearActiveExam();
-      if (isInSEB) {
-        window.location.href = "/seb-quit";
-      } else {
-        navigate("/", { replace: true });
-      }
-    }
-  }, [id, isInSEB, navigate]);
-
-  // ── Alumno: salir SIN entregar — la válvula de escape que SIEMPRE debe funcionar, incluso
-  // cuando el examen está en un estado bloqueado (require_seb fuera de SEB real, editor
-  // bloqueado por incidentes, un guardado que sigue fallando, etc.). Intenta guardar lo último
-  // como último recurso (ignorando el error si falla — es justamente lo que puede estar roto),
-  // y siempre deja constancia en el proyecto de que salió sin terminar, sin cambiar su estado de
-  // entrega, antes de sacar al alumno de la pantalla del examen.
-  const handleExitWithoutSubmit = useCallback(async () => {
-    if (!id) return;
-    if (
-      !window.confirm(
-        "¿Salir SIN entregar? Tu progreso guardado hasta ahora queda como está, pero el examen NO se entregará — tu profesor verá que saliste sin terminar. ¿Continuar?"
-      )
-    )
-      return;
-    examFinishedRef.current = true;
-    setExitingExam(true);
-    try {
-      await handleSave();
-    } catch (err) {
-      console.error("Best-effort save before exiting without submit failed:", err);
-    }
-    try {
-      await playgroundUseCases.exitWithoutSubmit(id);
-    } catch (err) {
-      console.error("exit-without-submit failed:", err);
-    } finally {
-      useAuth.getState().clearActiveExam();
-      if (isInSEB) {
-        window.location.href = "/seb-quit";
-      } else {
-        navigate("/", { replace: true });
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, isInSEB, navigate]);
-
-  // ── Exam auto-save every 5 minutes ──────────────────────────────────────────
-  // Uses handleSaveRef (not handleSave directly) so the interval isn't torn down
-  // and recreated on every keystroke (handleSave changes whenever `files` does,
-  // which was resetting this timer constantly and made it effectively never fire).
-  useEffect(() => {
-    if (!isExam || isReadOnly) return;
-    const interval = setInterval(() => { handleSaveRef.current(); }, 5 * 60_000);
-    return () => clearInterval(interval);
-  }, [isExam, isReadOnly]);
+  useExamTimer({ isExam, isReadOnly, id, endTimeRef, clockOffsetRef, examFinishedRef, handleSaveRef });
 
   // ── Keyboard shortcut: Ctrl+S ────────────────────────────────────────────────
   useEffect(() => {
@@ -873,213 +213,53 @@ export default function PlaygroundIDE() {
       
       {/* ── Lock Screen: security lockout (persistent, no dismiss — 5+ real incidents) ── */}
       {securityLocked && isExam && !isAdminReview && (
-        <div className="fixed inset-0 bg-gray-950 z-[10000] flex flex-col items-center justify-center text-white p-8 text-center">
-          <div className="w-24 h-24 mb-6 rounded-2xl bg-red-600/20 border-2 border-red-500/40 flex items-center justify-center">
-            <Lock size={48} className="text-red-400" />
-          </div>
-          <h2 className="text-3xl font-black tracking-tight mb-3 text-white">Editor Bloqueado</h2>
-          <p className="text-base max-w-lg text-slate-300 mb-2">
-            Tu editor fue bloqueado por múltiples incidentes de seguridad detectados durante este examen.
-          </p>
-          <p className="text-sm text-slate-400 max-w-lg mb-6">
-            Contacta a tu profesor para que revise tu caso y reactive el examen. Si ya te autorizó, presiona
-            "Reintentar". Si no puedes seguir esperando, puedes entregarlo tal como está o salir sin entregar.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <button
-              onClick={handleRetryUnlock}
-              disabled={retryingUnlock}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm font-semibold transition-colors"
-            >
-              {retryingUnlock ? "Verificando…" : "Reintentar"}
-            </button>
-            <button
-              onClick={handleExitExam}
-              disabled={exitingExam}
-              className="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 rounded-lg text-sm font-semibold transition-colors"
-            >
-              {exitingExam ? "Saliendo…" : "Entregar y salir"}
-            </button>
-            <button
-              onClick={handleExitWithoutSubmit}
-              disabled={exitingExam}
-              className="px-5 py-2.5 bg-transparent hover:bg-white/10 disabled:opacity-50 border border-gray-600 text-slate-300 rounded-lg text-sm font-semibold transition-colors"
-            >
-              {exitingExam ? "Saliendo…" : "Salir sin entregar"}
-            </button>
-          </div>
-        </div>
+        <SecurityLockedScreen
+          retryingUnlock={retryingUnlock}
+          onRetryUnlock={handleRetryUnlock}
+          exitingExam={exitingExam}
+          onExitExam={handleExitExam}
+          onExitWithoutSubmit={handleExitWithoutSubmit}
+        />
       )}
 
       {/* ── Lock Screen: SEB required ── */}
       {requireSeb && !isInSEB && isExam && !isReadOnly && (
-        <div className="fixed inset-0 bg-gray-950 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center">
-          <div className="w-24 h-24 mb-6 rounded-2xl bg-blue-600/20 border-2 border-blue-500/40 flex items-center justify-center">
-            <ShieldCheck size={48} className="text-blue-400" />
-          </div>
-          <h2 className="text-3xl font-black tracking-tight mb-3 text-white">Safe Exam Browser Requerido</h2>
-          <p className="text-base max-w-lg text-slate-300 mb-2">
-            Este examen requiere <strong className="text-white">Safe Exam Browser (SEB)</strong> para poder acceder.
-            No puedes abrirlo desde un navegador normal.
-          </p>
-          <p className="text-sm text-slate-400 mb-8 max-w-lg">
-            Descarga el archivo de configuración <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs">.seb</code> proporcionado
-            por tu profesor, ábrelo y se lanzará automáticamente en modo seguro.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <a
-              href="https://safeexambrowser.org/download_en.html"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-sm transition-colors shadow-lg"
-            >
-              Descargar Safe Exam Browser
-            </a>
-            <button
-              onClick={handleExitWithoutSubmit}
-              disabled={exitingExam}
-              className="px-6 py-3 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 text-white rounded-lg text-sm font-semibold transition-colors"
-            >
-              {exitingExam ? "Saliendo…" : "Salir sin entregar"}
-            </button>
-          </div>
-        </div>
+        <SebRequiredScreen exitingExam={exitingExam} onExitWithoutSubmit={handleExitWithoutSubmit} />
       )}
 
       {/* ── Lock Screen: fullscreen exit ── */}
-      {isLockedOut && isExam && (
-        <div className="fixed inset-0 bg-red-900/95 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-sm">
-          <AlertCircle size={80} className="mb-6 animate-pulse text-red-400" />
-          <h2 className="text-4xl font-black tracking-tight mb-4 text-white">EXAMEN INTERRUMPIDO</h2>
-          <p className="text-lg max-w-xl text-red-200 mb-8">
-            Has minimizado la ventana o salido del modo de pantalla completa. Esta acción está directamente prohibida y el incidente ha sido notificado y añadido al historial de fraude.
-          </p>
-          <button
-            onClick={() => document.documentElement.requestFullscreen().catch(() => {})}
-            className="px-8 py-4 bg-white text-red-900 font-bold text-xl rounded-lg shadow-2xl hover:bg-gray-200 hover:scale-105 transition-all"
-          >
-            VOLVER A PANTALLA COMPLETA
-          </button>
-        </div>
-      )}
+      {isLockedOut && isExam && <FullscreenLockScreen />}
 
       {/* ── Lock Screen: tab / window switch ── */}
       {isTabSwitchLocked && isExam && (
-        <div className="fixed inset-0 bg-red-900/95 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-sm">
-          <AlertCircle size={80} className="mb-6 animate-pulse text-red-400" />
-          <h2 className="text-4xl font-black tracking-tight mb-4 text-white">CAMBIO DE PESTAÑA DETECTADO</h2>
-          <p className="text-lg max-w-xl text-red-200 mb-8">
-            Has cambiado de pestaña o ventana durante el examen. Esta acción está directamente prohibida y el incidente ha sido notificado y añadido al historial de fraude.
-          </p>
-          <button
-            onClick={() => setIsTabSwitchLocked(false)}
-            className="px-8 py-4 bg-white text-red-900 font-bold text-xl rounded-lg shadow-2xl hover:bg-gray-200 hover:scale-105 transition-all"
-          >
-            VOLVER AL EXAMEN
-          </button>
-        </div>
+        <TabSwitchLockScreen onDismiss={() => setIsTabSwitchLocked(false)} />
       )}
 
       {/* ── Lock Screen: keyboard escape attempt ── */}
       {isKeyboardAlertLocked && isExam && (
-        <div className="fixed inset-0 bg-red-900/95 z-[9999] flex flex-col items-center justify-center text-white p-8 text-center backdrop-blur-sm">
-          <AlertCircle size={80} className="mb-6 animate-pulse text-red-400" />
-          <h2 className="text-4xl font-black tracking-tight mb-4 text-white">COMBINACIÓN DE TECLAS BLOQUEADA</h2>
-          <p className="text-lg max-w-xl text-red-200 mb-8">
-            Has intentado usar una combinación de teclas para salir del examen. Esta acción está prohibida y el incidente ha sido notificado y añadido al historial de fraude.
-          </p>
-          <button
-            onClick={() => setIsKeyboardAlertLocked(false)}
-            className="px-8 py-4 bg-white text-red-900 font-bold text-xl rounded-lg shadow-2xl hover:bg-gray-200 hover:scale-105 transition-all"
-          >
-            VOLVER AL EXAMEN
-          </button>
-        </div>
+        <KeyboardLockScreen onDismiss={() => setIsKeyboardAlertLocked(false)} />
       )}
 
       {/* ── Read-only banner: admin review OR student post-submission ── */}
       {isReadOnly && (
-        <div className="flex flex-col gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-sm font-medium shrink-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            {isAdminReview && (
-              <button
-                onClick={() => reviewFrom ? navigate(`/admin/assignments?group=${reviewFrom}`) : navigate("/admin/assignments")}
-                className="flex items-center gap-1.5 px-3 py-1 bg-amber-200 dark:bg-amber-800/50 hover:bg-amber-300 dark:hover:bg-amber-700/60 rounded-lg text-amber-900 dark:text-amber-200 font-semibold text-xs transition-colors"
-              >
-                ← Volver a proyectos del examen
-              </button>
-            )}
-            {isAdminReview && (
-              <button
-                onClick={handleOpenHistory}
-                className="flex items-center gap-1.5 px-3 py-1 bg-amber-200 dark:bg-amber-800/50 hover:bg-amber-300 dark:hover:bg-amber-700/60 rounded-lg text-amber-900 dark:text-amber-200 font-semibold text-xs transition-colors"
-              >
-                <History size={14} /> Ver historial
-              </button>
-            )}
-            {isAdminReview && securityLocked && (
-              <button
-                disabled={unlocking}
-                onClick={handleUnlockProject}
-                className="flex items-center gap-1.5 px-3 py-1 bg-red-200 dark:bg-red-800/50 hover:bg-red-300 dark:hover:bg-red-700/60 disabled:opacity-50 rounded-lg text-red-900 dark:text-red-200 font-semibold text-xs transition-colors"
-              >
-                <Lock size={14} /> {unlocking ? "Reactivando…" : "Reactivar examen bloqueado"}
-              </button>
-            )}
-            <span className="text-xs opacity-90">
-              {isAdminReview
-                ? `Modo revisión — revisando examen de ${studentUser ? `${studentUser.first_name} ${studentUser.last_name}` : "alumno"}`
-                : "Examen entregado — modo solo lectura, puedes ver y ejecutar tu código"}
-            </span>
-            {!isAdminReview && isInSEB && (
-              <button
-                onClick={() => { window.location.href = "/seb-quit"; }}
-                className="flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-500 rounded-lg text-white font-semibold text-xs transition-colors"
-              >
-                Cerrar Safe Exam Browser
-              </button>
-            )}
-          </div>
-
-          {isAdminReview && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <label className="text-xs">Nota (0-10):</label>
-              <input
-                type="number"
-                min={0}
-                max={10}
-                step={0.1}
-                value={grade}
-                onChange={(e) => setGrade(e.target.value === "" ? "" : Number(e.target.value))}
-                className="w-20 px-2 py-1 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-[#1c1a10] text-xs text-gray-900 dark:text-white"
-              />
-              <textarea
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                placeholder="Feedback (opcional)"
-                rows={1}
-                className="flex-1 min-w-[200px] px-2 py-1 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-[#1c1a10] text-xs text-gray-900 dark:text-white resize-y"
-              />
-              <button
-                disabled={savingGrade || grade === ""}
-                onClick={async () => {
-                  if (!id || grade === "") return;
-                  setSavingGrade(true);
-                  try {
-                    await examUseCases.gradeProject({ id, grade: Number(grade), feedback });
-                  } catch (err) {
-                    console.error("Grade save error:", err);
-                  } finally {
-                    setSavingGrade(false);
-                  }
-                }}
-                className="px-3 py-1 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded text-xs font-semibold transition-colors"
-              >
-                {savingGrade ? "Guardando…" : "Guardar nota"}
-              </button>
-            </div>
-          )}
-        </div>
+        <ReadOnlyBanner
+          isAdminReview={isAdminReview}
+          reviewFrom={reviewFrom}
+          isInSEB={isInSEB}
+          securityLocked={securityLocked}
+          unlocking={unlocking}
+          studentUser={studentUser}
+          grade={grade}
+          setGrade={setGrade}
+          feedback={feedback}
+          setFeedback={setFeedback}
+          savingGrade={savingGrade}
+          onBack={() => (reviewFrom ? navigate(`/admin/assignments?group=${reviewFrom}`) : navigate("/admin/assignments"))}
+          onOpenHistory={handleOpenHistory}
+          onUnlock={handleUnlockProject}
+          onSaveGrade={handleSaveGrade}
+          onCloseSeb={() => { window.location.href = "/seb-quit"; }}
+        />
       )}
 
       {/* ── Toolbar ── */}
@@ -1269,210 +449,15 @@ export default function PlaygroundIDE() {
 
       {/* ── Admin: modal de historial de cambios (snapshots) ── */}
       {showHistory && isAdminReview && (
-        <div className="fixed inset-0 bg-black/60 z-[10001] flex items-center justify-center p-6">
-          <div className="bg-white dark:bg-[#161b22] rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-black/10 dark:border-white/10">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <History size={16} /> Historial de cambios
-              </h3>
-              <button
-                onClick={() => { setShowHistory(false); setSelectedSnapshot(null); }}
-                className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 dark:text-slate-400"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="flex flex-1 overflow-hidden">
-              {/* Timeline */}
-              <div className="w-64 shrink-0 border-r border-black/10 dark:border-white/10 overflow-y-auto">
-                {historyLoading ? (
-                  <p className="text-xs text-gray-500 dark:text-slate-400 p-4">Cargando…</p>
-                ) : historyList.length === 0 ? (
-                  <p className="text-xs text-gray-500 dark:text-slate-400 p-4">Sin snapshots guardados aún.</p>
-                ) : (
-                  <ul>
-                    {historyList.map((snap) => (
-                      <li key={snap.id}>
-                        <button
-                          onClick={() => handleViewSnapshot(snap.id)}
-                          className={`w-full text-left px-4 py-2 text-xs border-b border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
-                            selectedSnapshot?.id === snap.id ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-slate-300"
-                          }`}
-                        >
-                          <div className="font-medium">{formatInOffset(snap.created_at, examTimezoneOffset)}</div>
-                          <div className="text-[11px] opacity-70">{snap.file_count} archivo(s)</div>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              {/* Snapshot files viewer (read-only, no afecta el proyecto real) */}
-              <div className="flex-1 overflow-y-auto p-4">
-                {!selectedSnapshot ? (
-                  <p className="text-xs text-gray-500 dark:text-slate-400">Selecciona un momento del historial para ver los archivos de ese snapshot.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {selectedSnapshot.files
-                      .filter((f) => !f.is_folder)
-                      .map((f, idx) => (
-                        <div key={f.id ?? idx} className="border border-black/10 dark:border-white/10 rounded-lg overflow-hidden">
-                          <div className="px-3 py-1.5 bg-gray-100 dark:bg-[#0d1117] text-xs font-mono text-gray-700 dark:text-slate-300">
-                            {f.path || f.name}
-                          </div>
-                          <pre className="p-3 text-xs overflow-x-auto bg-white dark:bg-[#0d1117] text-gray-800 dark:text-slate-200 whitespace-pre-wrap">
-                            {f.content}
-                          </pre>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <SnapshotHistoryModal
+          historyLoading={historyLoading}
+          historyList={historyList}
+          selectedSnapshot={selectedSnapshot}
+          examTimezoneOffset={examTimezoneOffset}
+          onSelectSnapshot={handleViewSnapshot}
+          onClose={() => { setShowHistory(false); setSelectedSnapshot(null); }}
+        />
       )}
-    </div>
-  );
-}
-
-// ─── Tab Bar ──────────────────────────────────────────────────────────────────
-
-interface TabBarProps {
-  files: ReturnType<typeof usePlaygroundStore.getState>["files"];
-  openFileIds: string[];
-  activeFileId: string | null;
-  onSelect: (id: string) => void;
-  onClose: (id: string) => void;
-}
-
-function TabBar({ files, openFileIds, activeFileId, onSelect, onClose }: TabBarProps) {
-  const openFiles = openFileIds
-    .map((id) => files.find((f) => f.id === id))
-    .filter(Boolean) as typeof files;
-
-  return (
-    <div className="flex items-center overflow-x-auto bg-gray-100 dark:bg-[#161b22] border-b border-black/10 dark:border-white/10 flex-shrink-0 scrollbar-none">
-      {openFiles.map((file) => {
-        const active = file.id === activeFileId;
-        return (
-          <div
-            key={file.id}
-            className={`group flex items-center gap-2 px-3 py-2 border-r border-black/10 dark:border-white/10 cursor-pointer flex-shrink-0 text-xs transition-colors ${
-              active
-                ? "bg-white dark:bg-[#0d1117] text-gray-900 dark:text-white border-t-2 border-t-blue-500"
-                : "text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 border-t-2 border-t-transparent"
-            }`}
-            onClick={() => onSelect(file.id)}
-          >
-            <span className="font-mono">{file.name}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onClose(file.id);
-              }}
-              className="opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all rounded"
-            >
-              <X size={11} />
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Empty Editor Placeholder ─────────────────────────────────────────────────
-
-function EmptyEditor({ language, config }: { language: string; config: any }) {
-  return (
-    <div className="flex items-center justify-center h-full text-gray-400 dark:text-slate-600">
-      <div className="text-center">
-        <div className="text-5xl mb-3">{config.emoji}</div>
-        <p className="text-sm mb-1">Selecciona un archivo para empezar</p>
-        <p className="text-xs text-gray-500 dark:text-slate-700">{language} playground</p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Resize Handle ────────────────────────────────────────────────────────────
-
-interface ResizeHandleProps {
-  direction: "horizontal" | "vertical";
-  /** When true, dragging toward negative direction grows the panel */
-  inverted?: boolean;
-  currentSize: number;
-  setSize: (s: number) => void;
-  min?: number;
-  max?: number;
-}
-
-function ResizeHandle({
-  direction,
-  inverted = false,
-  currentSize,
-  setSize,
-  min = 100,
-  max = 800,
-}: ResizeHandleProps) {
-  const isH = direction === "horizontal";
-
-  function handleMouseDown(e: React.MouseEvent) {
-    e.preventDefault();
-    const startPos = isH ? e.clientX : e.clientY;
-    const startSize = currentSize;
-
-    function onMove(ev: MouseEvent) {
-      const pos = isH ? ev.clientX : ev.clientY;
-      const delta = inverted ? startPos - pos : pos - startPos;
-      setSize(Math.max(min, Math.min(max, startSize + delta)));
-    }
-
-    function onUp() {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    }
-
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }
-
-  return (
-    <div
-      onMouseDown={handleMouseDown}
-      title="Arrastrar para redimensionar"
-      className={[
-        "flex-shrink-0 group relative flex items-center justify-center",
-        "bg-black/[0.04] dark:bg-white/[0.04] hover:bg-blue-500/30 active:bg-blue-500/50",
-        "transition-colors duration-100 select-none",
-        isH
-          ? "w-[5px] cursor-col-resize"
-          : "h-[5px] cursor-row-resize",
-      ].join(" ")}
-    >
-      {/* Wider invisible hit-area so tiny handles are still easy to grab */}
-      <div
-        className={
-          isH
-            ? "absolute inset-y-0 -left-2 -right-2"
-            : "absolute inset-x-0 -top-2 -bottom-2"
-        }
-      />
-      {/* Grip dots */}
-      <div
-        className={[
-          "flex gap-[3px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none",
-          isH ? "flex-col" : "flex-row",
-        ].join(" ")}
-      >
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className="w-[3px] h-[3px] rounded-full bg-gray-500/60 dark:bg-white/60"
-          />
-        ))}
-      </div>
     </div>
   );
 }
