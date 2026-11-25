@@ -322,9 +322,19 @@ export default function PlaygroundIDE() {
                 path={activeFile.path || activeFile.name}
                 language={getMonacoLanguage(activeFile.name)}
                 value={activeFile.content}
-                onChange={(val) =>
-                  updateFileContent(activeFile.id, val ?? "")
-                }
+                onChange={(val) => {
+                  // Al cambiar de archivo, Monaco cambia de modelo y dispara `onChange` con el
+                  // contenido del archivo NUEVO, mientras que este closure todavía apunta al
+                  // `activeFile` ANTERIOR: sin esta guarda, el contenido del archivo recién
+                  // abierto se escribía encima del que acabábamos de dejar. En un examen eso
+                  // corrompía el proyecto del alumno con solo pasear por las pestañas (el CSS
+                  // acababa dentro de index.html y la vista previa mostraba código).
+                  // Solo escribimos si el modelo que tiene el editor es el de este archivo.
+                  const modelo = editorInstanceRef.current?.getModel();
+                  const ruta = activeFile.path || activeFile.name;
+                  if (modelo && modelo.uri.path !== ruta) return;
+                  updateFileContent(activeFile.id, val ?? "");
+                }}
                 theme={theme === "dark" ? "vs-dark" : "vs"}
                 beforeMount={setupMonacoCompletion}
                 onMount={(editor) => {
